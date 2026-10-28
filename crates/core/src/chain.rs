@@ -1,326 +1,253 @@
-use crate::audio::{AudioBlock, AudioFormat};
-use crate::effect::{AudioEffect, EffectKind};
-use crate::error::{CoreError, Result};
-use crate::param::ParamSet;
+use crate::audio::{AudioBuffer, AudioFormat};
+use crate::command::ChainCommand;
+use crate::effect::Effect;
+use crate::error::{CoreError, CoreResult};
 
-pub struct ChainEntry {
-    effect: Box<dyn AudioEffect>,
+struct Slot {
+    effect: Box<dyn Effect>,
     enabled: bool,
 }
 
-impl ChainEntry {
-    #[must_use]
-    pub fn new(effect: Box<dyn AudioEffect>, enabled: bool) -> Self {
-        Self { effect, enabled }
-    }
-
-    #[must_use]
-    pub fn effect(&self) -> &dyn AudioEffect {
-        self.effect.as_ref()
-    }
-
-    pub fn effect_mut(&mut self) -> &mut dyn AudioEffect {
-        self.effect.as_mut()
-    }
-
-    #[must_use]
-    pub fn kind(&self) -> EffectKind {
-        self.effect.kind()
-    }
-
-    #[must_use]
-    pub fn parameters(&self) -> &ParamSet {
-        self.effect.parameters()
-    }
-
-    #[must_use]
-    pub const fn is_enabled(&self) -> bool {
-        self.enabled
-    }
-
-    pub const fn set_enabled(&mut self, enabled: bool) {
-        self.enabled = enabled;
-    }
-}
-
-impl std::fmt::Debug for ChainEntry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ChainEntry")
-            .field("kind", &self.kind())
-            .field("enabled", &self.enabled)
-            .finish_non_exhaustive()
-    }
-}
-
-pub const CHAIN_CAPACITY: usize = 32;
-
-#[derive(Debug)]
 pub struct EffectChain {
-    format: AudioFormat,
-    entries: Vec<ChainEntry>,
+    slots: Vec<Slot>,
+    capacity: usize,
     bypassed: bool,
-    processed_frames: u64,
+    format: AudioFormat,
 }
 
 impl EffectChain {
-    #[must_use]
-    pub fn new(format: AudioFormat) -> Self {
+    pub fn new(capacity: usize, format: AudioFormat) -> Self {
+        let capacity = capacity.max(1);
         Self {
-            format,
-            entries: Vec::with_capacity(CHAIN_CAPACITY),
+            slots: Vec::with_capacity(capacity),
+            capacity,
             bypassed: false,
-            processed_frames: 0,
+            format,
         }
     }
 
-    #[must_use]
-    pub const fn format(&self) -> AudioFormat {
-        self.format
+    pub fn capacity(&self) -> usize {
+        self.capacity
     }
 
-    pub fn set_format(&mut self, format: AudioFormat) {
-        self.format = format;
-        for entry in &mut self.entries {
-            entry.effect.prepare(format);
-        }
-    }
-
-    #[must_use]
-    pub fn entries(&self) -> &[ChainEntry] {
-        &self.entries
-    }
-
-    #[must_use]
-    pub fn entry(&self, index: usize) -> Option<&ChainEntry> {
-        self.entries.get(index)
-    }
-
-    pub fn entry_mut(&mut self, index: usize) -> Option<&mut ChainEntry> {
-        self.entries.get_mut(index)
-    }
-
-    #[must_use]
     pub fn len(&self) -> usize {
-        self.entries.len()
+        self.slots.len()
     }
 
-    #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
+        self.slots.is_empty()
     }
 
-    #[must_use]
-    pub const fn is_bypassed(&self) -> bool {
+    pub fn is_bypassed(&self) -> bool {
         self.bypassed
     }
 
-    pub const fn set_bypassed(&mut self, bypassed: bool) {
+    pub fn set_bypassed(&mut self, bypassed: bool) {
         self.bypassed = bypassed;
     }
 
-    #[must_use]
-    pub const fn processed_frames(&self) -> u64 {
-        self.processed_frames
+    pub fn ids(&self) -> Vec<&'static str> {
+        self.slots.iter().map(|slot| slot.effect.id()).collect()
     }
 
-    #[must_use]
-    pub fn capacity(&self) -> usize {
-        CHAIN_CAPACITY
+    pub fn enabled(&self, index: usize) -> Option<bool> {
+        self.slots.get(index).map(|slot| slot.enabled)
     }
 
-    #[must_use]
-    pub fn is_full(&self) -> bool {
-        self.entries.len() >= CHAIN_CAPACITY
+    pub fn latency_frames(&self) -> u32 {
+        self.slots
+            .iter()
+            .map(|slot| slot.effect.latency_frames())
+            .sum()
     }
 
-    pub fn insert(
-        &mut self,
-        index: usize,
-        effect: Box<dyn AudioEffect>,
-        enabled: bool,
-    ) -> Result<usize, Box<dyn AudioEffect>> {
-        if self.is_full() {
-            return Err(effect);
-        }
-        let index = index.min(self.entries.len());
-        self.entries.insert(index, ChainEntry::new(effect, enabled));
-        Ok(index)
-    }
-
-    pub fn push(
-        &mut self,
-        effect: Box<dyn AudioEffect>,
-        enabled: bool,
-    ) -> Result<usize, Box<dyn AudioEffect>> {
-        self.insert(self.entries.len(), effect, enabled)
-    }
-
-    pub fn remove(&mut self, index: usize) -> Result<Box<dyn AudioEffect>> {
-        if index >= self.entries.len() {
-            return Err(CoreError::IndexOutOfRange {
-                index,
-                len: self.entries.len(),
+    pub fn push(&mut self, mut effect: Box<dyn Effect>) -> CoreResult<()> {
+        if self.slots.len() >= self.capacity {
+            return Err(CoreError::ChainFull {
+                capacity: self.capacity,
             });
         }
-        Ok(self.entries.remove(index).effect)
-    }
-
-    pub fn move_entry(&mut self, from: usize, to: usize) -> Result<()> {
-        let len = self.entries.len();
-        if from >= len || to >= len {
-            return Err(CoreError::IndexOutOfRange {
-                index: from.max(to),
-                len,
-            });
-        }
-        if from != to {
-            let entry = self.entries.remove(from);
-            self.entries.insert(to, entry);
-        }
+        effect.prepare(self.format);
+        self.slots.push(Slot {
+            effect,
+            enabled: true,
+        });
         Ok(())
     }
 
-    pub fn set_enabled(&mut self, index: usize, enabled: bool) -> Result<()> {
-        let len = self.entries.len();
-        self.entries
-            .get_mut(index)
-            .map(|entry| entry.set_enabled(enabled))
-            .ok_or(CoreError::IndexOutOfRange { index, len })
-    }
-
-    pub fn set_all_enabled(&mut self, enabled: bool) {
-        for entry in &mut self.entries {
-            entry.set_enabled(enabled);
+    pub fn prepare(&mut self, format: AudioFormat) {
+        self.format = format;
+        for slot in &mut self.slots {
+            slot.effect.prepare(format);
         }
     }
 
     pub fn reset(&mut self) {
-        for entry in &mut self.entries {
-            entry.effect.reset();
-        }
-        self.processed_frames = 0;
-    }
-
-    pub fn drain(&mut self, mut retire: impl FnMut(Box<dyn AudioEffect>)) {
-        for entry in self.entries.drain(..) {
-            retire(entry.effect);
+        for slot in &mut self.slots {
+            slot.effect.reset();
         }
     }
 
-    #[must_use]
-    pub fn latency_frames(&self) -> usize {
-        self.entries
-            .iter()
-            .filter(|entry| entry.is_enabled())
-            .map(|entry| entry.effect.latency_frames())
-            .sum()
-    }
-
-    pub fn process(&mut self, block: &mut AudioBlock<'_>) {
+    pub fn process(&mut self, buffer: &mut AudioBuffer) {
         if self.bypassed {
             return;
         }
-        for entry in &mut self.entries {
-            if entry.enabled {
-                entry.effect.process(block);
+        for slot in &mut self.slots {
+            if slot.enabled {
+                slot.effect.process(buffer);
             }
         }
-        self.processed_frames = self
-            .processed_frames
-            .saturating_add(u64::try_from(block.frames()).unwrap_or(u64::MAX));
     }
-}
 
-pub enum ChainCommand {
-    Insert {
-        index: usize,
-        effect: Box<dyn AudioEffect>,
-        enabled: bool,
-    },
-    Remove {
-        index: usize,
-    },
-    Move {
-        from: usize,
-        to: usize,
-    },
-    SetEnabled {
-        index: usize,
-        enabled: bool,
-    },
-    SetAllEnabled {
-        enabled: bool,
-    },
-    SetBypassed {
-        bypassed: bool,
-    },
-    Reset,
-    Clear,
-}
-
-impl ChainCommand {
-    pub fn apply(self, chain: &mut EffectChain, retire: &mut dyn FnMut(Box<dyn AudioEffect>)) {
-        match self {
-            Self::Insert {
-                index,
-                effect,
-                enabled,
-            } => {
-                if let Err(overflow) = chain.insert(index, effect, enabled) {
-                    retire(overflow);
-                }
-            }
-            Self::Remove { index } => {
-                if let Ok(effect) = chain.remove(index) {
+    pub fn apply<F>(&mut self, command: ChainCommand, mut retire: F)
+    where
+        F: FnMut(Box<dyn Effect>),
+    {
+        match command {
+            ChainCommand::Add(mut effect) => {
+                if self.slots.len() < self.capacity {
+                    effect.prepare(self.format);
+                    self.slots.push(Slot {
+                        effect,
+                        enabled: true,
+                    });
+                } else {
                     retire(effect);
                 }
             }
-            Self::Move { from, to } => {
-                let _ = chain.move_entry(from, to);
+            ChainCommand::Remove(index) => {
+                if index < self.slots.len() {
+                    let removed = self.slots.remove(index);
+                    retire(removed.effect);
+                }
             }
-            Self::SetEnabled { index, enabled } => {
-                let _ = chain.set_enabled(index, enabled);
+            ChainCommand::Move { from, to } => {
+                let len = self.slots.len();
+                if from < len && to < len && from != to {
+                    let slot = self.slots.remove(from);
+                    self.slots.insert(to, slot);
+                }
             }
-            Self::SetAllEnabled { enabled } => chain.set_all_enabled(enabled),
-            Self::SetBypassed { bypassed } => chain.set_bypassed(bypassed),
-            Self::Reset => chain.reset(),
-            Self::Clear => chain.drain(&mut *retire),
-        }
-    }
-}
-
-impl std::fmt::Debug for ChainCommand {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Insert { index, enabled, .. } => f
-                .debug_struct("Insert")
-                .field("index", index)
-                .field("enabled", enabled)
-                .finish_non_exhaustive(),
-            Self::Remove { index } => f.debug_struct("Remove").field("index", index).finish(),
-            Self::Move { from, to } => f
-                .debug_struct("Move")
-                .field("from", from)
-                .field("to", to)
-                .finish(),
-            Self::SetEnabled { index, enabled } => f
-                .debug_struct("SetEnabled")
-                .field("index", index)
-                .field("enabled", enabled)
-                .finish(),
-            Self::SetAllEnabled { enabled } => f
-                .debug_struct("SetAllEnabled")
-                .field("enabled", enabled)
-                .finish(),
-            Self::SetBypassed { bypassed } => f
-                .debug_struct("SetBypassed")
-                .field("bypassed", bypassed)
-                .finish(),
-            Self::Reset => f.write_str("Reset"),
-            Self::Clear => f.write_str("Clear"),
+            ChainCommand::SetEnabled { index, enabled } => {
+                if let Some(slot) = self.slots.get_mut(index) {
+                    slot.enabled = enabled;
+                }
+            }
+            ChainCommand::SetBypass(state) => {
+                self.bypassed = state;
+            }
         }
     }
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+
+    struct Counting {
+        id: &'static str,
+        gain: f32,
+    }
+
+    impl Effect for Counting {
+        fn id(&self) -> &'static str {
+            self.id
+        }
+        fn prepare(&mut self, _format: AudioFormat) {}
+        fn reset(&mut self) {}
+        fn process(&mut self, buffer: &mut AudioBuffer) {
+            for channel in buffer.channels_mut() {
+                for sample in channel.iter_mut() {
+                    *sample *= self.gain;
+                }
+            }
+        }
+    }
+
+    fn effect(id: &'static str, gain: f32) -> Box<dyn Effect> {
+        Box::new(Counting { id, gain })
+    }
+
+    fn buffer() -> AudioBuffer {
+        let mut buffer = AudioBuffer::new(2, 4);
+        buffer.configure(2, 2).unwrap();
+        buffer.channel_mut(0).copy_from_slice(&[1.0, 1.0]);
+        buffer.channel_mut(1).copy_from_slice(&[1.0, 1.0]);
+        buffer
+    }
+
+    fn chain() -> EffectChain {
+        EffectChain::new(4, AudioFormat::new(48_000, 2))
+    }
+
+    #[test]
+    fn process_applies_effects_in_order() {
+        let mut chain = chain();
+        chain.push(effect("a", 2.0)).unwrap();
+        chain.push(effect("b", 3.0)).unwrap();
+        let mut buf = buffer();
+        chain.process(&mut buf);
+        assert!((buf.channel(0)[0] - 6.0).abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn bypass_skips_processing() {
+        let mut chain = chain();
+        chain.push(effect("a", 2.0)).unwrap();
+        chain.set_bypassed(true);
+        let mut buf = buffer();
+        chain.process(&mut buf);
+        assert!((buf.channel(0)[0] - 1.0).abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn a_disabled_slot_is_skipped() {
+        let mut chain = chain();
+        chain.push(effect("a", 2.0)).unwrap();
+        chain.push(effect("b", 3.0)).unwrap();
+        let mut retired = Vec::new();
+        chain.apply(
+            ChainCommand::SetEnabled {
+                index: 0,
+                enabled: false,
+            },
+            |e| retired.push(e),
+        );
+        let mut buf = buffer();
+        chain.process(&mut buf);
+        assert!((buf.channel(0)[0] - 3.0).abs() < 1.0e-6);
+        assert_eq!(chain.enabled(0), Some(false));
+        assert_eq!(chain.enabled(9), None);
+    }
+
+    #[test]
+    fn apply_matches_control_plane_ordering() {
+        let mut chain = chain();
+        let mut retired = Vec::new();
+        chain.apply(ChainCommand::Add(effect("a", 1.0)), |e| retired.push(e));
+        chain.apply(ChainCommand::Add(effect("b", 1.0)), |e| retired.push(e));
+        chain.apply(ChainCommand::Add(effect("c", 1.0)), |e| retired.push(e));
+        assert_eq!(chain.ids(), vec!["a", "b", "c"]);
+        chain.apply(ChainCommand::Move { from: 0, to: 2 }, |e| retired.push(e));
+        assert_eq!(chain.ids(), vec!["b", "c", "a"]);
+        chain.apply(ChainCommand::Remove(1), |e| retired.push(e));
+        assert_eq!(chain.ids(), vec!["b", "a"]);
+        assert_eq!(retired.len(), 1);
+    }
+
+    #[test]
+    fn pushed_slots_start_enabled() {
+        let mut chain = chain();
+        chain.push(effect("a", 1.0)).unwrap();
+        assert_eq!(chain.enabled(0), Some(true));
+    }
+
+    #[test]
+    fn push_beyond_capacity_is_rejected() {
+        let mut chain = EffectChain::new(1, AudioFormat::new(48_000, 2));
+        chain.push(effect("a", 1.0)).unwrap();
+        assert!(chain.push(effect("b", 1.0)).is_err());
+        assert_eq!(chain.capacity(), 1);
+        assert!(chain.latency_frames() == 0);
+    }
+}

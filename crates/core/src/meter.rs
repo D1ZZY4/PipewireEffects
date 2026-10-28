@@ -1,170 +1,164 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
+use crate::audio::AudioBuffer;
+use crate::math::{gain_to_db, one_pole_alpha, sanitize};
 
-use crate::audio::AudioBlock;
+pub const MAX_CHANNELS: usize = 2;
 
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct MeterSnapshot {
-    pub peak: Vec<f32>,
-    pub rms: Vec<f32>,
+#[derive(Debug, Clone, Copy, Default)]
+struct ChannelLevel {
+    peak: f32,
+    mean_square: f32,
 }
 
-impl MeterSnapshot {
-    #[must_use]
-    pub fn channels(&self) -> usize {
-        self.peak.len()
-    }
+#[derive(Debug, Clone)]
+pub struct LevelMeter {
+    channels: [ChannelLevel; MAX_CHANNELS],
+    rms_coefficient: f32,
+    peak_decay: f32,
+}
 
-    #[must_use]
-    pub fn is_silent(&self) -> bool {
-        self.peak.iter().all(|value| *value <= f32::EPSILON)
-    }
-
-    #[must_use]
-    pub fn peak_of(&self, channel: usize) -> f32 {
-        self.peak.get(channel).copied().unwrap_or(0.0)
-    }
-
-    #[must_use]
-    pub fn rms_of(&self, channel: usize) -> f32 {
-        self.rms.get(channel).copied().unwrap_or(0.0)
-    }
-
-    #[must_use]
-    pub fn loudest_peak(&self) -> f32 {
-        self.peak.iter().copied().fold(0.0_f32, f32::max)
-    }
-
-    #[must_use]
-    pub fn is_clipping(&self) -> bool {
-        self.loudest_peak() >= 1.0
+impl Default for LevelMeter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
-fn store_channel(cell: &AtomicU32, value: f32) {
-    cell.store(value.to_bits(), Ordering::Relaxed);
-}
-
-fn load_channel(cell: &AtomicU32) -> f32 {
-    f32::from_bits(cell.load(Ordering::Relaxed))
-}
-
-#[derive(Debug)]
-pub struct SharedMeters {
-    peak: Box<[AtomicU32]>,
-    rms: Box<[AtomicU32]>,
-}
-
-impl SharedMeters {
-    #[must_use]
-    pub fn new(channels: usize) -> Arc<Self> {
-        let channels = channels.max(1);
-        let peak = (0..channels).map(|_| AtomicU32::new(0)).collect();
-        let rms = (0..channels).map(|_| AtomicU32::new(0)).collect();
-        Arc::new(Self { peak, rms })
+impl LevelMeter {
+    pub fn new() -> Self {
+        let mut meter = Self {
+            channels: [ChannelLevel::default(); MAX_CHANNELS],
+            rms_coefficient: 0.0,
+            peak_decay: 0.0,
+        };
+        meter.set_rate(48_000);
+        meter
     }
 
-    #[must_use]
-    pub fn channels(&self) -> usize {
-        self.peak.len()
-    }
-
-    pub fn store(&self, peak: &[f32], rms: &[f32]) {
-        for (cell, value) in self.peak.iter().zip(peak) {
-            store_channel(cell, *value);
-        }
-        for (cell, value) in self.rms.iter().zip(rms) {
-            store_channel(cell, *value);
-        }
-    }
-
-    pub fn reset(&self) {
-        for cell in self.peak.iter() {
-            store_channel(cell, 0.0);
-        }
-        for cell in self.rms.iter() {
-            store_channel(cell, 0.0);
-        }
-    }
-
-    #[must_use]
-    pub fn snapshot(&self) -> MeterSnapshot {
-        MeterSnapshot {
-            peak: self.peak.iter().map(load_channel).collect(),
-            rms: self.rms.iter().map(load_channel).collect(),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct BlockMeter {
-    peak: Vec<f32>,
-    sum_squares: Vec<f32>,
-    rms: Vec<f32>,
-    frames: f32,
-}
-
-impl BlockMeter {
-    #[must_use]
-    pub fn new(channels: usize) -> Self {
-        let channels = channels.max(1);
-        Self {
-            peak: vec![0.0; channels],
-            sum_squares: vec![0.0; channels],
-            rms: vec![0.0; channels],
-            frames: 0.0,
-        }
-    }
-
-    #[must_use]
-    pub fn channels(&self) -> usize {
-        self.peak.len()
+    pub fn set_rate(&mut self, rate: u32) {
+        let rate = rate.max(1);
+        self.rms_coefficient = one_pole_alpha(300.0, rate);
+        self.peak_decay = 1.0 - one_pole_alpha(1200.0, rate);
     }
 
     pub fn reset(&mut self) {
-        self.peak.fill(0.0);
-        self.sum_squares.fill(0.0);
-        self.frames = 0.0;
+        self.channels = [ChannelLevel::default(); MAX_CHANNELS];
     }
 
-    pub fn accumulate(&mut self, samples: &[f32], channels: usize) {
-        if channels == 0 || channels != self.peak.len() {
+    pub fn process(&mut self, buffer: &AudioBuffer) {
+        let channels = buffer.channels().min(MAX_CHANNELS);
+        let rms_coefficient = self.rms_coefficient;
+        let peak_decay = self.peak_decay;
+        for index in 0..channels {
+            let level = &mut self.channels[index];
+            for sample in buffer.channel(index) {
+                let value = sanitize(*sample);
+                let magnitude = value.abs();
+                level.peak = if magnitude >= level.peak {
+                    magnitude
+                } else {
+                    level.peak * peak_decay
+                };
+                level.mean_square += (value * value - level.mean_square) * rms_coefficient;
+            }
+        }
+    }
+
+    fn advance(level: &mut ChannelLevel, value: f32, rms_coefficient: f32, peak_decay: f32) {
+        let magnitude = value.abs();
+        level.peak = if magnitude >= level.peak {
+            magnitude
+        } else {
+            level.peak * peak_decay
+        };
+        level.mean_square += (value * value - level.mean_square) * rms_coefficient;
+    }
+
+    pub fn process_interleaved(&mut self, samples: &[f32], channels: usize) {
+        let channels = channels.min(MAX_CHANNELS);
+        if channels == 0 {
             return;
         }
-
-        let frames = samples.len() / channels;
-        #[allow(clippy::cast_precision_loss)]
-        {
-            self.frames += frames as f32;
-        }
-
-        for frame in samples[..frames * channels].chunks_exact(channels) {
-            for (channel, sample) in frame.iter().enumerate() {
-                let magnitude = sample.abs();
-                if magnitude > self.peak[channel] {
-                    self.peak[channel] = magnitude;
-                }
-                self.sum_squares[channel] += sample * sample;
-            }
+        let rms_coefficient = self.rms_coefficient;
+        let peak_decay = self.peak_decay;
+        for (index, sample) in samples.iter().enumerate() {
+            let channel = index % channels;
+            Self::advance(
+                &mut self.channels[channel],
+                sanitize(*sample),
+                rms_coefficient,
+                peak_decay,
+            );
         }
     }
 
-    pub fn accumulate_block(&mut self, block: &AudioBlock<'_>) {
-        self.accumulate(block.active_samples(), block.channels());
+    pub fn peak(&self, channel: usize) -> f32 {
+        self.channels.get(channel).map_or(0.0, |level| level.peak)
     }
 
-    pub fn publish(&mut self, meters: &SharedMeters) {
-        if self.frames > 0.0 {
-            for (rms, sum) in self.rms.iter_mut().zip(&self.sum_squares) {
-                *rms = (sum / self.frames).sqrt();
-            }
-        } else {
-            self.rms.fill(0.0);
-        }
-        meters.store(&self.peak, &self.rms);
-        self.reset();
+    pub fn rms(&self, channel: usize) -> f32 {
+        self.channels
+            .get(channel)
+            .map_or(0.0, |level| level.mean_square)
+            .max(0.0)
+            .sqrt()
+    }
+
+    pub fn peak_db(&self, channel: usize) -> f32 {
+        gain_to_db(self.peak(channel))
+    }
+
+    pub fn rms_db(&self, channel: usize) -> f32 {
+        gain_to_db(self.rms(channel))
+    }
+
+    pub fn true_peak_db(&self) -> f32 {
+        self.peak_db(0).max(self.peak_db(1))
+    }
+
+    pub fn loudness_db(&self) -> f32 {
+        self.rms_db(0).max(self.rms_db(1))
     }
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+
+    fn sine(frames: usize, amplitude: f32) -> AudioBuffer {
+        let mut buffer = AudioBuffer::new(2, frames);
+        buffer.configure(2, frames).unwrap();
+        for channel in 0..2 {
+            let plan = buffer.channel_mut(channel);
+            for (index, sample) in plan.iter_mut().enumerate() {
+                let phase = std::f32::consts::TAU * 997.0 * index as f32 / 48_000.0;
+                *sample = amplitude * phase.sin();
+            }
+        }
+        buffer
+    }
+
+    #[test]
+    fn peak_and_rms_track_a_sine() {
+        let mut meter = LevelMeter::new();
+        meter.set_rate(48_000);
+        for _ in 0..200 {
+            meter.process(&sine(1024, 0.5));
+        }
+        assert!((meter.peak(0) - 0.5).abs() < 0.02, "peak {}", meter.peak(0));
+        assert!((meter.rms(0) - 0.3535).abs() < 0.02, "rms {}", meter.rms(0));
+        assert!((meter.true_peak_db() - -6.02).abs() < 0.5);
+    }
+
+    #[test]
+    fn silence_decays_to_the_floor() {
+        let mut meter = LevelMeter::new();
+        meter.set_rate(48_000);
+        meter.process(&sine(4096, 1.0));
+        let mut silent = AudioBuffer::new(2, 4096);
+        silent.configure(2, 4096).unwrap();
+        for _ in 0..2000 {
+            meter.process(&silent);
+        }
+        assert!(meter.peak_db(0) < -100.0);
+        assert!(meter.loudness_db() < -100.0);
+    }
+}

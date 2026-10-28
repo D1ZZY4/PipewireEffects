@@ -1,186 +1,225 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use super::{ParamId, ParamKind, ParamSpec, ParamValue};
-use crate::error::{CoreError, Result};
+use crate::error::{CoreError, CoreResult};
+use crate::param::spec::{ParamKind, ParamSpec};
+use crate::param::value::ParamValue;
 
-#[derive(Debug, Clone)]
-pub struct AtomicParam {
-    cell: Arc<AtomicU32>,
-}
-
-impl AtomicParam {
-    #[must_use]
-    pub fn new(value: f32) -> Self {
-        Self {
-            cell: Arc::new(AtomicU32::new(value.to_bits())),
-        }
-    }
-
-    #[must_use]
-    pub fn get(&self) -> f32 {
-        f32::from_bits(self.cell.load(Ordering::Relaxed))
-    }
-
-    pub fn set(&self, value: f32) {
-        self.cell.store(value.to_bits(), Ordering::Relaxed);
-    }
-
-    #[must_use]
-    pub fn ptr_eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.cell, &other.cell)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Param {
-    pub spec: ParamSpec,
-    pub value: AtomicParam,
+#[derive(Debug)]
+struct ParamStore {
+    specs: Vec<ParamSpec>,
+    values: Vec<AtomicU32>,
+    index: HashMap<&'static str, usize>,
+    defaults: Vec<u32>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ParamSet {
-    specs: Vec<ParamSpec>,
-    values: Vec<AtomicParam>,
+    inner: Arc<ParamStore>,
 }
 
 impl ParamSet {
-    #[must_use]
     pub fn new(specs: Vec<ParamSpec>) -> Self {
-        let values = specs
-            .iter()
-            .map(|spec| AtomicParam::new(spec.default_value().to_f32()))
-            .collect();
-        Self { specs, values }
+        let mut index = HashMap::with_capacity(specs.len());
+        let mut values = Vec::with_capacity(specs.len());
+        let mut defaults = Vec::with_capacity(specs.len());
+        for (position, spec) in specs.iter().enumerate() {
+            index.insert(spec.id, position);
+            let bits = spec.default_value().to_bits();
+            values.push(AtomicU32::new(bits));
+            defaults.push(bits);
+        }
+        Self {
+            inner: Arc::new(ParamStore {
+                specs,
+                values,
+                index,
+                defaults,
+            }),
+        }
     }
 
-    #[must_use]
     pub fn specs(&self) -> &[ParamSpec] {
-        &self.specs
+        &self.inner.specs
     }
 
-    #[must_use]
-    pub fn values(&self) -> &[AtomicParam] {
-        &self.values
-    }
-
-    #[must_use]
     pub fn len(&self) -> usize {
-        self.specs.len()
+        self.inner.specs.len()
     }
 
-    #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.specs.is_empty()
+        self.inner.specs.is_empty()
     }
 
-    #[must_use]
-    pub fn index_of(&self, id: &str) -> Option<usize> {
-        self.specs.iter().position(|spec| spec.id.as_str() == id)
+    pub fn spec(&self, id: &str) -> Option<&ParamSpec> {
+        self.inner
+            .index
+            .get(id)
+            .map(|position| &self.inner.specs[*position])
     }
 
-    #[must_use]
-    pub fn spec(&self, index: usize) -> Option<&ParamSpec> {
-        self.specs.get(index)
-    }
-
-    #[must_use]
-    pub fn value(&self, index: usize) -> Option<ParamValue> {
-        let spec = self.specs.get(index)?;
-        let raw = self.values.get(index)?.get();
-        Some(match spec.kind {
-            ParamKind::Float { .. } => ParamValue::Float(raw),
-            ParamKind::Bool { .. } => ParamValue::Bool(raw >= 0.5),
-            ParamKind::Enum { .. } =>
-            {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                ParamValue::Enum(raw.max(0.0) as usize)
-            }
+    pub fn handle(&self, id: &'static str) -> Option<ParamHandle> {
+        self.inner.index.get(id).map(|position| ParamHandle {
+            store: Arc::clone(&self.inner),
+            position: *position,
         })
     }
 
-    #[must_use]
-    pub fn value_f32(&self, index: usize) -> f32 {
-        self.values.get(index).map_or(0.0, AtomicParam::get)
+    pub fn get(&self, id: &str) -> Option<ParamValue> {
+        let position = *self.inner.index.get(id)?;
+        let spec = &self.inner.specs[position];
+        let raw = f32::from_bits(self.inner.values[position].load(Ordering::Relaxed));
+        Some(match spec.kind {
+            ParamKind::Float { .. } => ParamValue::Float(raw),
+            ParamKind::Boolean { .. } => ParamValue::Boolean(raw >= 0.5),
+            ParamKind::Choice { .. } => ParamValue::Choice(raw.max(0.0) as u16),
+        })
     }
 
-    #[must_use]
-    pub fn value_bool(&self, index: usize) -> bool {
-        self.value_f32(index) >= 0.5
+    pub fn get_f32(&self, id: &str) -> Option<f32> {
+        let position = *self.inner.index.get(id)?;
+        Some(f32::from_bits(
+            self.inner.values[position].load(Ordering::Relaxed),
+        ))
     }
 
-    #[must_use]
-    pub fn value_enum(&self, index: usize) -> usize {
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        {
-            self.value_f32(index).max(0.0) as usize
+    pub fn set(&self, id: &str, value: ParamValue) -> CoreResult<ParamValue> {
+        let position = *self
+            .inner
+            .index
+            .get(id)
+            .ok_or_else(|| CoreError::UnknownParameter(id.to_owned()))?;
+        let spec = &self.inner.specs[position];
+        let validated = value.validate(spec)?;
+        self.inner.values[position].store(validated.to_bits(), Ordering::Relaxed);
+        Ok(validated)
+    }
+
+    pub fn set_f32(&self, id: &str, value: f32) -> CoreResult<f32> {
+        let validated = self.set(id, ParamValue::Float(value))?;
+        Ok(validated.as_f32())
+    }
+
+    pub fn set_bool(&self, id: &str, value: bool) -> CoreResult<bool> {
+        let validated = self.set(id, ParamValue::Boolean(value))?;
+        Ok(validated.as_bool())
+    }
+
+    pub fn set_choice(&self, id: &str, index: u16) -> CoreResult<u16> {
+        let validated = self.set(id, ParamValue::Choice(index))?;
+        Ok(validated.as_choice())
+    }
+
+    pub fn reset(&self) {
+        for (position, value) in self.inner.values.iter().enumerate() {
+            value.store(self.inner.defaults[position], Ordering::Relaxed);
         }
     }
 
-    pub fn set(&self, index: usize, value: ParamValue) -> Result<()> {
-        let spec = self.specs.get(index).ok_or(CoreError::IndexOutOfRange {
-            index,
-            len: self.specs.len(),
-        })?;
-        if !spec.kind.accepts(value) {
-            return Err(CoreError::ValueTypeMismatch {
-                param: spec.id.to_string(),
-                expected: spec.kind.variant_name(),
-                got: value.variant_name(),
-            });
-        }
-        if matches!(spec.kind, ParamKind::Float { .. }) && !value.is_finite() {
-            return Err(CoreError::ValueOutOfRange {
-                param: spec.id.to_string(),
-                value: value.to_f32(),
-                min: spec.kind.bounds().map_or(0.0, |b| b.0),
-                max: spec.kind.bounds().map_or(0.0, |b| b.1),
-            });
-        }
-        if let Some(handle) = self.values.get(index) {
-            handle.set(spec.kind.clamp_f32(value.to_f32()));
-        }
-        Ok(())
-    }
-
-    pub fn set_f32(&self, index: usize, value: f32) {
-        if let (Some(spec), Some(handle)) = (self.specs.get(index), self.values.get(index)) {
-            if value.is_finite() {
-                handle.set(spec.kind.clamp_f32(value));
-            }
-        }
-    }
-
-    pub fn set_by_id(&self, id: &str, value: ParamValue) -> Result<()> {
-        let index = self
-            .index_of(id)
-            .ok_or_else(|| CoreError::UnknownParameter {
-                effect: String::new(),
-                param: id.to_owned(),
-            })?;
-        self.set(index, value)
-    }
-
-    pub fn reset_to_defaults(&self) {
-        for (spec, handle) in self.specs.iter().zip(&self.values) {
-            handle.set(spec.default_value().to_f32());
-        }
-    }
-
-    #[must_use]
-    pub fn to_pairs(&self) -> Vec<(ParamId, ParamValue)> {
-        self.specs
+    pub fn entries(&self) -> Vec<(&'static str, ParamValue)> {
+        self.inner
+            .specs
             .iter()
             .enumerate()
-            .filter_map(|(index, spec)| self.value(index).map(|value| (spec.id.clone(), value)))
+            .map(|(position, spec)| {
+                let raw = f32::from_bits(self.inner.values[position].load(Ordering::Relaxed));
+                let value = match spec.kind {
+                    ParamKind::Float { .. } => ParamValue::Float(raw),
+                    ParamKind::Boolean { .. } => ParamValue::Boolean(raw >= 0.5),
+                    ParamKind::Choice { .. } => ParamValue::Choice(raw.max(0.0) as u16),
+                };
+                (spec.id, value)
+            })
             .collect()
     }
+}
 
-    #[must_use]
-    pub fn format(&self, index: usize) -> String {
-        match (self.specs.get(index), self.value(index)) {
-            (Some(spec), Some(value)) => spec.kind.format_value(value),
-            _ => String::from("—"),
-        }
+#[derive(Debug, Clone)]
+pub struct ParamHandle {
+    store: Arc<ParamStore>,
+    position: usize,
+}
+
+impl ParamHandle {
+    pub fn spec(&self) -> &ParamSpec {
+        &self.store.specs[self.position]
+    }
+
+    pub fn get_f32(&self) -> f32 {
+        f32::from_bits(self.store.values[self.position].load(Ordering::Relaxed))
+    }
+
+    pub fn get_bool(&self) -> bool {
+        self.get_f32() >= 0.5
+    }
+
+    pub fn get_choice(&self) -> usize {
+        self.get_f32().max(0.0) as usize
+    }
+
+    pub fn get_usize(&self) -> usize {
+        self.get_f32().max(0.0) as usize
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::param::spec::{ParamSpec, ParamUnit};
+
+    fn specs() -> Vec<ParamSpec> {
+        vec![
+            ParamSpec::float("gain", "Gain", ParamUnit::Decibel)
+                .range(-20.0, 20.0, 0.0)
+                .build(),
+            ParamSpec::boolean("enabled", "Enabled", true),
+            ParamSpec::choice("mode", "Mode", &["stereo", "mono"], 0),
+        ]
+    }
+
+    #[test]
+    fn clone_shares_the_same_cells() {
+        let set = ParamSet::new(specs());
+        let mirror = set.clone();
+        set.set_f32("gain", 6.0).unwrap();
+        assert_eq!(mirror.get_f32("gain"), Some(6.0));
+    }
+
+    #[test]
+    fn values_are_clamped_on_write() {
+        let set = ParamSet::new(specs());
+        assert_eq!(set.set_f32("gain", 999.0).unwrap(), 20.0);
+        assert_eq!(set.set_f32("gain", -999.0).unwrap(), -20.0);
+    }
+
+    #[test]
+    fn unknown_parameter_is_reported() {
+        let set = ParamSet::new(specs());
+        assert!(matches!(
+            set.set_f32("missing", 1.0),
+            Err(CoreError::UnknownParameter(_))
+        ));
+        assert!(set.get("missing").is_none());
+    }
+
+    #[test]
+    fn handles_observe_live_updates() {
+        let set = ParamSet::new(specs());
+        let handle = set.handle("gain").unwrap();
+        assert!(set.handle("nope").is_none());
+        set.set_f32("gain", -3.0).unwrap();
+        assert_eq!(handle.get_f32(), -3.0);
+    }
+
+    #[test]
+    fn reset_restores_defaults() {
+        let set = ParamSet::new(specs());
+        set.set_f32("gain", 10.0).unwrap();
+        set.set_bool("enabled", false).unwrap();
+        set.reset();
+        assert_eq!(set.get("gain"), Some(ParamValue::Float(0.0)));
+        assert_eq!(set.get("enabled"), Some(ParamValue::Boolean(true)));
+        assert_eq!(set.get("mode"), Some(ParamValue::Choice(0)));
     }
 }
