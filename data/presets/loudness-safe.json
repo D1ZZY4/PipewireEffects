@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "name": "Loudness safe",
+  "output": {
+    "bypassed": false,
+    "effects": [
+      {
+        "kind": "autogain",
+        "params": {
+          "target": -16.0,
+          "max_gain": 12.0,
+          "silence_threshold": -50.0,
+          "speed": 1500.0
+        }
+      },
+      {
+        "kind": "compressor",
+        "params": {
+          "threshold": -20.0,
+          "ratio": 3.0,
+          "knee": 5.0,
+          "attack": 25.0,
+          "release": 250.0,
+          "makeup": 0.0,
+          "mix": 100.0
+        }
+      },
+      {
+        "kind": "limiter",
+        "params": {
+          "input_gain": 0.0,
+          "limit": -1.5,
+          "release": 80.0
+        }
+      }
+    ]
+  }
+}

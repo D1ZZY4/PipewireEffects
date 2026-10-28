@@ -1,39 +1,60 @@
 {
   "schema_version": 1,
-  "name": "Vocal Clarity",
-  "description": "Rumble removed, a dip where voices sound boxy, and presence added around 3 kHz.",
-  "author": "PipewireEffects",
+  "name": "Vocal clarity",
   "output": {
     "bypassed": false,
     "effects": [
       {
-        "kind": "parametric-eq",
-        "enabled": true,
-        "parameters": {
-          "preamp": -3.0,
-          "band1_type": 3,
-          "band1_frequency": 95.0,
-          "band1_q": 0.707,
-          "band4_frequency": 1000.0,
+        "kind": "equalizer",
+        "params": {
+          "band2_gain": -3.0,
           "band4_gain": -2.0,
-          "band4_q": 1.0,
-          "band5_frequency": 3200.0,
-          "band5_gain": 4.0,
-          "band5_q": 1.4,
-          "band8_type": 2,
-          "band8_frequency": 10000.0,
-          "band8_gain": 2.5,
-          "band8_q": 0.707
+          "band6_gain": 2.0,
+          "band7_gain": 3.5,
+          "band8_gain": 2.0,
+          "output_gain": -1.0
+        }
+      },
+      {
+        "kind": "crystalizer",
+        "params": {
+          "amount": 35.0,
+          "gain": 0.0,
+          "band1": false,
+          "band2": true,
+          "band3": true,
+          "band4": false
+        }
+      },
+      {
+        "kind": "deesser",
+        "params": {
+          "frequency": 7000.0,
+          "threshold": -22.0,
+          "ratio": 5.0,
+          "mode": 0,
+          "attack": 3.0,
+          "release": 80.0
+        }
+      },
+      {
+        "kind": "compressor",
+        "params": {
+          "threshold": -20.0,
+          "ratio": 3.5,
+          "knee": 6.0,
+          "attack": 20.0,
+          "release": 220.0,
+          "makeup": 2.0,
+          "mix": 90.0
         }
       },
       {
         "kind": "limiter",
-        "enabled": true,
-        "parameters": {
-          "threshold": -1.5,
-          "makeup": 1.5,
-          "release": 120.0,
-          "linked": true
+        "params": {
+          "input_gain": 0.0,
+          "limit": -1.0,
+          "release": 60.0
         }
       }
     ]

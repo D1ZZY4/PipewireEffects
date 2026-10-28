@@ -1,35 +1,105 @@
 use std::collections::BTreeMap;
 
-use pipewire_effects_core::{ChainRecipe, EffectRecipe, ParamRepr};
+use pwe_core::{ParamKind, ParamSpec, ParamValue};
 use serde::{Deserialize, Serialize};
 
-use crate::error::{PresetError, Result};
+use crate::error::{PresetError, PresetResult};
 
 pub const SCHEMA_VERSION: u32 = 1;
 
-const fn default_schema_version() -> u32 {
-    SCHEMA_VERSION
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PresetValue {
+    Boolean(bool),
+    Integer(i64),
+    Float(f64),
+    Text(String),
 }
 
-const fn enabled_by_default() -> bool {
-    true
+impl PresetValue {
+    pub fn coerce(&self, spec: &ParamSpec) -> PresetResult<ParamValue> {
+        let value = match spec.kind {
+            ParamKind::Boolean { .. } => match self {
+                Self::Boolean(flag) => ParamValue::Boolean(*flag),
+                Self::Integer(number) => ParamValue::Boolean(*number != 0),
+                Self::Float(number) => ParamValue::Boolean(*number != 0.0),
+                Self::Text(text) => ParamValue::Boolean(text.eq_ignore_ascii_case("true")),
+            },
+            ParamKind::Choice { labels, default } => {
+                let fallback =
+                    ParamValue::Choice(default.min(labels.len().saturating_sub(1) as u16));
+                let last = labels.len().saturating_sub(1) as f64;
+                match self {
+                    Self::Boolean(flag) => ParamValue::Choice(u16::from(*flag) * last as u16),
+                    Self::Integer(number) => {
+                        ParamValue::Choice((*number as f64).clamp(0.0, last) as u16)
+                    }
+                    Self::Float(number) => ParamValue::Choice(number.clamp(0.0, last) as u16),
+                    Self::Text(text) => labels
+                        .iter()
+                        .position(|label| label.eq_ignore_ascii_case(text))
+                        .map_or(fallback, |index| ParamValue::Choice(index as u16)),
+                }
+            }
+            ParamKind::Float {
+                min, max, default, ..
+            } => match self {
+                Self::Boolean(flag) => ParamValue::Float(if *flag { 1.0 } else { 0.0 }),
+                Self::Integer(number) => ParamValue::Float(*number as f32),
+                Self::Float(number) => {
+                    if number.is_finite() {
+                        ParamValue::Float(*number as f32)
+                    } else {
+                        return Err(PresetError::InvalidValue(format!(
+                            "parameter '{}' is not a finite number",
+                            spec.id
+                        )));
+                    }
+                }
+                Self::Text(text) => ParamValue::Float(text.parse::<f32>().unwrap_or(default)),
+            }
+            .clamped(min, max),
+        };
+        Ok(value.validate(spec)?)
+    }
+
+    pub fn from_param(value: ParamValue) -> Self {
+        match value {
+            ParamValue::Float(number) => {
+                if number.fract() == 0.0 && number.abs() < 1.0e7 {
+                    Self::Integer(number as i64)
+                } else {
+                    Self::Float(f64::from(number))
+                }
+            }
+            ParamValue::Boolean(flag) => Self::Boolean(flag),
+            ParamValue::Choice(index) => Self::Integer(i64::from(index)),
+        }
+    }
+}
+
+trait Clamped {
+    fn clamped(self, min: f32, max: f32) -> Self;
+}
+
+impl Clamped for ParamValue {
+    fn clamped(self, min: f32, max: f32) -> Self {
+        match self {
+            Self::Float(number) => Self::Float(number.clamp(min, max)),
+            other => other,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Preset {
-    #[serde(default = "default_schema_version")]
-    pub schema_version: u32,
-    pub name: String,
+pub struct EffectEntry {
+    pub kind: String,
     #[serde(default)]
-    pub description: String,
-    #[serde(default)]
-    pub author: String,
-    #[serde(default)]
-    pub output: ChainSection,
+    pub params: BTreeMap<String, PresetValue>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-pub struct ChainSection {
+pub struct Pipeline {
     #[serde(default)]
     pub bypassed: bool,
     #[serde(default)]
@@ -37,116 +107,117 @@ pub struct ChainSection {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct EffectEntry {
-    pub kind: String,
-    #[serde(default = "enabled_by_default")]
-    pub enabled: bool,
-    #[serde(default)]
-    pub parameters: BTreeMap<String, ParamRepr>,
+pub struct Preset {
+    pub schema_version: u32,
+    pub name: String,
+    pub output: Pipeline,
 }
 
 impl Preset {
-    #[must_use]
-    pub fn new(name: impl Into<String>, description: impl Into<String>) -> Self {
+    pub fn new(name: impl Into<String>) -> Self {
         Self {
             schema_version: SCHEMA_VERSION,
             name: name.into(),
-            description: description.into(),
-            author: String::new(),
-            output: ChainSection::default(),
+            output: Pipeline::default(),
         }
     }
 
-    #[must_use]
-    pub fn from_recipe(
-        name: impl Into<String>,
-        description: impl Into<String>,
-        recipe: &ChainRecipe,
-    ) -> Self {
-        Self {
-            schema_version: SCHEMA_VERSION,
-            name: name.into(),
-            description: description.into(),
-            author: String::new(),
-            output: ChainSection {
-                bypassed: recipe.bypassed,
-                effects: recipe
-                    .effects
-                    .iter()
-                    .map(|effect| EffectEntry {
-                        kind: effect.kind.clone(),
-                        enabled: effect.enabled,
-                        parameters: effect.values.iter().cloned().collect(),
-                    })
-                    .collect(),
-            },
-        }
-    }
-
-    #[must_use]
-    pub fn to_recipe(&self) -> ChainRecipe {
-        ChainRecipe {
-            bypassed: self.output.bypassed,
-            effects: self
-                .output
-                .effects
-                .iter()
-                .map(|entry| EffectRecipe {
-                    kind: entry.kind.clone(),
-                    enabled: entry.enabled,
-                    values: entry
-                        .parameters
-                        .iter()
-                        .map(|(id, value)| (id.clone(), *value))
-                        .collect(),
-                })
-                .collect(),
-        }
-    }
-
-    pub fn validate(&self) -> Result<()> {
+    pub fn validate(&self) -> PresetResult<()> {
         if self.schema_version > SCHEMA_VERSION {
-            return Err(PresetError::UnsupportedSchema {
-                name: self.name.clone(),
+            return Err(PresetError::UnsupportedVersion {
                 found: self.schema_version,
                 supported: SCHEMA_VERSION,
             });
         }
-        Ok(())
-    }
-
-    pub fn file_stem(&self) -> Result<String> {
-        file_stem(&self.name)
-    }
-
-    pub fn effect_kinds(&self) -> impl Iterator<Item = &str> {
-        self.output.effects.iter().map(|entry| entry.kind.as_str())
+        validate_name(&self.name)
     }
 }
 
-pub fn file_stem(name: &str) -> Result<String> {
-    let mut stem = String::with_capacity(name.len());
-    let mut pending_dash = false;
-
-    for character in name.chars() {
-        if character.is_ascii_alphanumeric() {
-            if pending_dash && !stem.is_empty() {
-                stem.push('-');
-            }
-            pending_dash = false;
-            stem.push(character.to_ascii_lowercase());
-        } else if character.is_alphanumeric() {
-            continue;
-        } else {
-            pending_dash = true;
-        }
-    }
-
-    if stem.is_empty() {
+pub fn validate_name(name: &str) -> PresetResult<()> {
+    let trimmed = name.trim();
+    if trimmed.is_empty()
+        || trimmed.len() > 96
+        || trimmed != name
+        || name.contains(['/', '\\'])
+        || name.contains("..")
+        || name.starts_with('.')
+        || name.contains('\0')
+    {
         return Err(PresetError::InvalidName(name.to_owned()));
     }
-    Ok(stem)
+    Ok(())
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+    use pwe_core::ParamSpec;
+
+    fn spec() -> ParamSpec {
+        ParamSpec::float("gain", "Gain", pwe_core::ParamUnit::Decibel)
+            .range(-20.0, 20.0, 0.0)
+            .build()
+    }
+
+    #[test]
+    fn coercion_accepts_foreign_types() {
+        let spec = spec();
+        assert_eq!(
+            PresetValue::Boolean(true).coerce(&spec).unwrap(),
+            ParamValue::Float(1.0)
+        );
+        assert_eq!(
+            PresetValue::Integer(4).coerce(&spec).unwrap(),
+            ParamValue::Float(4.0)
+        );
+        assert_eq!(
+            PresetValue::Text("3.5".into()).coerce(&spec).unwrap(),
+            ParamValue::Float(3.5)
+        );
+    }
+
+    #[test]
+    fn coercion_rejects_non_finite_numbers() {
+        assert!(PresetValue::Float(f64::INFINITY).coerce(&spec()).is_err());
+    }
+
+    #[test]
+    fn text_matches_choice_labels() {
+        let spec = ParamSpec::choice("mode", "Mode", &["Split", "Wideband"], 0);
+        assert_eq!(
+            PresetValue::Text("wideband".into()).coerce(&spec).unwrap(),
+            ParamValue::Choice(1)
+        );
+    }
+
+    #[test]
+    fn round_trip_through_json() {
+        let mut preset = Preset::new("Demo");
+        let mut params = BTreeMap::new();
+        params.insert("gain".to_owned(), PresetValue::Float(0.5));
+        preset.output.effects.push(EffectEntry {
+            kind: "gain".to_owned(),
+            params,
+        });
+        let text = serde_json::to_string(&preset).unwrap();
+        let parsed: Preset = serde_json::from_str(&text).unwrap();
+        assert_eq!(parsed, preset);
+    }
+
+    #[test]
+    fn names_are_validated() {
+        assert!(validate_name("Night mode").is_ok());
+        assert!(validate_name("../escape").is_err());
+        assert!(validate_name("a/b").is_err());
+        assert!(validate_name(" hidden").is_err());
+        assert!(validate_name(".hidden").is_err());
+        assert!(validate_name("").is_err());
+    }
+
+    #[test]
+    fn newer_schemas_are_rejected() {
+        let mut preset = Preset::new("Future");
+        preset.schema_version = SCHEMA_VERSION + 1;
+        assert!(preset.validate().is_err());
+    }
+}

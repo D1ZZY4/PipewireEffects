@@ -1,8 +1,6 @@
 {
   "schema_version": 1,
   "name": "Flat",
-  "description": "An empty chain. A clean starting point before you add anything.",
-  "author": "PipewireEffects",
   "output": {
     "bypassed": false,
     "effects": []
