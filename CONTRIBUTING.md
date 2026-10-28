@@ -25,7 +25,7 @@ cargo build
 cargo test --workspace
 ```
 
-You need PipeWire 0.3.49+, GTK 4.14+, libadwaita 1.5+ and Rust 1.87+. See the
+You need PipeWire 0.3.49+, GTK 4.10+, libadwaita 1.5+ and Rust 1.92+. See the
 README for distribution-specific packages.
 
 ## Code layout and style
@@ -84,18 +84,21 @@ the UI.
 ### 3. Failures must be visible
 
 If your change introduces a way for audio to be dropped, delayed or invented,
-add a counter to `StreamStats` and surface it. A loopback that quietly glitches
-is worse than one that reports it.
+add a counter to `Stats` in `crates/engine/src/shared.rs` and surface it. A
+pipeline that quietly glitches is worse than one that reports it.
 
 ## Adding an effect
 
 1. Create `crates/dsp/src/effects/your_effect.rs`, or a directory of the same
    name if it needs more than one file.
-2. Build a `ParamSet` in `new()`, describing each control with a `ParamSpec`.
+2. Write a `specs()` function that describes each control with a `ParamSpec`.
    Give every parameter a stable identifier, a label and a unit: the identifier
    becomes part of the preset format and must not change later.
-3. Implement `AudioEffect`. Read parameters once per block; never allocate.
-4. Export a `DEF` constant and add it to `REGISTRY` in `crates/dsp/src/lib.rs`.
+3. Implement the `pwe_core::Effect` trait. Read parameters once per block with
+   `Knob`; never allocate in `process`.
+4. Add an `EffectDescriptor` to `EFFECTS` in `crates/dsp/src/registry.rs`, and a
+   case to `specs_for`. That is the only registration step; the interface picks
+   the effect up automatically.
 5. Add behavioural tests to `crates/dsp/tests/`, in a file named for what it
    tests.
 
@@ -116,7 +119,7 @@ where they apply:
 The live tests need a running PipeWire daemon and are ignored by default:
 
 ```sh
-cargo test -p pipewire-effects-engine --test live_pipewire -- --ignored --nocapture
+cargo test -p pwe-engine --test live_pipewire -- --ignored --test-threads=1 --nocapture
 ```
 
 If your change touches the engine, please run them and paste the output.
@@ -129,9 +132,10 @@ cargo clippy --workspace --all-targets
 cargo test --workspace
 ```
 
-The repository builds with **zero warnings**, and CI enforces it. If clippy
-disagrees with the clearest way to write something, an `#[allow]` with a comment
-explaining why is fine.
+The repository builds with **zero warnings**, and CI enforces it. Prefer
+restructuring the code over silencing a lint; if a lint genuinely does not apply,
+an `#[allow]` is acceptable but needs to be justified in the commit message,
+since source comments are not used.
 
 Keep the diff focused. Unrelated reformatting makes a change harder to review
 and will be asked to be split out.

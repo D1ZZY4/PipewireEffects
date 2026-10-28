@@ -1,0 +1,257 @@
+# Architecture
+
+This document describes the implementation that exists in this repository. It
+is not a plan.
+
+## 1. Crate graph
+
+```text
+pwe-core  ◄── pwe-dsp  ◄── pwe-engine ◄── pwe-ui ◄── pipewire-effects
+    ▲                          ▲            ▲
+    └────────── pwe-presets ───┴────────────┘
+```
+
+| Crate | Owns | Does not know about |
+|---|---|---|
+| `pwe-core` | Audio buffers, parameter specifications, the effect contract, the chain, meters, realtime-safe helpers | PipeWire, GTK, files |
+| `pwe-dsp` | The thirteen effects, the biquad designs and the effect registry | Threads, devices, presets |
+| `pwe-presets` | The preset schema, name validation and the preset directory | Which effects exist |
+| `pwe-engine` | PipeWire streams, the virtual sink, the realtime processor, counters | GTK, presets |
+| `pwe-ui` | GTK4/libadwaita widgets, the chain model, the engine bridge | DSP internals |
+| `pipewire-effects` | Process entry point | Everything else |
+
+Dependencies point one way. `pwe-dsp` depends only on `pwe-core`, which is what
+makes every filter testable against its analytic frequency response without an
+audio device. `pwe-presets` depends on `pwe-core` only to coerce stored values
+into parameter types; it can be tested without PipeWire or GTK.
+
+Nothing outside `pwe-dsp` names a concrete effect. The registry in
+`crates/dsp/src/registry.rs` is the single list of effect identifiers, the
+functions that build their parameter specifications, and the constructors that
+turn a `ParamSet` into a `Box<dyn Effect>`. The interface renders whatever
+specifications it finds.
+
+## 2. The audio path
+
+```text
+  application ──► virtual sink (capture stream) ──► ring buffer ──► processor ──► playback stream ──► device
+                  media.class = Audio/Sink          SPSC, f32        chain + meters     target.object
+```
+
+Two `pw_stream`s are used, joined into the same PipeWire node group
+(`node.group` and `node.link-group` are both `pipewire-effects`):
+
+- **Capture** (`pipewire-effects-sink`): direction `Input`, `media.class =
+  Audio/Sink`, `node.virtual = true`, **not** auto-connected. Applications route
+  into it, so it behaves like a sink without PipeWire trying to find a source for
+  it.
+- **Playback** (`pipewire-effects-output`): direction `Output`,
+  `media.class = Stream/Output/Audio`, auto-connected with `target.object` (and
+  `node.target`) set to the chosen sink node name.
+
+A ring buffer between them absorbs scheduling jitter. The alternative - one
+`pw_filter` node per effect, linked with `link-factory`, exactly as the reference
+implementation does it - would remove the buffer and the drift correction, but
+`pipewire-rs` 0.10 has no `pw_filter` binding. Hand-writing that binding would
+concentrate unsafe code in the realtime callback, which is the least testable
+place in the program. The two-stream design uses only the safe API. The cost is
+documented in section 6.
+
+### Why the DSP runs on the playback side
+
+The playback stream is clocked by the hardware. The capture stream is clocked by
+whatever is feeding the virtual sink. Running the chain on the hardware clock
+gives the effects an even cadence.
+
+## 3. Realtime rules
+
+The processor runs inside the PipeWire realtime callback. Three rules keep it
+safe.
+
+**No allocation, locking or freeing.** Parameters live in `AtomicU32` cells
+(`f32` bits) shared with the interface. Structural changes travel as
+`ChainCommand` values through a `crossbeam_queue::ArrayQueue` with capacity 64,
+drained at the top of each block. Removed effects are pushed onto a second
+queue (`ArrayQueue<Box<dyn Effect>>`, capacity 32) and dropped on the engine
+thread, so the audio thread never calls the allocator. The chain is a
+`Vec<Slot>` created with `Vec::with_capacity(16)` and never grows beyond it, so
+`push`, `insert` and `remove` cannot reallocate.
+
+**Bounded work.** A block drains at most 128 commands. Frames are processed in
+sub-blocks of at most 8192 frames, which is also the capacity of the planar
+processing buffer; a larger graph quantum is split rather than truncating.
+
+**Changes are cheap.** Coefficient recomputation happens inside `process` when a
+parameter signature changes. It is arithmetic only: no allocation, no I/O, no
+logging, no system calls.
+
+### Parameter transfer
+
+`pwe_core::ParamSet` is an `Arc<ParamStore>`. `ParamStore` holds the immutable
+specifications and a `Vec<AtomicU32>` of live values. Cloning a `ParamSet` shares
+the same cells, which is what connects a slider in the interface to the DSP
+instance running in the audio thread. `Knob` wraps a `ParamHandle` plus a
+default, so a missing parameter degrades to the documented default instead of
+panicking.
+
+Values are validated on write: floats are clamped to their range and rejected if
+non-finite, choices are clamped to the label count. The audio thread therefore
+only ever reads values that are already legal.
+
+### Chain structure
+
+The interface and the audio thread apply the same commands in the same order,
+which keeps their notion of the chain identical without a shared lock. The
+engine keeps a `Vec<EffectSlot>` mirror for that purpose; the interface keeps the
+authoritative list of slots, their parameter sets and their enable flags.
+
+## 4. Threads
+
+| Thread | Runs | Touches |
+|---|---|---|
+| GTK main | Widgets, actions, a 50 ms refresh tick | Engine snapshot, meters, statistics |
+| `pipewire-effects` | PipeWire main loop, `Loop::iterate` with a 20 ms timeout, command dispatch, effect disposal | Streams, device list, retired effects |
+| PipeWire realtime | Capture submit, processor | Ring buffer, chain, meters |
+
+The interface never calls a PipeWire API. It sends `EngineCommand` values over a
+`std::sync::mpsc` channel and reads an `Arc<Shared>` snapshot: atomics for
+meters, counters and state, a mutex for the device list and diagnostics. The
+mutex is never taken by the audio thread.
+
+## 5. Drift and buffer policy
+
+The ring holds 0.5 s of stereo audio at up to 192 kHz (192 000 samples),
+allocated once. The target occupancy is the graph rate divided by 32 (31.25 ms
+at 48 kHz).
+
+| Situation | Who fixes it | How | Counter |
+|---|---|---|---|
+| Buffer empty | Consumer | Pad with silence | `underrun_samples` |
+| Buffer full | Producer | Drop the newest samples | `overrun_samples` |
+| Buffer above 1.5× target | Consumer | Discard the oldest samples | `trim_events` |
+
+Silence is used rather than a repeated sample: a gap is less audible than the
+click a repeated sample produces at a buffer boundary.
+
+## 6. Known trade-offs
+
+- **Two streams instead of filter nodes.** Adds a ring buffer and the corrections
+  above. Replacing this with `pw_filter` would delete the ring buffer, the drift
+  correction and the interleaving copies entirely; nothing outside `pwe-engine`
+  would need to change.
+- **Device changes rebuild both streams.** `pw_stream` properties cannot be
+  changed after `connect`, so the ring is recreated and the virtual sink
+  reappears. Audio stops for a fraction of a second.
+- **Drift is trimmed, not resampled.** A resampler would preserve a sliver of
+  audio instead of discarding it. On a healthy system the trim counter stays at
+  zero.
+- **No lookahead in the limiter.** Instantaneous attack guarantees the ceiling
+  at the cost of some transient distortion.
+- **The output device is chosen by `priority.session`.** This mirrors what the
+  session manager uses to pick a default device, but it is a heuristic, not a
+  read of the `default.audio.sink` metadata key.
+
+## 7. The interface
+
+`adw::ApplicationWindow` → `adw::ToolbarView` → `adw::ViewStack`, with an
+`adw::ViewSwitcher` in the header as the top-level navigation.
+
+- **Effects**: a fixed-width chain column (input meter, engine status, the effect
+  rows, *Add effect*) beside the editor for the selected effect.
+- **Presets**: the preset library, with load, save, delete, import and export.
+- **Devices**: engine status, the virtual sink name with a copy button, the
+  output device chooser, statistics and diagnostics.
+- **Chain rows**: an enable switch, move up/down and remove.
+- **Editor**: a `adw::PreferencesPage` generated from the selected effect's
+  parameter specifications. Booleans become `adw::SwitchRow`, choices become
+  `adw::ComboRow`, floats become a labelled `gtk::Scale` that maps through the
+  parameter's normalisation (so frequency sliders are logarithmic). Grouping
+  comes from the `group` field of each specification.
+- **Equalizer**: an analytic magnitude response drawn with cairo above the band
+  sliders, recomputed from the live parameter values on every redraw.
+- **Dialogs**: effect picker with search, and the name, confirm and file dialogs
+  used by the preset library.
+- **Meters**: `gtk::LevelBar` for peak with an RMS offset marker, plus a numeric
+  readout.
+
+The window polls the engine every 50 ms. Nothing blocks: the snapshot is a short
+mutex acquisition on a plain data structure.
+
+## 8. Presets
+
+```json
+{
+  "schema_version": 1,
+  "name": "Bass boost",
+  "output": {
+    "bypassed": false,
+    "effects": [
+      { "kind": "equalizer", "params": { "band1_gain": 7.0 } },
+      { "kind": "limiter", "params": { "limit": -1.0 } }
+    ]
+  }
+}
+```
+
+Decisions and reasons:
+
+- **Unknown effects and parameters are reported, not fatal.** Loading a preset
+  returns a list of warnings; the rest of the chain still loads.
+- **Values are coerced.** A boolean written for a float parameter becomes `1.0`;
+  text is matched against choice labels; numbers are clamped to their range.
+- **Names are validated.** Path separators, `..`, leading dots, empty names and
+  names longer than 96 bytes are rejected, so a preset name can never escape the
+  preset directory.
+- **Malformed files are skipped, not fatal.** The browser reports them and keeps
+  the other presets.
+- **A user preset shadows a built-in and stays deletable.** Deleting it reveals
+  the built-in again.
+- **Writes are atomic.** A temporary file is renamed into place.
+- **Only non-default parameters are written**, which keeps saved presets short
+  and reviewable.
+
+Built-in presets are compiled in, so a fresh installation has a usable set
+without a system preset directory.
+
+## 9. Error handling
+
+- `CoreError`, `PresetError` and `EngineError` are explicit enums with `Display`
+  and `Error` implementations. No error is discarded silently.
+- PipeWire stream failures set the shared state to `Failed` and publish the
+  message; the interface shows it in a banner.
+- A missing output device does not stop the chain: it is reported as a warning
+  and the destination is marked unavailable in the settings page.
+- Preset problems carry the offending name or file path.
+
+## 10. Verification
+
+- `cargo test --workspace`: 128 tests, no display and no audio device required.
+- Filter designs are checked against their analytic magnitude response, `Q` and
+  gain sweeps, and a pole-stability sweep.
+- Effects are checked against measured levels: 20 dB of gain, −6 dB of gain,
+  limiter ceilings with 20 dB of drive, compressor ratios, gate range and hold,
+  delay timing, reverb tail decay, de-esser selectivity, and numerical bounds
+  under abusive settings.
+- The ring buffer, command queue and trimming policy are exercised with a real
+  `rtrb` producer and consumer.
+- Presets are round-tripped through JSON, hostile names are rejected, malformed
+  files are skipped.
+- `crates/engine/tests/live_pipewire.rs` runs the real engine against the running
+  daemon, feeds a tone with `pw-cat` into the virtual sink and asserts the
+  measured output level. Three tests, `#[ignore]`d so they do not run by default.
+- `PIPEWIRE_EFFECTS_SMOKE_TEST=1` builds the real window, adds an effect, loads
+  the *Podcast* preset and exits with a status. It requires a display and a
+  running PipeWire.
+
+## 11. Performance
+
+- The audio path performs two interleaving copies per block (SPA bytes → planar
+  `f32` → SPA bytes) and no allocation.
+- Effects iterate per channel over contiguous planar slices; no per-sample
+  virtual dispatch beyond the effect boundary.
+- Coefficient recomputation and knob reads happen once per block, not per sample.
+- The interface refreshes at 20 Hz and rebuilds only the widgets that changed
+  (chain list or editor), never on a timer.
+- Measured during the live test on the development machine: 54 272 frames
+  captured and processed at 48 kHz, with 4 096 underrun samples from the initial
+  fill and no overruns or trims.

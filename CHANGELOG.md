@@ -13,57 +13,75 @@ keeps working in the next.
 
 ## [0.1.0] - 2026-10-28
 
-The first working version: an output pipeline, three effects, and a preset
-browser.
+The first complete implementation: an output pipeline, thirteen effects, a
+generated control surface and a preset library.
 
 ### Added
 
-- A virtual PipeWire sink that any application can be routed to, built from two
-  `pw_stream`s joined into one node group, with a lock-free ring buffer between
-  them.
-- **Parametric Equalizer**: eight bands, each with a shape (peak, low shelf,
-  high shelf, high pass, low pass, notch, band pass, all pass), frequency, gain
-  and Q, plus a pre-amplifier. 41 parameters.
-- **Limiter**: a brick-wall peak limiter with a ceiling, make-up gain, release
-  time and an optional linked stereo detector.
-- **Output Gain**: a constant gain stage with a mute.
-- A chain you can reorder, enable and bypass per effect, or bypass as a whole.
-- Presets: five built in, stored as readable JSON, with a preset browser and
-  save and delete in the interface.
-- Live input and output level meters, with peak hold.
-- Counters for underruns, overruns, latency trims and dropped effects, shown in
-  the interface.
-- An output device chooser, defaulting to whatever the system is using.
-- A command line: `--list-effects`, `--list-devices`, `--device` and
-  `--latency`.
+- A virtual PipeWire sink (`pipewire-effects-sink`) built from two `pw_stream`s
+  in one node group, with a lock-free single-producer/single-consumer ring
+  buffer between them, silence padding on underrun, newest-sample drops on
+  overrun and drift trimming on the consumer side.
+- Thirteen effects, all implemented in Rust: equalizer, filter, compressor,
+  limiter, gate, de-esser, auto gain, bass enhancer, crystalizer, stereo tools,
+  gain, delay and reverberation.
+- A parameter model in which effects publish metadata (identifier, label, type,
+  range, unit, grouping) and keep live values in atomics shared with the audio
+  thread. The interface renders any effect from its metadata alone.
+- A chain that supports adding, removing, reordering, per-stage enable and
+  global bypass, mirrored to the audio thread through a fixed-capacity lock-free
+  queue.
+- Presets: six built in, JSON on disk, with save, delete, import, export, value
+  coercion, name validation, atomic writes and non-fatal reporting of unknown
+  content.
+- A GTK4/libadwaita interface: navigation split view, parameter editors grouped
+  by section, an analytic equalizer response curve drawn with cairo, effect
+  picker with search, preset browser, preferences dialog with device selection
+  and diagnostics.
+- Live input and output meters with peak and RMS, and counters for underruns,
+  overruns and drift trims.
 - A desktop file and an application icon.
 
 ### Design notes
 
-Two properties are worth recording, because later changes should preserve them:
+Two properties should survive later changes:
 
-- The interface renders whatever parameter specifications an effect declares, so
-  adding an effect makes it fully controllable with no changes to the interface.
-- The audio thread never allocates, locks or frees. Parameter changes travel
-  through atomics, structural edits through a lock-free queue, and removed
-  effects are recycled on a non-realtime thread.
+- **The interface is generic.** It renders whatever parameter specifications an
+  effect declares, so a new effect needs no interface code.
+- **The audio thread never allocates, locks or frees.** Parameter changes use
+  atomics, structural edits use a lock-free queue, and removed effects are
+  recycled on a non-realtime thread.
+
+The audio path uses two streams rather than one `pw_filter` per effect because
+`pipewire-rs` 0.10 does not bind `pw_filter`; the trade-off and the exit path are
+recorded in `docs/architecture.md`.
 
 ### Verified
 
-- 188 tests that need neither a display nor an audio device.
-- Three live tests against a running PipeWire daemon, feeding a tone into the
-  virtual sink with `pw-cat` and checking the level leaving the chain:
-  `input peak 0.5000, output peak 0.0500 (expected 0.0500), glitches 0`.
+- 127 unit and integration tests that need neither a display nor an audio
+  device.
+- Three live tests against a running PipeWire daemon: a tone is fed into the
+  virtual sink with `pw-cat` and the level leaving the chain is measured.
+  A representative run captured and processed 54 272 frames, measured
+  -20.00 dB at the input and -40.00 dB at the output for a -20 dB gain stage,
+  and reported 4 096 underrun samples from the initial fill with no overruns
+  and no trims.
+- A window smoke test (`PIPEWIRE_EFFECTS_SMOKE_TEST=1`) that builds the real
+  interface, adds an effect, loads a preset, and reports the engine state,
+  device count and negotiated rate.
 
 ### Known limitations
 
-- Only the output pipeline exists. Input (microphone) processing is not
-  implemented; the preset schema has room for it.
-- Changing the output device restarts the audio engine.
-- Drift between the capture and playback streams is corrected by trimming the
-  buffer rather than by resampling.
-- The limiter has no lookahead, so its instantaneous attack trades some
-  transient distortion for a guaranteed ceiling.
+- No input (microphone) pipeline and therefore no virtual source.
+- Changing the output device rebuilds both streams.
+- Drift is corrected by trimming, not resampling.
+- The limiter has no lookahead.
+- Auto gain is RMS-based rather than EBU R128.
+- The default output device is chosen from `priority.session`, not from
+  `default.audio.sink` metadata.
+- No plugin hosting, FFT convolution, spectrum analyser, neural noise
+  suppression, pitch shifting or multiband processing.
+- English only; no translations, autostart or packaging.
 
 [Unreleased]: https://github.com/D1ZZY4/PipewireEffects/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/D1ZZY4/PipewireEffects/releases/tag/v0.1.0
