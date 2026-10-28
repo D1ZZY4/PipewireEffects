@@ -43,7 +43,10 @@ pub fn process_in_blocks(effect: &mut dyn AudioEffect, samples: &mut [f32]) {
 }
 
 pub fn tone_magnitude(samples: &[f32], frequency: f32) -> f32 {
-    let mono: Vec<f32> = samples.chunks_exact(CHANNELS).map(|frame| frame[0]).collect();
+    let mono: Vec<f32> = samples
+        .chunks_exact(CHANNELS)
+        .map(|frame| frame[0])
+        .collect();
     let n = mono.len();
     if n == 0 {
         return 0.0;
