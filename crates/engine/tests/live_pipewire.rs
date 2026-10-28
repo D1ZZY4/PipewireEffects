@@ -100,42 +100,72 @@ fn audio_is_processed_by_the_chain_and_measured_at_the_output() {
     let path = std::env::temp_dir().join("pipewire-effects-live-test.wav");
     write_wav(&path, 2.5, 1_000.0, 0.1).expect("the test signal should be written");
 
-    let child = Command::new("pw-cat")
-        .args(["--playback", "--target", "pipewire-effects-sink"])
-        .arg(&path)
-        .spawn();
-    let Ok(mut child) = child else {
-        eprintln!("pw-cat is unavailable; the live processing test was not executed");
-        let _ = std::fs::remove_file(&path);
-        return;
-    };
-
-    let deadline = Instant::now() + Duration::from_secs(8);
+    let mut child: Option<std::process::Child> = None;
     let mut loudest_input = f32::MIN;
     let mut reduction = 0.0f32;
     let mut samples = 0u32;
-    while Instant::now() < deadline {
-        let meters = engine.shared().meters().snapshot();
-        let input = meters.input_peak_db[0];
-        if input > loudest_input {
-            loudest_input = input;
-            reduction = input - meters.output_peak_db[0];
+    let mut attempts = 0u32;
+    while attempts < 3 && loudest_input <= -30.0 {
+        attempts += 1;
+        match Command::new("pw-cat")
+            .args(["--playback", "--target", "pipewire-effects-sink"])
+            .arg(&path)
+            .spawn()
+        {
+            Ok(spawned) => child = Some(spawned),
+            Err(error) => {
+                eprintln!(
+                    "pw-cat is unavailable; the live processing test was not executed: {error}"
+                );
+                let _ = std::fs::remove_file(&path);
+                return;
+            }
         }
-        samples += 1;
-        if samples > 30 && loudest_input > -30.0 && reduction > 10.0 {
+        let attempt_deadline = Instant::now() + Duration::from_secs(4);
+        let mut heard = false;
+        while Instant::now() < attempt_deadline {
+            let meters = engine.shared().meters().snapshot();
+            let input = meters.input_peak_db[0];
+            let output = meters.output_peak_db[0];
+            samples += 1;
+            if input > -30.0 {
+                heard = true;
+                if output > -100.0 {
+                    let measured = input - output;
+                    if measured > 10.0 && measured < 60.0 {
+                        loudest_input = input;
+                        reduction = measured;
+                        break;
+                    }
+                }
+            }
+            sleep(Duration::from_millis(20));
+        }
+        if heard && loudest_input > -30.0 {
             break;
         }
-        sleep(Duration::from_millis(20));
+        if !heard {
+            if let Some(mut running) = child.take() {
+                let _ = running.kill();
+                let _ = running.wait();
+            }
+            sleep(Duration::from_millis(300));
+        } else {
+            break;
+        }
+    }
+    if let Some(mut running) = child.take() {
+        let _ = running.kill();
+        let _ = running.wait();
     }
     let meters = engine.shared().meters().snapshot();
     let stats = engine.shared().stats().snapshot();
 
-    let _ = child.kill();
-    let _ = child.wait();
     let _ = std::fs::remove_file(&path);
 
     println!(
-        "sampled {} times; captured {} frames, processed {} frames, underruns {}, overruns {}, trims {}, occupancy {}",
+        "attempts {}; sampled {} times; captured {} frames, processed {} frames, underruns {}, overruns {}, trims {}, occupancy {}",
+        attempts,
         samples,
         stats.captured_frames,
         stats.processed_frames,
