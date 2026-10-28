@@ -2,36 +2,134 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use adw::prelude::*;
-use gtk::gio;
-use pipewire_effects_core::EffectDef;
-use pipewire_effects_engine::EngineConfig;
+use gtk::glib;
 
-use crate::runtime::Runtime;
-use crate::shell;
+use crate::state::State;
+use crate::window::Ui;
 
 pub const APPLICATION_ID: &str = "io.github.D1ZZY4.PipewireEffects";
 
-#[must_use]
-pub fn run(registry: &'static [EffectDef], config: EngineConfig) -> std::process::ExitCode {
-    let app = adw::Application::builder()
+const STYLE: &str = "
+.meter-block { padding: 4px 2px; }
+.meter { border-radius: 3px; }
+.level-bar.meter trough { min-height: 6px; border-radius: 3px; }
+.response-frame { border-radius: 8px; }
+.response { background: alpha(currentColor, 0.03); border-radius: 8px; }
+.numeric { font-feature-settings: \"tnum\"; }
+";
+
+pub fn run() -> std::process::ExitCode {
+    let application = adw::Application::builder()
         .application_id(APPLICATION_ID)
-        .flags(gio::ApplicationFlags::empty())
         .build();
+    application.connect_startup(|_| install_style());
+    let holder: Rc<RefCell<Option<Rc<Ui>>>> = Rc::new(RefCell::new(None));
 
-    let existing: Rc<RefCell<Option<adw::ApplicationWindow>>> = Rc::new(RefCell::new(None));
-
-    app.connect_activate(move |app| {
-        if let Some(window) = existing.borrow().as_ref() {
-            window.present();
+    let active = Rc::clone(&holder);
+    application.connect_activate(move |application| {
+        if let Some(ui) = active.borrow().as_ref() {
+            ui.window.present();
             return;
         }
-
-        let runtime = Runtime::new(registry, config.clone());
-        let window = shell::build(Rc::clone(&runtime), app);
-        window.present();
-        *existing.borrow_mut() = Some(window);
+        match State::new() {
+            Ok(state) => {
+                let ui = Ui::build(application, state);
+                ui.window.present();
+                if std::env::var_os("PIPEWIRE_EFFECTS_SMOKE_TEST").is_some() {
+                    schedule_smoke_test(&ui);
+                }
+                *active.borrow_mut() = Some(ui);
+            }
+            Err(error) => {
+                show_fatal(application, &error.to_string());
+                application.quit();
+            }
+        }
     });
 
-    let code: gtk::glib::ExitCode = app.run();
-    std::process::ExitCode::from(u8::from(code))
+    let result = application.run();
+    holder.borrow_mut().take();
+    if result == glib::ExitCode::SUCCESS {
+        std::process::ExitCode::SUCCESS
+    } else {
+        std::process::ExitCode::FAILURE
+    }
+}
+
+fn schedule_smoke_test(ui: &Rc<Ui>) {
+    let ui = Rc::clone(ui);
+    glib::timeout_add_seconds_local(3, move || {
+        let mut failures: Vec<String> = Vec::new();
+        if !ui.window.is_visible() {
+            failures.push("the window is not visible".to_owned());
+        }
+        ui.add_effect("equalizer");
+        if ui.chain_list.first_child().is_none() {
+            failures.push("the chain list stayed empty".to_owned());
+        }
+        if ui.editor_host.first_child().is_none() {
+            failures.push("the editor stayed empty".to_owned());
+        }
+        let loaded = ui.state.borrow_mut().load_preset("Podcast");
+        match loaded {
+            Ok(warnings) => {
+                ui.rebuild_chain();
+                ui.rebuild_editor();
+                if !warnings.is_empty() {
+                    failures.push(format!("the podcast preset reported {warnings:?}"));
+                }
+                let count = ui.state.borrow().slots.len();
+                if count != 5 {
+                    failures.push(format!("the podcast preset loaded {count} effects"));
+                }
+            }
+            Err(error) => failures.push(format!("the podcast preset failed: {error}")),
+        }
+        let (state, devices, rate) = {
+            let state = ui.state.borrow();
+            let shared = state.engine.shared();
+            (
+                shared.state(),
+                shared.snapshot().devices.len(),
+                shared.snapshot().sample_rate,
+            )
+        };
+        if devices == 0 {
+            failures.push("no PipeWire devices were discovered".to_owned());
+        }
+        println!(
+            "smoke test: state={} devices={} rate={} failures={}",
+            state.label(),
+            devices,
+            rate,
+            failures.len()
+        );
+        if failures.is_empty() {
+            std::process::exit(0);
+        }
+        eprintln!("smoke test failed: {}", failures.join(", "));
+        std::process::exit(1);
+    });
+}
+
+fn install_style() {
+    let provider = gtk::CssProvider::new();
+    provider.load_from_data(STYLE);
+    if let Some(display) = gtk::gdk::Display::default() {
+        gtk::style_context_add_provider_for_display(
+            &display,
+            &provider,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+    }
+}
+
+fn show_fatal(application: &adw::Application, message: &str) {
+    let dialog = adw::AlertDialog::new(Some("PipeWire Effects could not start"), Some(message));
+    dialog.add_response("close", "Close");
+    dialog.set_default_response(Some("close"));
+    dialog.set_close_response("close");
+    let application = application.clone();
+    dialog.connect_response(None, move |_, _| application.quit());
+    dialog.present(None::<&gtk::Widget>);
 }

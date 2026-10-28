@@ -1,20 +1,18 @@
 [package]
-name = "pipewire-effects-ui"
-description = "GTK4 and libadwaita interface for PipewireEffects."
+name = "pwe-ui"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-repository.workspace = true
+description = "GTK4 and libadwaita interface for PipewireEffects"
+
+[dependencies]
+pwe-core.workspace = true
+pwe-dsp.workspace = true
+pwe-engine.workspace = true
+pwe-presets.workspace = true
+adw.workspace = true
+gtk.workspace = true
 
 [lints]
 workspace = true
-
-[dependencies]
-pipewire-effects-core.workspace = true
-pipewire-effects-engine.workspace = true
-pipewire-effects-presets.workspace = true
-gtk.workspace = true
-adw.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
