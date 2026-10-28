@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "name": "Podcast",
+  "description": "Speech-first chain: high-pass, a gentle presence lift, and a firmer ceiling for consistent levels.",
+  "author": "PipewireEffects",
+  "output": {
+    "bypassed": false,
+    "effects": [
+      {
+        "kind": "parametric-eq",
+        "enabled": true,
+        "parameters": {
+          "preamp": -3.0,
+          "band1_type": 3,
+          "band1_frequency": 80.0,
+          "band1_q": 0.707,
+          "band3_frequency": 350.0,
+          "band3_gain": -2.0,
+          "band3_q": 1.0,
+          "band5_frequency": 3000.0,
+          "band5_gain": 3.5,
+          "band5_q": 1.0,
+          "band7_frequency": 8000.0,
+          "band7_gain": -2.0,
+          "band7_q": 1.0
+        }
+      },
+      {
+        "kind": "limiter",
+        "enabled": true,
+        "parameters": {
+          "threshold": -3.0,
+          "makeup": 4.0,
+          "release": 200.0,
+          "linked": true
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+# Normalise line endings on check-in, whatever the contributor's platform did.
+* text=auto eol=lf
+
+*.rs text eol=lf
+*.toml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+*.svg text eol=lf
+*.desktop text eol=lf
+*.png binary
+*.wav binary
+
+# The lock file is checked in deliberately, so that builds are reproducible and
+# CI caches are meaningful, but it should not count towards the language
+# statistics on the repository page.
+Cargo.lock linguist-generated=true
+
+# Keep the documentation out of the language breakdown.
+*.md linguist-documentation=true

@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "name": "Bass Boost",
+  "description": "A shelf-and-bell low-end lift, with the midrange pulled back to keep it from sounding muddy.",
+  "author": "PipewireEffects",
+  "output": {
+    "bypassed": false,
+    "effects": [
+      {
+        "kind": "parametric-eq",
+        "enabled": true,
+        "parameters": {
+          "preamp": -4.0,
+          "band1_type": 1,
+          "band1_frequency": 60.0,
+          "band1_gain": 8.0,
+          "band1_q": 0.707,
+          "band2_frequency": 140.0,
+          "band2_gain": 4.0,
+          "band2_q": 1.0,
+          "band3_frequency": 400.0,
+          "band3_gain": -2.5,
+          "band3_q": 1.0
+        }
+      },
+      {
+        "kind": "limiter",
+        "enabled": true,
+        "parameters": {
+          "threshold": -1.0,
+          "makeup": 2.0,
+          "release": 150.0,
+          "linked": true
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Application icon: five level bars on a rounded tile, which reads as both an
+  equaliser curve and a set of meters at every size.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d8bfd"/>
+      <stop offset="1" stop-color="#1c71d8"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="url(#tile)"/>
+
+  <g fill="#ffffff">
+    <rect x="26" y="66" width="12" height="30" rx="6"/>
+    <rect x="45" y="46" width="12" height="50" rx="6"/>
+    <rect x="64" y="30" width="12" height="66" rx="6"/>
+    <rect x="83" y="54" width="12" height="42" rx="6"/>
+    <rect x="102" y="74" width="12" height="22" rx="6"/>
+  </g>
+
+  <g fill="#ffffff" opacity="0.55">
+    <rect x="26" y="58" width="12" height="6" rx="3"/>
+    <rect x="45" y="38" width="12" height="6" rx="3"/>
+    <rect x="64" y="22" width="12" height="6" rx="3"/>
+    <rect x="83" y="46" width="12" height="6" rx="3"/>
+    <rect x="102" y="66" width="12" height="6" rx="3"/>
+  </g>
+</svg>

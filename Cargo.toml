@@ -1,0 +1,72 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+default-members = ["crates/app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.87"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/D1ZZY4/PipewireEffects"
+authors = ["PipewireEffects contributors"]
+description = "A fast, modern PipeWire audio effects processor with a GTK4 / libadwaita interface, written in Rust"
+
+[workspace.dependencies]
+# Internal crates. Each one has a single responsibility; see ARCHITECTURE.md.
+pipewire-effects-core = { path = "crates/core", version = "0.1.0" }
+pipewire-effects-dsp = { path = "crates/dsp", version = "0.1.0" }
+pipewire-effects-presets = { path = "crates/presets", version = "0.1.0" }
+pipewire-effects-engine = { path = "crates/engine", version = "0.1.0" }
+pipewire-effects-ui = { path = "crates/ui", version = "0.1.0" }
+
+# Bindings to the system stack. The version features pin the *minimum* library
+# version we take advantage of. Development happens against GTK 4.24 and
+# libadwaita 1.10, but we keep the floor lower so builders on older distros work.
+# Bindings to the system stack. The version features pin the *minimum* library
+# version we take advantage of. Development happens against GTK 4.24 and
+# libadwaita 1.10, but the floor is deliberately kept at what the code actually
+# needs, so that the project builds on current stable distributions and in CI.
+gtk = { version = "0.11", package = "gtk4", features = ["v4_14"] }
+adw = { version = "0.9", package = "libadwaita", features = ["v1_5"] }
+# `v0_3_49` gives us `pw_buffer.requested`, the number of frames the graph
+# actually wants from a playback stream. PipeWire 0.3.49 is from 2023.
+pipewire = { version = "0.10", features = ["v0_3_49"] }
+
+# Support crates.
+crossbeam-queue = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+directories = "6"
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = "none"
+
+[workspace.lints.rust]
+missing_docs = "warn"
+unsafe_op_in_unsafe_fn = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+dbg_macro = "warn"
+todo = "warn"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+cast_precision_loss = "allow"
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"

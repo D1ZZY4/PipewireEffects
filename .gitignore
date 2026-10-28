@@ -1,0 +1,20 @@
+# Build artefacts
+/target
+build-dir
+.flatpak-builder
+
+# Editor and OS noise
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.orig
+*.rej
+
+# Rustfmt / clippy scratch
+**/*.rs.bk
+
+# Rendered audio produced by `pipewire-effects render`
+*.wav
+!data/**/*.wav

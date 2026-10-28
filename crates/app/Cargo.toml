@@ -1,0 +1,25 @@
+[package]
+name = "pipewire-effects"
+description = "PipewireEffects: a fast, modern PipeWire audio effects processor with a GTK4 interface."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+default-run = "pipewire-effects"
+
+[[bin]]
+name = "pipewire-effects"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+pipewire-effects-core.workspace = true
+pipewire-effects-dsp.workspace = true
+pipewire-effects-engine.workspace = true
+pipewire-effects-ui.workspace = true
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

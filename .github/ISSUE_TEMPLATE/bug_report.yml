@@ -1,0 +1,101 @@
+name: Bug report
+description: Something is broken, or does not do what it says
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. A bug report with real numbers is worth far
+        more than one without, so the questions below ask for measurements
+        rather than impressions.
+
+        Before filing: please check the existing issues, and make sure you are
+        on the latest release.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+      placeholder: |
+        I loaded the "Vocal Clarity" preset and dragged the band 5 gain to
+        +6 dB. I expected the level meter to rise; instead the output went
+        silent until I removed the effect.
+    validations:
+      required: true
+
+  - type: textarea
+    id: how-to-reproduce
+    attributes:
+      label: How to reproduce
+      description: Steps, as precisely as you can.
+      placeholder: |
+        1. Run `pipewire-effects`
+        2. Add a Parametric Equalizer
+        3. Drag band 5 gain to +6 dB
+        4. The output meter falls to nothing
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: PipewireEffects version
+      description: The output of `pipewire-effects --version`.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: The output of these commands.
+      value: |
+        - Distribution:
+        - PipeWire: (`pipewire --version`)
+        - GTK: (`pkg-config --modversion gtk4`)
+        - libadwaita: (`pkg-config --modversion libadwaita-1`)
+        - Rust: (`rustc --version`)
+        - Desktop / session: (GNOME, KDE, Wayland, X11 …)
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: audio-path
+    attributes:
+      label: How audio was routed
+      description: |
+        Which application was playing, and how you got it to the sink. The
+        output of these two commands helps a lot.
+      value: |
+        $ pactl info | grep -i 'default sink'
+        $ pactl list short sinks
+      render: shell
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log output
+      description: |
+        The output of `pipewire-effects -vv`, if the problem produces any.
+      render: shell
+
+  - type: textarea
+    id: status-panel
+    attributes:
+      label: What the status panel says
+      description: |
+        The "Engine" section of the sidebar, in particular the buffer figure and
+        the "Dropped audio" line. If it reports dropped samples, please paste the
+        numbers.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I am running the latest release
+          required: true
+        - label: I searched the existing issues
+          required: true

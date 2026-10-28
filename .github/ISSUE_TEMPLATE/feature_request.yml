@@ -1,0 +1,62 @@
+name: Feature request
+description: Suggest an effect, a control, or a change in behaviour
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For anything larger than a small change, an issue first saves everyone
+        time: it is much easier to agree on an approach than to review a
+        finished branch that went a different direction.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve
+      description: |
+        The situation you are in, rather than the solution you have in mind.
+        Knowing the problem usually produces a better answer than the one
+        either of us started with.
+      placeholder: |
+        I listen to podcasts on headphones and the loud passages are much
+        louder than the quiet ones, so I keep adjusting the volume.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+      description: Your suggested approach, if you have one.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the project
+      options:
+        - A new effect
+        - An existing effect's controls
+        - The interface
+        - The audio engine
+        - Presets
+        - The command line
+        - Documentation
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you have considered
+      description: |
+        Including anything you tried outside this application, and why it was
+        not enough.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues and discussions
+          required: true

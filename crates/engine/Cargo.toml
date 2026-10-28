@@ -1,0 +1,23 @@
+[package]
+name = "pipewire-effects-engine"
+description = "Realtime audio engine: a PipeWire virtual sink, the DSP chain and the lock-free plumbing between them."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+pipewire-effects-core.workspace = true
+crossbeam-queue.workspace = true
+pipewire.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+# Only for the live end-to-end tests in `tests/`, which run a real effect chain
+# against a real PipeWire daemon.
+pipewire-effects-dsp.workspace = true

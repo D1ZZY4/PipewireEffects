@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or help with using PipewireEffects
+    url: https://github.com/D1ZZY4/PipewireEffects/discussions
+    about: For "how do I make application X use the sink", setup problems, and anything that is not a bug report.
+  - name: Security problem
+    url: https://github.com/D1ZZY4/PipewireEffects/security/advisories/new
+    about: Please report vulnerabilities privately rather than in a public issue. See SECURITY.md.

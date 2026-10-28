@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "name": "Vocal Clarity",
+  "description": "Rumble removed, a dip where voices sound boxy, and presence added around 3 kHz.",
+  "author": "PipewireEffects",
+  "output": {
+    "bypassed": false,
+    "effects": [
+      {
+        "kind": "parametric-eq",
+        "enabled": true,
+        "parameters": {
+          "preamp": -3.0,
+          "band1_type": 3,
+          "band1_frequency": 95.0,
+          "band1_q": 0.707,
+          "band4_frequency": 1000.0,
+          "band4_gain": -2.0,
+          "band4_q": 1.0,
+          "band5_frequency": 3200.0,
+          "band5_gain": 4.0,
+          "band5_q": 1.4,
+          "band8_type": 2,
+          "band8_frequency": 10000.0,
+          "band8_gain": 2.5,
+          "band8_q": 0.707
+        }
+      },
+      {
+        "kind": "limiter",
+        "enabled": true,
+        "parameters": {
+          "threshold": -1.5,
+          "makeup": 1.5,
+          "release": 120.0,
+          "linked": true
+        }
+      }
+    ]
+  }
+}
