@@ -94,8 +94,14 @@ impl Clamped for ParamValue {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EffectEntry {
     pub kind: String,
+    #[serde(default = "enabled_by_default")]
+    pub enabled: bool,
     #[serde(default)]
     pub params: BTreeMap<String, PresetValue>,
+}
+
+fn enabled_by_default() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -197,6 +203,7 @@ mod tests {
         params.insert("gain".to_owned(), PresetValue::Float(0.5));
         preset.output.effects.push(EffectEntry {
             kind: "gain".to_owned(),
+            enabled: true,
             params,
         });
         let text = serde_json::to_string(&preset).unwrap();

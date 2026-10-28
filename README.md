@@ -36,8 +36,8 @@ Thirteen effects, each with real processing and a generated control surface:
 Around them:
 
 - A chain you can reorder, enable per stage, or bypass as a whole.
-- Presets stored as readable JSON, six built in, with save, delete, import and
-  export.
+- Presets stored as readable JSON, one built in, with save, delete, import and
+  export. EasyEffects presets load too, converted on the way in.
 - Live input and output meters (peak with an RMS marker).
 - Honest counters: captured and processed frames, underruns, overruns and drift
   trims, plus a diagnostics list.
@@ -133,8 +133,14 @@ load to fail, and values are coerced to the parameter's type and range.
 
 Presets live in `$XDG_CONFIG_HOME/pipewire-effects/presets` (usually
 `~/.config/pipewire-effects/presets`). A user preset shadows a built-in with the
-same name, and deleting it brings the built-in back. Built-in presets are
-compiled into the binary, so a fresh installation always has a usable set.
+same name, and deleting it brings the built-in back. The built-in preset is
+compiled into the binary, so a fresh installation always has a usable chain.
+
+Presets written by EasyEffects are recognised by their `plugins_order` layout
+and converted on load: the effects and parameters with a close equivalent here
+are mapped, band-based equalisers are folded onto the ten fixed bands, and
+everything that could not be mapped is reported instead of being applied
+silently.
 
 Choice-valued parameters use these indices:
 

@@ -174,9 +174,8 @@ impl PresetStore {
 
 fn read_preset(path: &Path) -> PresetResult<Preset> {
     let text = fs::read_to_string(path)?;
-    let preset: Preset = serde_json::from_str(&text)?;
-    preset.validate()?;
-    Ok(preset)
+    let name = name_from_path(path).unwrap_or_else(|| "Imported".to_owned());
+    builtin::parse(&text, &name)
 }
 
 fn write_atomically(path: &Path, text: &str) -> PresetResult<()> {
@@ -231,23 +230,29 @@ mod tests {
         let store = PresetStore::with_dirs(scratch("builtin"), Vec::new());
         let (infos, warnings) = store.list();
         assert!(warnings.is_empty(), "{warnings:?}");
-        assert!(infos.iter().any(|info| info.name == "Flat" && info.builtin));
-        assert!(store.load("Flat").is_ok());
+        assert!(
+            infos
+                .iter()
+                .any(|info| info.name == "Default" && info.builtin)
+        );
+        assert!(store.load("Default").is_ok());
     }
 
     #[test]
     fn a_user_preset_shadows_a_builtin_and_stays_deletable() {
         let dir = scratch("shadow");
         let store = PresetStore::with_dirs(dir.clone(), Vec::new());
-        let mut preset = Preset::new("Flat");
+        let mut preset = Preset::new("Default");
         preset.output.bypassed = true;
         store.save(&preset).unwrap();
         let (infos, _) = store.list();
-        let entry = infos.iter().find(|info| info.name == "Flat").unwrap();
+        let entry = infos.iter().find(|info| info.name == "Default").unwrap();
         assert!(!entry.builtin);
         assert!(entry.user_file.is_some());
-        store.delete("Flat").unwrap();
-        assert!(store.load("Flat").unwrap().output.effects.is_empty());
+        store.delete("Default").unwrap();
+        let restored = store.load("Default").unwrap();
+        assert!(!restored.output.effects.is_empty());
+        assert!(!restored.output.bypassed);
         fs::remove_dir_all(&dir).unwrap();
     }
 

@@ -1,4 +1,5 @@
 mod builtin;
+mod ee;
 mod error;
 mod model;
 mod store;

@@ -1,8 +1,0 @@
-{
-  "schema_version": 1,
-  "name": "Flat",
-  "output": {
-    "bypassed": false,
-    "effects": []
-  }
-}

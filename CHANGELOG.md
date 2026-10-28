@@ -31,9 +31,10 @@ generated control surface and a preset library.
 - A chain that supports adding, removing, reordering, per-stage enable and
   global bypass, mirrored to the audio thread through a fixed-capacity lock-free
   queue.
-- Presets: six built in, JSON on disk, with save, delete, import, export, value
-  coercion, name validation, atomic writes and non-fatal reporting of unknown
-  content.
+- Presets: one built in (Default), JSON on disk, with save, delete, import,
+  export, value coercion, name validation, atomic writes and non-fatal
+  reporting of unknown content. EasyEffects presets are recognised and
+  converted on load, reporting everything that could not be mapped.
 - A GTK4/libadwaita interface: navigation split view, parameter editors grouped
   by section, an analytic equalizer response curve drawn with cairo, effect
   picker with search, preset browser, preferences dialog with device selection

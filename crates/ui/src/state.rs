@@ -103,7 +103,12 @@ impl State {
         self.selected = None;
         for entry in &preset.output.effects {
             match self.add_entry(entry, &mut warnings) {
-                Some(id) => self.selected = Some(id),
+                Some(id) => {
+                    if !entry.enabled {
+                        self.set_enabled(id, false);
+                    }
+                    self.selected = Some(id);
+                }
                 None => warnings.push(format!("'{}' is not available", entry.kind)),
             }
         }
@@ -154,6 +159,7 @@ impl State {
             }
             preset.output.effects.push(EffectEntry {
                 kind: slot.kind.to_owned(),
+                enabled: slot.enabled,
                 params,
             });
         }

@@ -73,20 +73,33 @@ fn schedule_smoke_test(ui: &Rc<Ui>) {
         if ui.editor_host.first_child().is_none() {
             failures.push("the editor stayed empty".to_owned());
         }
-        let loaded = ui.state.borrow_mut().load_preset("Podcast");
+        let loaded = ui.state.borrow_mut().load_preset("Default");
         match loaded {
             Ok(warnings) => {
                 ui.rebuild_chain();
                 ui.rebuild_editor();
                 if !warnings.is_empty() {
-                    failures.push(format!("the podcast preset reported {warnings:?}"));
+                    failures.push(format!("the default preset reported {warnings:?}"));
                 }
                 let count = ui.state.borrow().slots.len();
-                if count != 5 {
-                    failures.push(format!("the podcast preset loaded {count} effects"));
+                if count == 0 {
+                    failures.push("the default preset loaded no effects".to_owned());
+                }
+                let disabled = ui
+                    .state
+                    .borrow()
+                    .slots
+                    .iter()
+                    .filter(|slot| !slot.enabled)
+                    .count();
+                if disabled != 4 {
+                    failures.push(format!(
+                        "the default preset enabled {} effects",
+                        8 - disabled
+                    ));
                 }
             }
-            Err(error) => failures.push(format!("the podcast preset failed: {error}")),
+            Err(error) => failures.push(format!("the default preset failed: {error}")),
         }
         let (state, devices, rate) = {
             let state = ui.state.borrow();

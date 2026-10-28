@@ -61,7 +61,8 @@ Reference evidence refers to files under `references/`.
 | Per-effect enable | `PluginBase::bypass` | Implemented | `ChainCommand::SetEnabled`; a disabled slot is skipped without being destroyed. |
 | Global bypass | `StreamOutputEffects::set_bypass` | Implemented | Header switch. |
 | Preset save/load | `src/presets_manager.cpp` | Implemented | JSON, user directory, atomic writes, validation. |
-| Built-in presets | `src/presets_directory_manager.cpp` | Implemented | Six compiled-in presets. |
+| Built-in presets | `src/presets_directory_manager.cpp` | Partial | One compiled-in preset (Default). |
+| EasyEffects preset import | `src/presets_manager.cpp` | Partial | EasyEffects `plugins_order` documents are converted on load: supported effects and the parameters with a close equivalent are mapped, the rest are reported. |
 | Preset import/export | `presets_manager` | Implemented | Via `gtk::FileDialog`. |
 | Preset autoload per application | `presets_autoload_manager.cpp` | Not implemented | Deferred. |
 | Community presets | `presets_community_manager.cpp` | Not implemented | Requires network access; deliberately excluded. |

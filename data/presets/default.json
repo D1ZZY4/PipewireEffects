@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "name": "Default",
+  "output": {
+    "bypassed": false,
+    "effects": [
+      {
+        "kind": "filter",
+        "enabled": true,
+        "params": {
+          "mode": 1,
+          "frequency": 22.0,
+          "q": 0.71,
+          "gain": 0.0,
+          "order": 2.0
+        }
+      },
+      {
+        "kind": "equalizer",
+        "enabled": true,
+        "params": {
+          "band2_gain": 1.8,
+          "band3_gain": -0.6,
+          "band9_gain": 0.2,
+          "bandwidth": 1.414,
+          "output_gain": -2.5
+        }
+      },
+      {
+        "kind": "bass_enhancer",
+        "enabled": true,
+        "params": {
+          "frequency": 145.0,
+          "amount": 20.0,
+          "gain": -0.5
+        }
+      },
+      {
+        "kind": "deesser",
+        "enabled": false,
+        "params": {
+          "frequency": 5600.0,
+          "threshold": -15.0,
+          "ratio": 1.35,
+          "mode": 0,
+          "attack": 5.0,
+          "release": 100.0
+        }
+      },
+      {
+        "kind": "compressor",
+        "enabled": false,
+        "params": {
+          "threshold": -18.0,
+          "ratio": 1.45,
+          "knee": 0.0,
+          "attack": 25.0,
+          "release": 110.0,
+          "makeup": 0.0,
+          "mix": 100.0,
+          "detector": 1.0
+        }
+      },
+      {
+        "kind": "reverb",
+        "enabled": false,
+        "params": {
+          "pre_delay": 22.0,
+          "room_size": 46.0,
+          "damping": 32.5,
+          "wet": -16.0,
+          "dry": 0.0,
+          "width": 100.0
+        }
+      },
+      {
+        "kind": "stereo_tools",
+        "enabled": false,
+        "params": {
+          "input_gain": 0.0,
+          "balance": 0.0,
+          "stereo_base": 0.0,
+          "stereo_width": 16.0
+        }
+      },
+      {
+        "kind": "limiter",
+        "enabled": true,
+        "params": {
+          "limit": -1.0,
+          "release": 50.0,
+          "input_gain": 0.0
+        }
+      }
+    ]
+  }
+}
