@@ -30,14 +30,18 @@ pub fn convert(value: &Value, name: &str) -> Result<(Preset, Vec<String>), Strin
         .unwrap_or_default();
 
     for instance in order {
-        let Some(kind) = instance.split('#').next() else {
-            continue;
-        };
+        let kind = instance
+            .split_once('#')
+            .map_or(instance.as_str(), |(kind, _)| kind);
         let Some(mapped) = map_kind(kind) else {
             warnings.push(format!("'{kind}' has no equivalent here and was skipped"));
             continue;
         };
-        let Some(parameters) = output.get(&instance).and_then(Value::as_object) else {
+        let parameters = output
+            .get(&instance)
+            .or_else(|| output.get(kind))
+            .and_then(Value::as_object);
+        let Some(parameters) = parameters else {
             warnings.push(format!("'{instance}' has no parameter block"));
             continue;
         };

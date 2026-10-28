@@ -1,3 +1,8 @@
+mod dynamics;
+mod equalizer;
+mod time;
+mod tone;
+
 use std::collections::BTreeMap;
 
 use serde_json::{Map, Value};
@@ -9,285 +14,23 @@ pub(super) fn convert_parameters(
     parameters: &Map<String, Value>,
     warnings: &mut Vec<String>,
 ) -> BTreeMap<String, PresetValue> {
-    let mut params = BTreeMap::new();
     match kind {
-        "filter" => {
-            let mode = match text(parameters, "type") {
-                "Low-pass" => 0.0,
-                "High-pass" => 1.0,
-                "Band-pass" => 2.0,
-                "Band-reject" => 3.0,
-                "Notch" => 3.0,
-                "All-pass" => 4.0,
-                "Bell" => 5.0,
-                "Low Shelf" => 6.0,
-                "High Shelf" => 7.0,
-                other => {
-                    warnings.push(format!("filter type '{other}' was mapped to low pass"));
-                    0.0
-                }
-            };
-            put(&mut params, "mode", mode);
-            put(
-                &mut params,
-                "frequency",
-                number(parameters, "frequency", 1_000.0),
-            );
-            put(
-                &mut params,
-                "q",
-                number(parameters, "quality", std::f64::consts::FRAC_1_SQRT_2),
-            );
-            put(&mut params, "gain", number(parameters, "gain", 0.0));
-            let slope = match text(parameters, "slope") {
-                "x1" => 1.0,
-                "x2" => 2.0,
-                "x3" => 3.0,
-                "x4" => 4.0,
-                _ => 2.0,
-            };
-            put(&mut params, "order", slope);
+        "filter" => tone::filter(parameters, warnings),
+        "equalizer" => tone::equalizer(parameters, warnings),
+        "bass_enhancer" => tone::bass_enhancer(parameters, warnings),
+        "crystalizer" => tone::crystalizer(parameters, warnings),
+        "stereo_tools" => tone::stereo_tools(parameters, warnings),
+        "compressor" => dynamics::compressor(parameters, warnings),
+        "limiter" => dynamics::limiter(parameters, warnings),
+        "gate" => dynamics::gate(parameters, warnings),
+        "deesser" => dynamics::deesser(parameters, warnings),
+        "autogain" => dynamics::autogain(parameters, warnings),
+        "delay" => time::delay(parameters, warnings),
+        "reverb" => time::reverb(parameters, warnings),
+        other => {
+            warnings.push(format!("'{other}' has no parameter mapping"));
+            BTreeMap::new()
         }
-        "equalizer" => {
-            let gains = band_gains(parameters, warnings);
-            for (band, gain) in gains.iter().enumerate() {
-                put(&mut params, band_id(band), f64::from(*gain));
-            }
-            let gain =
-                number(parameters, "input-gain", 0.0) + number(parameters, "output-gain", 0.0);
-            put(&mut params, "output_gain", gain);
-            put(&mut params, "bandwidth", 1.414);
-        }
-        "bass_enhancer" => {
-            put(&mut params, "frequency", number(parameters, "scope", 150.0));
-            put(
-                &mut params,
-                "amount",
-                number(parameters, "amount", 30.0) * 10.0,
-            );
-            put(&mut params, "gain", number(parameters, "output-gain", 0.0));
-        }
-        "deesser" => {
-            put(
-                &mut params,
-                "frequency",
-                number(parameters, "f1-freq", 6_000.0),
-            );
-            put(
-                &mut params,
-                "threshold",
-                number(parameters, "threshold", -20.0),
-            );
-            put(&mut params, "ratio", number(parameters, "ratio", 4.0));
-            put(
-                &mut params,
-                "mode",
-                if text(parameters, "mode") == "Wideband" {
-                    1.0
-                } else {
-                    0.0
-                },
-            );
-            put(&mut params, "attack", 5.0);
-            put(&mut params, "release", 100.0);
-        }
-        "compressor" => {
-            put(
-                &mut params,
-                "threshold",
-                number(parameters, "threshold", -18.0),
-            );
-            put(&mut params, "ratio", number(parameters, "ratio", 4.0));
-            put(
-                &mut params,
-                "knee",
-                number(parameters, "knee", 3.0).max(0.0),
-            );
-            put(&mut params, "attack", number(parameters, "attack", 20.0));
-            put(&mut params, "release", number(parameters, "release", 200.0));
-            put(&mut params, "makeup", number(parameters, "makeup", 0.0));
-            put(&mut params, "mix", wet_percent(parameters));
-            let detector = parameters
-                .get("sidechain")
-                .and_then(|sidechain| sidechain.get("mode"))
-                .and_then(Value::as_str)
-                .unwrap_or("Peak");
-            put(
-                &mut params,
-                "detector",
-                if detector == "RMS" { 1.0 } else { 0.0 },
-            );
-        }
-        "limiter" => {
-            put(&mut params, "limit", number(parameters, "threshold", -1.0));
-            put(&mut params, "release", number(parameters, "release", 60.0));
-            put(
-                &mut params,
-                "input_gain",
-                number(parameters, "input-gain", 0.0),
-            );
-        }
-        "reverb" => {
-            put(
-                &mut params,
-                "pre_delay",
-                number(parameters, "predelay", 20.0),
-            );
-            put(
-                &mut params,
-                "room_size",
-                number(parameters, "decay-time", 1.0) * 40.0,
-            );
-            put(
-                &mut params,
-                "damping",
-                number(parameters, "hf-damp", 6_000.0) / 200.0,
-            );
-            put(&mut params, "wet", number(parameters, "amount", -6.0));
-            put(&mut params, "dry", number(parameters, "dry", 0.0));
-            put(&mut params, "width", 100.0);
-        }
-        "stereo_tools" => {
-            put(
-                &mut params,
-                "input_gain",
-                number(parameters, "input-gain", 0.0),
-            );
-            put(
-                &mut params,
-                "balance",
-                number(parameters, "balance-out", 0.0) * 100.0,
-            );
-            put(
-                &mut params,
-                "stereo_base",
-                number(parameters, "stereo-base", 0.0) * 1000.0,
-            );
-            put(
-                &mut params,
-                "stereo_width",
-                number(parameters, "side-level", 0.5) * 200.0,
-            );
-        }
-        "gate" => {
-            put(
-                &mut params,
-                "threshold",
-                number(parameters, "threshold", -40.0),
-            );
-            put(&mut params, "range", number(parameters, "range", 40.0));
-            put(&mut params, "attack", number(parameters, "attack", 5.0));
-            put(&mut params, "release", number(parameters, "release", 300.0));
-            put(&mut params, "hold", number(parameters, "hold", 50.0));
-        }
-        "autogain" => {
-            put(&mut params, "target", number(parameters, "target", -14.0));
-            put(&mut params, "max_gain", 20.0);
-            put(&mut params, "speed", 1_000.0);
-            put(&mut params, "silence_threshold", -50.0);
-        }
-        "delay" => {
-            put(
-                &mut params,
-                "delay_left",
-                number(parameters, "delay", 200.0),
-            );
-            put(
-                &mut params,
-                "delay_right",
-                number(parameters, "delay", 200.0),
-            );
-            put(
-                &mut params,
-                "feedback",
-                number(parameters, "feedback", 30.0),
-            );
-            put(&mut params, "mix", wet_percent(parameters));
-        }
-        "crystalizer" => {
-            put(&mut params, "amount", 30.0);
-            put(&mut params, "gain", number(parameters, "output-gain", 0.0));
-        }
-        other => warnings.push(format!("'{other}' has no parameter mapping")),
-    }
-    params
-}
-
-fn band_gains(parameters: &Map<String, Value>, warnings: &mut Vec<String>) -> [f32; 10] {
-    let source = parameters
-        .get("left")
-        .and_then(Value::as_object)
-        .or(Some(parameters));
-    let Some(bands) = source else {
-        warnings.push("the equalizer has no band block".to_owned());
-        return [0.0; 10];
-    };
-    let mut collected: Vec<(f32, f32)> = Vec::new();
-    for (key, value) in bands {
-        if !key.starts_with("band") {
-            continue;
-        }
-        let Some(band) = value.as_object() else {
-            continue;
-        };
-        let frequency = band.get("frequency").and_then(Value::as_f64).unwrap_or(0.0) as f32;
-        let gain = band.get("gain").and_then(Value::as_f64).unwrap_or(0.0) as f32;
-        let kind = band.get("type").and_then(Value::as_str).unwrap_or("Bell");
-        if frequency <= 0.0 || kind.contains("Pass") || kind == "Notch" {
-            continue;
-        }
-        collected.push((frequency, gain));
-    }
-    let targets = [
-        31.5f32, 62.5, 125.0, 250.0, 500.0, 1_000.0, 2_000.0, 4_000.0, 8_000.0, 16_000.0,
-    ];
-    let mut gains = [0.0f32; 10];
-    for (position, target) in targets.iter().enumerate() {
-        let mut best: Option<(f32, f32)> = None;
-        for (frequency, gain) in &collected {
-            let distance = (frequency / target).ln().abs();
-            if best.is_none_or(|(closest, _)| distance < closest) {
-                best = Some((distance, *gain));
-            }
-        }
-        if let Some((distance, gain)) = best
-            && distance < 1.0
-        {
-            gains[position] = gain;
-        }
-    }
-    if collected.len() > targets.len() {
-        warnings.push(format!(
-            "{} equalizer bands were folded into {} fixed bands",
-            collected.len(),
-            targets.len()
-        ));
-    }
-    gains
-}
-
-fn band_id(band: usize) -> &'static str {
-    const IDS: [&str; 10] = [
-        "band1_gain",
-        "band2_gain",
-        "band3_gain",
-        "band4_gain",
-        "band5_gain",
-        "band6_gain",
-        "band7_gain",
-        "band8_gain",
-        "band9_gain",
-        "band10_gain",
-    ];
-    IDS[band.min(9)]
-}
-
-fn wet_percent(parameters: &Map<String, Value>) -> f64 {
-    let wet = number(parameters, "wet", 0.0);
-    if wet <= -80.0 {
-        100.0
-    } else {
-        (100.0 * 10f64.powf(wet / 20.0)).clamp(0.0, 100.0)
     }
 }
 
@@ -304,4 +47,159 @@ fn text<'a>(parameters: &'a Map<String, Value>, key: &str) -> &'a str {
 
 fn put(params: &mut BTreeMap<String, PresetValue>, key: &str, value: f64) {
     params.insert(key.to_owned(), PresetValue::Float(value));
+}
+
+fn level_percent(db: f64) -> f64 {
+    if db <= -80.0 {
+        0.0
+    } else {
+        100.0 * 10f64.powf(db / 20.0)
+    }
+}
+
+fn mix_percent(parameters: &Map<String, Value>, key: &str, fallback_db: f64) -> f64 {
+    level_percent(number(parameters, key, fallback_db))
+}
+
+fn skipped(
+    parameters: &Map<String, Value>,
+    handled: &[&str],
+    effect: &str,
+    warnings: &mut Vec<String>,
+) {
+    skipped_keys(parameters, handled, false, effect, warnings);
+}
+
+fn skipped_with_bands(
+    parameters: &Map<String, Value>,
+    handled: &[&str],
+    effect: &str,
+    warnings: &mut Vec<String>,
+) {
+    skipped_keys(parameters, handled, true, effect, warnings);
+}
+
+fn skipped_keys(
+    parameters: &Map<String, Value>,
+    handled: &[&str],
+    bands_consumed: bool,
+    effect: &str,
+    warnings: &mut Vec<String>,
+) {
+    let mut unhandled: Vec<&str> = parameters
+        .keys()
+        .map(String::as_str)
+        .filter(|key| !handled.contains(key))
+        .filter(|key| !bands_consumed || !key.starts_with("band"))
+        .collect();
+    if unhandled.is_empty() {
+        return;
+    }
+    unhandled.sort_unstable();
+    warnings.push(format!(
+        "{effect}: {} was left at its default",
+        grouped(&unhandled)
+    ));
+}
+
+fn grouped(keys: &[&str]) -> String {
+    let mut families: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    let mut plain: Vec<&str> = Vec::new();
+    for key in keys {
+        match key_prefix(key) {
+            Some(prefix) => families.entry(prefix).or_default().push(key),
+            None => plain.push(key),
+        }
+    }
+    let mut parts: Vec<String> = Vec::new();
+    for (prefix, members) in families {
+        if members.len() > 1 {
+            parts.push(format!("{prefix}*"));
+        } else if let Some(member) = members.first() {
+            parts.push((*member).to_owned());
+        }
+    }
+    parts.extend(plain.into_iter().map(str::to_owned));
+    parts.sort_unstable();
+    parts.join(", ")
+}
+
+fn key_prefix(key: &str) -> Option<&str> {
+    let digits = key.trim_end_matches(|character: char| character.is_ascii_digit());
+    (digits.len() < key.len() && !digits.is_empty()).then_some(digits)
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    fn parameters(value: Value) -> Map<String, Value> {
+        value.as_object().cloned().unwrap_or_default()
+    }
+
+    #[test]
+    fn a_missing_output_gain_uses_the_default() {
+        let parameters = parameters(json!({}));
+        assert_eq!(number(&parameters, "gain", -3.0), -3.0);
+        assert_eq!(text(&parameters, "kind"), "");
+    }
+
+    #[test]
+    fn level_percent_maps_the_silence_floor_to_nothing() {
+        assert_eq!(level_percent(-80.01), 0.0);
+        assert!(level_percent(0.0) > 99.9);
+        assert!(level_percent(-6.0) > 49.9);
+    }
+
+    #[test]
+    fn unhandled_parameters_are_reported_once_per_effect() {
+        let parameters =
+            parameters(json!({ "bypass": false, "mode": "Upward", "boost-amount": 3.0 }));
+        let mut warnings = Vec::new();
+        skipped(&parameters, &["bypass"], "compressor", &mut warnings);
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("mode"));
+        assert!(warnings[0].contains("boost-amount"));
+    }
+
+    #[test]
+    fn band_blocks_are_not_reported_when_the_effect_consumes_them() {
+        let parameters = parameters(json!({ "band0": {}, "left": {} }));
+        let mut warnings = Vec::new();
+        skipped_with_bands(&parameters, &["left"], "equalizer", &mut warnings);
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn a_numeric_family_of_keys_is_summarised() {
+        let mut value = Map::new();
+        for band in 0..13 {
+            value.insert(format!("band{band}"), json!({}));
+        }
+        let parameters = parameters(Value::Object(value));
+        let mut warnings = Vec::new();
+        skipped(&parameters, &[], "crystalizer", &mut warnings);
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("band*"), "{warnings:?}");
+        assert!(!warnings[0].contains("band7"), "{warnings:?}");
+    }
+
+    #[test]
+    fn a_single_numeric_key_keeps_its_name() {
+        let parameters = parameters(json!({ "band0": {}, "mode": "Upward" }));
+        let mut warnings = Vec::new();
+        skipped(&parameters, &[], "crystalizer", &mut warnings);
+        assert!(warnings[0].contains("band0"), "{warnings:?}");
+        assert!(warnings[0].contains("mode"), "{warnings:?}");
+    }
+
+    #[test]
+    fn a_handled_parameter_is_not_reported() {
+        let parameters = parameters(json!({ "threshold": -20.0 }));
+        let mut warnings = Vec::new();
+        skipped(&parameters, &["threshold"], "limiter", &mut warnings);
+        assert!(warnings.is_empty());
+    }
 }
