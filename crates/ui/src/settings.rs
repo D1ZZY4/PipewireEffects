@@ -5,6 +5,8 @@ use adw::prelude::*;
 use gtk::glib;
 use pwe_engine::{EngineState, Snapshot, StatsSnapshot};
 
+use crate::format;
+
 pub struct SettingsView {
     page: adw::PreferencesPage,
     state_row: adw::ActionRow,
@@ -18,6 +20,8 @@ pub struct SettingsView {
     underruns: adw::ActionRow,
     trims: adw::ActionRow,
     warnings: adw::ActionRow,
+    expander: adw::ExpanderRow,
+    destination: RefCell<String>,
 }
 
 impl SettingsView {
@@ -38,7 +42,7 @@ impl SettingsView {
         let sink_row = adw::ActionRow::new();
         sink_row.set_title("Virtual sink");
         sink_row.set_subtitle("pipewire-effects-sink");
-        let copy = gtk::Button::from_icon_name("edit-copy-symbolic");
+        let copy = gtk::Button::from_icon_name(format::ICON_COPY);
         copy.add_css_class("flat");
         copy.set_valign(gtk::Align::Center);
         copy.set_tooltip_text(Some("Copy the node name"));
@@ -47,10 +51,10 @@ impl SettingsView {
                 .display()
                 .clipboard()
                 .set_text("pipewire-effects-sink");
-            button.set_icon_name("object-select-symbolic");
+            button.set_icon_name(format::ICON_COPIED);
             let button = button.clone();
             glib::timeout_add_local_once(std::time::Duration::from_millis(900), move || {
-                button.set_icon_name("edit-copy-symbolic");
+                button.set_icon_name(format::ICON_COPY);
             });
         });
         sink_row.add_suffix(&copy);
@@ -126,12 +130,18 @@ impl SettingsView {
             underruns,
             trims,
             warnings,
+            expander,
+            destination: RefCell::new(String::new()),
         };
         (page, view)
     }
 
     pub fn page(&self) -> &adw::PreferencesPage {
         &self.page
+    }
+
+    pub fn expand_diagnostics(&self) {
+        self.expander.set_expanded(true);
     }
 
     pub fn update(&self, snapshot: &Snapshot, stats: &StatsSnapshot, state: EngineState) {
@@ -168,6 +178,36 @@ impl SettingsView {
                 snapshot.warnings.join("\n")
             });
         self.sync_devices(snapshot);
+        self.sync_destination(snapshot);
+    }
+
+    fn sync_destination(&self, snapshot: &Snapshot) {
+        let described = snapshot
+            .devices
+            .iter()
+            .find(|device| device.name == snapshot.target)
+            .map_or_else(
+                || snapshot.target.clone(),
+                |device| {
+                    if device.description.is_empty() {
+                        device.name.clone()
+                    } else {
+                        device.description.clone()
+                    }
+                },
+            );
+        let subtitle = if snapshot.target.is_empty() || snapshot.target == "no destination" {
+            "No output device is available".to_owned()
+        } else if snapshot.automatic {
+            format!("Following the system default, {described}")
+        } else {
+            described
+        };
+        if *self.destination.borrow() == subtitle {
+            return;
+        }
+        self.devices.set_subtitle(&subtitle);
+        *self.destination.borrow_mut() = subtitle;
     }
 
     fn sync_devices(&self, snapshot: &Snapshot) {
@@ -177,26 +217,27 @@ impl SettingsView {
             .filter(|device| device.is_sink() && device.name != snapshot.sink_node_name)
             .map(|device| (device.name.clone(), device.description.clone()))
             .collect();
-        if sinks.is_empty()
-            || *self.device_names.borrow()
-                == sinks
-                    .iter()
-                    .map(|(name, _)| name.clone())
-                    .collect::<Vec<_>>()
-        {
+        let mut names = vec![pwe_engine::AUTO_TARGET.to_owned()];
+        names.extend(sinks.iter().map(|(name, _)| name.clone()));
+        if sinks.is_empty() || *self.device_names.borrow() == names {
             return;
         }
-        let labels = device_labels(&sinks);
-        let selected = sinks
-            .iter()
-            .position(|(name, _)| *name == snapshot.target)
-            .unwrap_or(0);
+        let mut labels = vec!["System default".to_owned()];
+        labels.extend(device_labels(&sinks));
+        let selected = if snapshot.automatic {
+            0
+        } else {
+            names
+                .iter()
+                .position(|name| *name == snapshot.target)
+                .unwrap_or(0)
+        };
         self.updating.set(true);
         let refs: Vec<&str> = labels.iter().map(String::as_str).collect();
         self.devices.set_model(Some(&gtk::StringList::new(&refs)));
         self.devices.set_selected(selected as u32);
         self.updating.set(false);
-        *self.device_names.borrow_mut() = sinks.into_iter().map(|(name, _)| name).collect();
+        *self.device_names.borrow_mut() = names;
     }
 }
 

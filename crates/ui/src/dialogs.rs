@@ -99,7 +99,7 @@ struct Section {
     rows: Vec<adw::ActionRow>,
 }
 
-pub fn choose_effect<F>(parent: &impl IsA<gtk::Widget>, on_pick: F)
+pub fn choose_effect<F>(parent: &impl IsA<gtk::Widget>, on_pick: F) -> adw::Dialog
 where
     F: Fn(&'static str) + 'static,
 {
@@ -153,11 +153,10 @@ where
             row.set_subtitle(descriptor.summary);
             row.set_activatable(true);
             row.set_widget_name(descriptor.id);
-            let icon = gtk::Image::from_icon_name(format::category_icon(descriptor.id));
+            let icon = gtk::Image::from_icon_name(format::effect_icon(descriptor.id));
             icon.set_pixel_size(18);
-            icon.add_css_class("accent");
             row.add_prefix(&icon);
-            let chevron = gtk::Image::from_icon_name("go-next-symbolic");
+            let chevron = gtk::Image::from_icon_name(format::ICON_OPEN);
             chevron.add_css_class("dim-label");
             row.add_suffix(&chevron);
             list.append(&row);
@@ -210,6 +209,7 @@ where
     });
 
     dialog.present(Some(parent));
+    dialog
 }
 
 pub fn choose_file<F>(

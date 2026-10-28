@@ -3,14 +3,20 @@ use std::rc::Rc;
 use adw::prelude::*;
 use pwe_core::{ParamKind, ParamSet, ParamSpec};
 
+use crate::Ui;
+use crate::dialogs;
+use crate::format;
 use crate::response;
+use crate::widgets;
 
-pub fn build(slot_kind: &str, params: &ParamSet) -> gtk::Widget {
+pub fn build(ui: &Rc<Ui>, slot_kind: &str, params: &ParamSet) -> gtk::Widget {
     let page = adw::PreferencesPage::new();
     page.set_vexpand(true);
 
-    let curve = slot_kind.eq("equalizer").then(|| {
-        let area = response::build(params);
+    let curve = slot_kind.eq("equalizer").then(|| response::build(params));
+    page.add(&hero(ui, slot_kind, params, curve.clone()));
+
+    if let Some(area) = curve.clone() {
         let group = adw::PreferencesGroup::new();
         group.set_title("Response");
         let frame = gtk::Frame::new(None);
@@ -18,8 +24,7 @@ pub fn build(slot_kind: &str, params: &ParamSet) -> gtk::Widget {
         frame.add_css_class("response-frame");
         group.add(&frame);
         page.add(&group);
-        area
-    });
+    }
 
     let mut groups: Vec<&'static str> = Vec::new();
     for spec in params.specs() {
@@ -45,21 +50,57 @@ pub fn build(slot_kind: &str, params: &ParamSet) -> gtk::Widget {
         page.add(&group);
     }
 
-    let actions = adw::PreferencesGroup::new();
-    let reset = gtk::Button::with_label("Reset to defaults");
-    reset.add_css_class("destructive-action");
-    reset.set_halign(gtk::Align::Start);
+    page.upcast()
+}
+
+fn hero(
+    ui: &Rc<Ui>,
+    kind: &str,
+    params: &ParamSet,
+    curve: Option<gtk::DrawingArea>,
+) -> adw::PreferencesGroup {
+    let group = adw::PreferencesGroup::new();
+    let row = adw::ActionRow::new();
+    row.set_title(format::effect_label(kind));
+    row.set_subtitle(format::effect_summary(kind));
+    row.set_title_lines(1);
+    row.add_css_class("hero-row");
+    row.add_prefix(&widgets::effect_icon(kind, 20));
+
+    let reset = gtk::Button::from_icon_name(format::ICON_RESET);
+    reset.add_css_class("flat");
+    reset.set_valign(gtk::Align::Center);
+    reset.set_tooltip_text(Some("Reset every parameter to its default"));
     let params = params.clone();
-    let curve_clone = curve.clone();
+    let ui = Rc::clone(ui);
     reset.connect_clicked(move |_| {
         params.reset();
-        if let Some(area) = &curve_clone {
+        if let Some(area) = &curve {
             area.queue_draw();
         }
+        ui.rebuild_editor();
     });
-    actions.add(&reset);
-    page.add(&actions);
+    row.add_suffix(&reset);
+    group.add(&row);
+    group
+}
 
+pub fn empty_state(ui: &Rc<Ui>) -> gtk::Widget {
+    let page = adw::StatusPage::new();
+    page.set_icon_name(Some(format::ICON_EMPTY));
+    page.set_title("No effect selected");
+    page.set_description(Some("Add an effect to start shaping your audio."));
+    let button = gtk::Button::with_label("Add effect");
+    button.add_css_class("pill");
+    button.add_css_class("suggested-action");
+    button.set_halign(gtk::Align::Center);
+    let ui = Rc::clone(ui);
+    button.connect_clicked(move |_| {
+        let ui = Rc::clone(&ui);
+        let window = ui.window.clone();
+        dialogs::choose_effect(&window, move |kind| ui.add_effect(kind));
+    });
+    page.set_child(Some(&button));
     page.upcast()
 }
 

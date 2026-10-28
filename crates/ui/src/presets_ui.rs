@@ -4,6 +4,7 @@ use adw::prelude::*;
 
 use crate::Ui;
 use crate::dialogs;
+use crate::format;
 
 pub fn build_page() -> (
     gtk::Widget,
@@ -62,7 +63,7 @@ pub fn populate(ui: &Rc<Ui>) {
         row.set_activatable(true);
         row.set_widget_name(&info.name);
         if current.as_deref() == Some(info.name.as_str()) {
-            row.add_suffix(&gtk::Image::from_icon_name("object-select-symbolic"));
+            row.add_suffix(&gtk::Image::from_icon_name(format::ICON_COPIED));
         }
         ui.preset_list.append(&row);
     }
@@ -118,7 +119,12 @@ pub fn wire(ui: &Rc<Ui>, buttons: (gtk::Button, gtk::Button, gtk::Button, gtk::B
         {
             Ok((preset, warnings)) => {
                 populate(&ui);
-                ui.show_banner(&imported_banner(&preset.name, &warnings));
+                let message = imported_banner(&preset.name, &warnings);
+                if warnings.is_empty() {
+                    ui.toast(&message);
+                } else {
+                    ui.show_banner(&message);
+                }
             }
             Err(error) => ui.show_banner(&format!("Import failed: {error}")),
         });
@@ -140,14 +146,14 @@ pub fn wire(ui: &Rc<Ui>, buttons: (gtk::Button, gtk::Button, gtk::Button, gtk::B
             true,
             Some(&suggested),
             move |path| match ui.state.borrow().store.export(&name, &path) {
-                Ok(()) => ui.show_banner("Preset exported"),
+                Ok(()) => ui.toast("Preset exported"),
                 Err(error) => ui.show_banner(&format!("Export failed: {error}")),
             },
         );
     });
 }
 
-fn prompt_save(ui: &Rc<Ui>) {
+pub fn prompt_save(ui: &Rc<Ui>) {
     let name = ui
         .state
         .borrow()
@@ -171,7 +177,7 @@ fn prompt_save(ui: &Rc<Ui>) {
             match saved {
                 Ok(_) => {
                     populate(&ui);
-                    ui.show_banner("Preset saved");
+                    ui.toast("Preset saved");
                 }
                 Err(error) => ui.show_banner(&format!("The preset could not be saved: {error}")),
             }
@@ -229,7 +235,7 @@ fn prompt_delete(ui: &Rc<Ui>) {
                 match ui_inner.state.borrow_mut().delete_preset(&name) {
                     Ok(()) => {
                         populate(&ui_inner);
-                        ui_inner.show_banner("Preset deleted");
+                        ui_inner.toast("Preset deleted");
                     }
                     Err(error) => ui_inner.show_banner(&format!("Could not delete: {error}")),
                 }

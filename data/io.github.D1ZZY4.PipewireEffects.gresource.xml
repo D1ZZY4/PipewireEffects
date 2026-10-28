@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/io/github/D1ZZY4/PipewireEffects/icons">
+    <file>hicolor/scalable/apps/io.github.D1ZZY4.PipewireEffects.svg</file>
+  </gresource>
+</gresources>

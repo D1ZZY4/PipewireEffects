@@ -10,7 +10,9 @@ use crate::chain_view;
 use crate::dialogs;
 use crate::editor;
 use crate::format;
+use crate::harness;
 use crate::meter::LevelDisplay;
+use crate::pages::Workspace;
 use crate::presets_ui;
 use crate::settings::SettingsView;
 use crate::state::State;
@@ -18,186 +20,68 @@ use crate::state::State;
 pub struct Ui {
     pub state: Rc<RefCell<State>>,
     pub window: adw::ApplicationWindow,
+    pub toast: adw::ToastOverlay,
     pub chain_list: gtk::ListBox,
+    pub chain_placeholder: gtk::Widget,
+    pub status_label: gtk::Label,
     pub editor_host: gtk::Box,
     pub preset_list: gtk::ListBox,
+    pub add_button: gtk::Button,
     pub bypass: gtk::ToggleButton,
     pub banner: adw::Banner,
     pub meter_in: LevelDisplay,
     pub meter_out: LevelDisplay,
-    pub status_label: gtk::Label,
     pub settings_view: SettingsView,
     pub stack: adw::ViewStack,
 }
 
 impl Ui {
     pub fn build(app: &adw::Application, state: State) -> Rc<Self> {
-        let window = adw::ApplicationWindow::builder()
-            .application(app)
-            .title("PipeWire Effects")
-            .default_width(1040)
-            .default_height(720)
-            .build();
-
-        let header = adw::HeaderBar::new();
-        let bypass = gtk::ToggleButton::new();
-        bypass.set_icon_name("media-playback-pause-symbolic");
-        bypass.set_tooltip_text(Some("Bypass every effect without removing it"));
-        bypass.add_css_class("flat");
-        header.pack_start(&bypass);
-
-        let menu = gtk::gio::Menu::new();
-        menu.append(Some("About PipeWire Effects"), Some("app.about"));
-        menu.append(Some("Quit"), Some("app.quit"));
-        let menu_button = gtk::MenuButton::builder()
-            .icon_name("open-menu-symbolic")
-            .menu_model(&menu)
-            .tooltip_text("Main menu")
-            .build();
-        header.pack_end(&menu_button);
-
-        let banner = adw::Banner::new("");
-        banner.set_revealed(false);
-
-        let (input_box, meter_in) = LevelDisplay::new("Input");
-        let (output_box, meter_out) = LevelDisplay::new("Output");
-
-        let chain_list = gtk::ListBox::new();
-        chain_list.set_selection_mode(gtk::SelectionMode::Single);
-        chain_list.add_css_class("navigation-sidebar");
-        let chain_scroll = gtk::ScrolledWindow::new();
-        chain_scroll.set_vexpand(true);
-        chain_scroll.set_child(Some(&chain_list));
-
-        let add_button = gtk::Button::with_label("Add effect");
-        add_button.add_css_class("pill");
-        add_button.add_css_class("suggested-action");
-        add_button.set_margin_top(6);
-
-        let status_label = gtk::Label::new(Some("Connecting"));
-        status_label.set_xalign(0.0);
-        status_label.add_css_class("caption");
-        status_label.add_css_class("dim-label");
-        status_label.set_ellipsize(gtk::pango::EllipsizeMode::End);
-
-        let chain_heading = gtk::Label::new(Some("Chain"));
-        chain_heading.set_xalign(0.0);
-        chain_heading.add_css_class("heading");
-        chain_heading.set_margin_start(4);
-        chain_heading.set_margin_top(4);
-
-        let sidebar = gtk::Box::new(gtk::Orientation::Vertical, 8);
-        sidebar.set_size_request(320, -1);
-        sidebar.set_margin_top(10);
-        sidebar.set_margin_bottom(10);
-        sidebar.set_margin_start(10);
-        sidebar.set_margin_end(10);
-        sidebar.append(&input_box);
-        sidebar.append(&chain_heading);
-        sidebar.append(&status_label);
-        sidebar.append(&chain_scroll);
-        sidebar.append(&add_button);
-
-        let editor_host = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        editor_host.set_vexpand(true);
-        let editor_column = gtk::Box::new(gtk::Orientation::Vertical, 8);
-        editor_column.set_margin_top(10);
-        editor_column.set_margin_bottom(10);
-        editor_column.set_margin_start(14);
-        editor_column.set_margin_end(14);
-        editor_column.append(&output_box);
-        editor_column.append(&editor_host);
-        let editor_scroll = gtk::ScrolledWindow::new();
-        editor_scroll.set_vexpand(true);
-        editor_scroll.set_child(Some(&editor_column));
-
-        let effects = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        effects.append(&sidebar);
-        effects.append(&gtk::Separator::new(gtk::Orientation::Vertical));
-        effects.append(&editor_scroll);
-
-        let (presets_page, preset_list, preset_buttons) = presets_ui::build_page();
-        let preset_scroll = gtk::ScrolledWindow::new();
-        preset_scroll.set_vexpand(true);
-        preset_scroll.set_child(Some(&presets_page));
-
         let state = Rc::new(RefCell::new(state));
         let target_state = Rc::clone(&state);
-        let (settings_page, settings_view) = SettingsView::new(Rc::new(move |target: String| {
-            if let Err(error) = target_state.borrow().engine.set_target_device(target) {
-                target_state
-                    .borrow()
-                    .engine
-                    .shared()
-                    .add_warning(error.to_string());
-            }
-        }));
-        let settings_scroll = gtk::ScrolledWindow::new();
-        settings_scroll.set_vexpand(true);
-        settings_scroll.set_child(Some(&settings_page));
-
-        let stack = adw::ViewStack::new();
-        stack.add_titled_with_icon(
-            &effects,
-            Some("effects"),
-            "Effects",
-            "emblem-music-symbolic",
+        let workspace = Workspace::build(
+            app,
+            Rc::new(move |target: String| {
+                if let Err(error) = target_state.borrow().engine.set_target_device(target) {
+                    target_state
+                        .borrow()
+                        .engine
+                        .shared()
+                        .add_warning(error.to_string());
+                }
+            }),
         );
-        stack.add_titled_with_icon(
-            &preset_scroll,
-            Some("presets"),
-            "Presets",
-            "view-list-symbolic",
-        );
-        stack.add_titled_with_icon(
-            &settings_scroll,
-            Some("devices"),
-            "Devices",
-            "audio-speakers-symbolic",
-        );
-
-        let switcher = adw::ViewSwitcher::builder()
-            .stack(&stack)
-            .policy(adw::ViewSwitcherPolicy::Wide)
-            .build();
-        header.set_title_widget(Some(&switcher));
-
-        let toolbar = adw::ToolbarView::new();
-        toolbar.add_top_bar(&header);
-        toolbar.add_top_bar(&banner);
-        toolbar.set_content(Some(&stack));
-        window.set_content(Some(&toolbar));
 
         let ui = Rc::new(Self {
             state,
-            window,
-            chain_list,
-            editor_host,
-            preset_list,
-            bypass,
-            banner,
-            meter_in,
-            meter_out,
-            status_label,
-            settings_view,
-            stack,
+            window: workspace.window,
+            toast: workspace.toast,
+            chain_list: workspace.chain_list,
+            chain_placeholder: workspace.chain_placeholder,
+            status_label: workspace.status_label,
+            editor_host: workspace.editor_host,
+            preset_list: workspace.preset_list,
+            add_button: workspace.add_button,
+            bypass: workspace.bypass,
+            banner: workspace.banner,
+            meter_in: workspace.meter_in,
+            meter_out: workspace.meter_out,
+            settings_view: workspace.settings_view,
+            stack: workspace.stack,
         });
 
-        ui.wire(add_button, preset_buttons);
+        ui.wire(workspace.preset_buttons);
         presets_ui::populate(&ui);
         ui.rebuild_chain();
         ui.rebuild_editor();
         ui.start_polling();
+        harness::install(&ui);
         ui
     }
 
-    fn wire(
-        self: &Rc<Self>,
-        add_button: gtk::Button,
-        preset_buttons: (gtk::Button, gtk::Button, gtk::Button, gtk::Button),
-    ) {
+    fn wire(self: &Rc<Self>, preset_buttons: (gtk::Button, gtk::Button, gtk::Button, gtk::Button)) {
         let ui = Rc::clone(self);
-        add_button.connect_clicked(move |_| {
+        self.add_button.connect_clicked(move |_| {
             let ui = Rc::clone(&ui);
             let window = ui.window.clone();
             dialogs::choose_effect(&window, move |kind| ui.add_effect(kind));
@@ -244,17 +128,21 @@ impl Ui {
         while let Some(child) = self.chain_list.first_child() {
             self.chain_list.remove(&child);
         }
-        let rows: Vec<(EffectSlot, &'static str, bool)> = self
-            .state
-            .borrow()
-            .slots
-            .iter()
-            .map(|slot| (slot.id, slot.kind, slot.enabled))
-            .collect();
+        let (rows, total) = {
+            let state = self.state.borrow();
+            let rows: Vec<(EffectSlot, &'static str, bool)> = state
+                .slots
+                .iter()
+                .map(|slot| (slot.id, slot.kind, slot.enabled))
+                .collect();
+            (rows, state.slots.len())
+        };
         for (id, kind, enabled) in rows {
             self.chain_list
                 .append(&chain_view::row(self, id, kind, enabled));
         }
+        self.chain_placeholder.set_visible(total == 0);
+        self.chain_list.set_visible(total > 0);
     }
 
     pub fn rebuild_editor(self: &Rc<Self>) {
@@ -263,7 +151,7 @@ impl Ui {
             let built = state.selected.and_then(|id| {
                 state
                     .slot(id)
-                    .map(|slot| (slot.kind, editor::build(slot.kind, &slot.params)))
+                    .map(|slot| (slot.kind, editor::build(self, slot.kind, &slot.params)))
             });
             let selection = state
                 .slots
@@ -284,7 +172,7 @@ impl Ui {
                 }
             }
             None => {
-                self.editor_host.append(&empty_state(self));
+                self.editor_host.append(&editor::empty_state(self));
             }
         }
     }
@@ -294,8 +182,12 @@ impl Ui {
         self.banner.set_revealed(true);
     }
 
+    pub fn toast(&self, message: &str) {
+        self.toast.add_toast(adw::Toast::new(message));
+    }
+
     pub fn refresh(self: &Rc<Self>) {
-        let (snapshot, meters, stats, state) = {
+        let (snapshot, meters, stats, state, error) = {
             let state = self.state.borrow();
             let shared = state.engine.shared();
             (
@@ -303,6 +195,7 @@ impl Ui {
                 shared.meters().snapshot(),
                 shared.stats().snapshot(),
                 shared.state(),
+                shared.error(),
             )
         };
         self.meter_in
@@ -312,12 +205,21 @@ impl Ui {
         if self.bypass.is_active() != snapshot.bypassed {
             self.bypass.set_active(snapshot.bypassed);
         }
-        let status = format::status_text(&snapshot, state);
-        self.status_label.set_label(&status);
+        self.set_status(snapshot.bypassed);
+        self.status_label
+            .set_label(&format::status_text(&snapshot, state));
         self.settings_view.update(&snapshot, &stats, state);
-        if let Some(error) = self.state.borrow().engine.shared().error() {
+        if let Some(error) = error {
             self.banner.set_title(&error);
             self.banner.set_revealed(true);
+        }
+    }
+
+    fn set_status(&self, bypassed: bool) {
+        if bypassed {
+            self.chain_list.add_css_class("chain-bypassed");
+        } else {
+            self.chain_list.remove_css_class("chain-bypassed");
         }
     }
 
@@ -328,23 +230,4 @@ impl Ui {
             glib::ControlFlow::Continue
         });
     }
-}
-
-fn empty_state(ui: &Rc<Ui>) -> gtk::Widget {
-    let page = adw::StatusPage::new();
-    page.set_icon_name(Some("applications-multimedia-symbolic"));
-    page.set_title("No effect selected");
-    page.set_description(Some("Add an effect to start shaping your audio."));
-    let button = gtk::Button::with_label("Add effect");
-    button.add_css_class("pill");
-    button.add_css_class("suggested-action");
-    button.set_halign(gtk::Align::Center);
-    let ui = Rc::clone(ui);
-    button.connect_clicked(move |_| {
-        let ui = Rc::clone(&ui);
-        let window = ui.window.clone();
-        dialogs::choose_effect(&window, move |kind| ui.add_effect(kind));
-    });
-    page.set_child(Some(&button));
-    page.upcast()
 }

@@ -2,12 +2,15 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use adw::prelude::*;
+use gtk::gio;
 use gtk::glib;
 
 use crate::state::State;
 use crate::window::Ui;
 
 pub const APPLICATION_ID: &str = "io.github.D1ZZY4.PipewireEffects";
+pub const ICON_RESOURCE_PATH: &str = "/io/github/D1ZZY4/PipewireEffects/icons/hicolor";
+pub const HOMEPAGE: &str = "https://github.com/D1ZZY4/PipewireEffects";
 
 const STYLE: &str = "
 .meter-block { padding: 10px 12px; }
@@ -16,6 +19,8 @@ const STYLE: &str = "
 .response-frame { border-radius: 12px; }
 .response { background: alpha(currentColor, 0.04); border-radius: 12px; }
 .numeric { font-feature-settings: \"tnum\"; }
+
+.chain-bypassed { opacity: 0.5; }
 ";
 
 pub fn run() -> std::process::ExitCode {
@@ -24,6 +29,7 @@ pub fn run() -> std::process::ExitCode {
         .build();
     application.connect_startup(|application| {
         install_style();
+        install_icons();
         install_actions(application);
     });
     let holder: Rc<RefCell<Option<Rc<Ui>>>> = Rc::new(RefCell::new(None));
@@ -141,23 +147,42 @@ fn install_style() {
     }
 }
 
+fn install_icons() {
+    if let Err(error) = gio::resources_register_include!("app.gresource") {
+        eprintln!("the application resources could not be registered: {error}");
+    }
+    let Some(display) = gtk::gdk::Display::default() else {
+        return;
+    };
+    let theme = gtk::IconTheme::for_display(&display);
+    theme.add_resource_path(ICON_RESOURCE_PATH);
+    let missing = crate::format::missing_icons(&theme);
+    if !missing.is_empty() {
+        eprintln!("the icon theme is missing: {}", missing.join(", "));
+    }
+}
+
 fn install_actions(application: &adw::Application) {
-    let quit = gtk::gio::SimpleAction::new("quit", None);
+    let quit = gio::SimpleAction::new("quit", None);
     let app = application.clone();
     quit.connect_activate(move |_, _| app.quit());
     application.add_action(&quit);
     application.set_accels_for_action("app.quit", &["<primary>q"]);
 
-    let about = gtk::gio::SimpleAction::new("about", None);
+    let about = gio::SimpleAction::new("about", None);
     let app = application.clone();
     about.connect_activate(move |_, _| {
         let dialog = adw::AboutDialog::builder()
             .application_name("PipeWire Effects")
             .application_icon(APPLICATION_ID)
-            .developer_name("PipeWire Effects contributors")
+            .developers(vec!["PipeWire Effects contributors"])
             .version(env!("CARGO_PKG_VERSION"))
             .license_type(gtk::License::Gpl30)
-            .website("https://github.com/D1ZZY4/PipewireEffects")
+            .website(HOMEPAGE)
+            .issue_url(format!("{HOMEPAGE}/issues"))
+            .comments(
+                "Runs application audio through a chain of effects on a virtual PipeWire sink.",
+            )
             .build();
         dialog.present(app.active_window().as_ref());
     });
@@ -172,4 +197,30 @@ fn show_fatal(application: &adw::Application, message: &str) {
     let application = application.clone();
     dialog.connect_response(None, move |_, _| application.quit());
     dialog.present(None::<&gtk::Widget>);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_bundled_application_icon_resolves_in_the_icon_theme() {
+        if gtk::init().is_err() {
+            eprintln!("no display is available; the icon lookup test was not executed");
+            return;
+        }
+        gio::resources_register_include!("app.gresource").expect("the resource should register");
+        let Some(display) = gtk::gdk::Display::default() else {
+            eprintln!("no display is available; the icon lookup test was not executed");
+            return;
+        };
+        let theme = gtk::IconTheme::for_display(&display);
+        theme.add_resource_path(ICON_RESOURCE_PATH);
+        assert!(
+            theme.has_icon(APPLICATION_ID),
+            "{APPLICATION_ID} was not found"
+        );
+        let missing = crate::format::missing_icons(&theme);
+        assert!(missing.is_empty(), "the icon theme is missing {missing:?}");
+    }
 }

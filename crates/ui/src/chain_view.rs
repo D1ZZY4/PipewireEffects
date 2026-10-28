@@ -5,6 +5,7 @@ use pwe_engine::EffectSlot;
 
 use crate::Ui;
 use crate::format;
+use crate::widgets;
 
 pub fn row(ui: &Rc<Ui>, id: EffectSlot, kind: &'static str, enabled: bool) -> gtk::ListBoxRow {
     let row = gtk::ListBoxRow::new();
@@ -12,25 +13,25 @@ pub fn row(ui: &Rc<Ui>, id: EffectSlot, kind: &'static str, enabled: bool) -> gt
     row.set_activatable(true);
 
     let container = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-    container.set_margin_top(8);
-    container.set_margin_bottom(8);
+    container.set_margin_top(6);
+    container.set_margin_bottom(6);
     container.set_margin_start(10);
-    container.set_margin_end(8);
-
-    let icon = gtk::Image::from_icon_name(format::category_icon(kind));
-    icon.set_valign(gtk::Align::Center);
-    icon.set_pixel_size(18);
-    icon.add_css_class("accent");
+    container.set_margin_end(6);
 
     let text = gtk::Box::new(gtk::Orientation::Vertical, 1);
     text.set_hexpand(true);
+    text.set_valign(gtk::Align::Center);
     let title = gtk::Label::new(Some(format::effect_label(kind)));
     title.set_xalign(0.0);
+    title.set_ellipsize(gtk::pango::EllipsizeMode::End);
     let subtitle = gtk::Label::new(Some(format::effect_summary(kind)));
     subtitle.set_xalign(0.0);
     subtitle.set_ellipsize(gtk::pango::EllipsizeMode::End);
     subtitle.add_css_class("caption");
     subtitle.add_css_class("dim-label");
+    if !enabled {
+        title.add_css_class("dim-label");
+    }
     text.append(&title);
     text.append(&subtitle);
 
@@ -51,10 +52,34 @@ pub fn row(ui: &Rc<Ui>, id: EffectSlot, kind: &'static str, enabled: bool) -> gt
         });
     }
 
-    container.append(&icon);
+    let menu = row_menu(ui, id);
+    menu.set_opacity(0.0);
+    menu.set_can_target(false);
+
+    container.append(&widgets::effect_icon(kind, 16));
     container.append(&text);
     container.append(&toggle);
-    container.append(&row_menu(ui, id));
+    container.append(&menu);
+
+    let revealed = menu.clone();
+    let motion = gtk::EventControllerMotion::new();
+    motion.connect_enter(move |_, _, _| {
+        revealed.set_opacity(1.0);
+        revealed.set_can_target(true);
+    });
+    let hidden = menu.clone();
+    motion.connect_leave(move |_| {
+        hidden.set_opacity(0.0);
+        hidden.set_can_target(false);
+    });
+    container.add_controller(motion);
+
+    let popup_menu = menu.clone();
+    let gesture = gtk::GestureClick::new();
+    gesture.set_button(gtk::gdk::BUTTON_SECONDARY);
+    gesture.connect_pressed(move |_, _, _, _| popup_menu.popup());
+    container.add_controller(gesture);
+
     row.set_child(Some(&container));
     row
 }
@@ -67,9 +92,9 @@ fn row_menu(ui: &Rc<Ui>, id: EffectSlot) -> gtk::MenuButton {
     list.set_margin_start(6);
     list.set_margin_end(6);
 
-    let move_up = menu_entry("Move up", "go-up-symbolic");
-    let move_down = menu_entry("Move down", "go-down-symbolic");
-    let remove = menu_entry("Remove", "user-trash-symbolic");
+    let move_up = menu_entry("Move up", format::ICON_MOVE_UP);
+    let move_down = menu_entry("Move down", format::ICON_MOVE_DOWN);
+    let remove = menu_entry("Remove", format::ICON_REMOVE);
     remove.add_css_class("destructive-action");
     list.append(&move_up);
     list.append(&move_down);
@@ -78,7 +103,7 @@ fn row_menu(ui: &Rc<Ui>, id: EffectSlot) -> gtk::MenuButton {
     popover.set_child(Some(&list));
 
     let button = gtk::MenuButton::new();
-    button.set_icon_name("view-more-symbolic");
+    button.set_icon_name(format::ICON_ROW_MENU);
     button.add_css_class("flat");
     button.set_valign(gtk::Align::Center);
     button.set_tooltip_text(Some("Reorder or remove this effect"));
