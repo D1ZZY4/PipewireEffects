@@ -11,6 +11,71 @@ keeps working in the next.
 
 ## [Unreleased]
 
+### Fixed
+
+- The virtual sink no longer inherits a volume or a link target remembered by
+  the session manager. Both internal streams opt out of the session manager's
+  restore hooks, so the processing path always runs at unity gain. A stored
+  volume for the sink name previously attenuated everything entering the chain:
+  a −20 dB tone was measured at −55 dB at the input.
+- EasyEffects preset conversion now honours the reference defaults. An omitted
+  filter slope is order 1 (`x1`), an omitted de-esser mode is wideband (`Wide`),
+  and an omitted delay time is 0 ms; these were previously replaced by the middle
+  of the range here.
+- EasyEffects conversion no longer drops content silently. The two ladder filter
+  types are mapped to their closest shape instead of low pass, an unsupported
+  compressor sidechain mode is reported, the equalizer folds *both* channel
+  blocks into the shared curve and reports a right channel that differs, the
+  crystalizer's per-band settings are reported instead of being filtered out of
+  the warning list, and a delay whose left and right wet levels differ is
+  reported because one mix cannot carry both.
+- Preset conversion warnings now summarise a numbered family of settings (for
+  example `band*`) instead of listing every band of a crystalizer preset.
+- A reference preset's per-plugin `input-gain` and `output-gain` are no longer
+  dropped without a word. They are transferred where an equivalent control
+  exists (equalizer, limiter input, stereo tools input, bass enhancer and
+  crystalizer output) and reported everywhere else.
+- The equalizer conversion no longer turns a muted band into an audible one, and
+  a soloed band excludes the others as it does in the reference. Bands without a
+  usable frequency, per-band `mode`/`slope`/`width`, and a right channel that
+  differs only in `mute` or `solo` are all reported.
+- A reference document whose parameter block is keyed without the `#<instance>`
+  suffix, which the reference still reads, is now found here too.
+- A preset file whose name is not a valid preset name is no longer offered in
+  the browser, and a malformed file no longer makes the browser and the loader
+  disagree about which preset a name refers to: the malformed file is reported
+  and the entry that is shown is the entry that loads.
+- The preset browser and the loader agree on precedence. A file in a system
+  preset directory shadows a compiled-in preset in both, so the entry that is
+  shown is the entry that is loaded, and only files in the user directory are
+  offered for deletion.
+- EasyEffects preset conversion now reads the keys and labels the reference
+  actually writes. Shelf filter types, the wideband de-esser mode, the delay
+  times, the gate curve threshold and reduction, the auto gain silence threshold
+  and the stereo tools side level were previously ignored and silently replaced
+  by defaults; the mix level of a fully dry effect was inverted.
+- EasyEffects conversion warnings and storage warnings now reach the interface
+  instead of being discarded while loading or importing a preset.
+
+### Changed
+
+- The live PipeWire processing test opens its own virtual sink under a
+  process-specific name, so the level it measures is the tone it played rather
+  than whatever the session manager has routed to the shared sink.
+- The reference conversion is split per effect family, and every reference
+  setting that has no equivalent here is reported rather than dropped.
+- The equalizer conversion folds the reference bands using the reference band
+  quality as the shared bandwidth.
+
+### Documentation
+
+- `docs/reference-audit.md` records the completed audit of the reference
+  checkout, including what was excluded and why, and how a session manager
+  treats a virtual device.
+- `docs/feature-matrix.md` documents the reference conversion per effect.
+- `SECURITY.md` no longer describes `unsafe` blocks that do not exist in the
+  codebase.
+
 ## [0.1.0] - 2026-10-28
 
 The first complete implementation: an output pipeline, thirteen effects, a
@@ -59,14 +124,14 @@ recorded in `docs/architecture.md`.
 
 ### Verified
 
-- 127 unit and integration tests that need neither a display nor an audio
-  device.
+- The unit and integration suite, which needs neither a display nor an audio
+  device; the current test count is listed in
+  [docs/feature-matrix.md](docs/feature-matrix.md).
 - Three live tests against a running PipeWire daemon: a tone is fed into the
   virtual sink with `pw-cat` and the level leaving the chain is measured.
-  A representative run captured and processed 54 272 frames, measured
-  -20.00 dB at the input and -40.00 dB at the output for a -20 dB gain stage,
-  and reported 4 096 underrun samples from the initial fill with no overruns
-  and no trims.
+  A representative run measured -20.00 dB at the input and -40.00 dB at the
+  output for a -20 dB gain stage, and reported 4 096 underrun samples from the
+  initial fill with no overruns and no trims.
 - A window smoke test (`PIPEWIRE_EFFECTS_SMOKE_TEST=1`) that builds the real
   interface, adds an effect, loads a preset, and reports the engine state,
   device count and negotiated rate.

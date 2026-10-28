@@ -55,14 +55,15 @@ Reference evidence refers to files under `references/`.
 |---|---|---|---|
 | Output pipeline | `src/stream_output_effects.cpp`, `pw_node_manager.cpp` | Implemented | Capture stream acting as `Audio/Sink`, ring buffer, chain, playback stream. |
 | Input (microphone) pipeline | `src/stream_input_effects.cpp` | Not implemented | The preset schema has an `output` section only. Documented limitation. |
-| Virtual sink | `load_virtual_devices` | Implemented | `pipewire-effects-sink`, `node.virtual`, not auto-connected. |
+| Virtual sink | `load_virtual_devices` | Implemented | `pipewire-effects-sink`, `node.virtual`, not auto-connected. Both internal streams opt out of the session manager's restore hooks (`state.restore-props`, `state.restore-target`), so a volume or link target left behind by an earlier session cannot attenuate or retarget the processing path. |
 | Virtual source | `load_virtual_devices` | Not implemented | Requires the input pipeline. |
 | Effect ordering | `effectsorder.md`, `src/effects_base.cpp` | Implemented | Move up/down in the sidebar; the order is mirrored to the audio thread. |
 | Per-effect enable | `PluginBase::bypass` | Implemented | `ChainCommand::SetEnabled`; a disabled slot is skipped without being destroyed. |
 | Global bypass | `StreamOutputEffects::set_bypass` | Implemented | Header switch. |
 | Preset save/load | `src/presets_manager.cpp` | Implemented | JSON, user directory, atomic writes, validation. |
 | Built-in presets | `src/presets_directory_manager.cpp` | Partial | One compiled-in preset (Default). |
-| EasyEffects preset import | `src/presets_manager.cpp` | Partial | EasyEffects `plugins_order` documents are converted on load: supported effects and the parameters with a close equivalent are mapped, the rest are reported. |
+| Preset directory precedence | `presets_directory_manager.cpp`, `presets_manager.cpp` | Implemented | The user directory wins over a system directory, which wins over the compiled-in preset. The browser and the loader apply the same precedence, and only user files are deletable. |
+| EasyEffects preset import | `src/presets_manager.cpp`, `src/contents/kcfg/*.kcfg` | Partial | EasyEffects `plugins_order` documents are converted on load: supported effects and the parameters with a close equivalent are mapped, and everything else is reported. Section 5 lists the mapping per effect. |
 | Preset import/export | `presets_manager` | Implemented | Via `gtk::FileDialog`. |
 | Preset autoload per application | `presets_autoload_manager.cpp` | Not implemented | Deferred. |
 | Community presets | `presets_community_manager.cpp` | Not implemented | Requires network access; deliberately excluded. |
@@ -85,11 +86,15 @@ Reference evidence refers to files under `references/`.
 | Area | Count | Location |
 |---|---|---|
 | Core primitives (buffers, parameters, chain, meters, math) | 27 | `crates/core/src/**` |
-| DSP (biquads, thirteen effects, registry) | 65 | `crates/dsp/src/**` |
-| Engine (config, devices, processor, byte conversion) | 12 | `crates/engine/src/**` |
-| Presets (schema, coercion, storage, built-ins) | 14 | `crates/presets/src/**` |
-| Interface (formatting, response axis, state model) | 9 | `crates/ui/src/**` |
+| DSP (biquads, thirteen effects, registry) | 65 | `crates/dsp/src/**`, `crates/dsp/tests/` |
+| Engine (config, devices, processor, stream properties, byte conversion) | 13 | `crates/engine/src/**` |
+| Presets (schema, coercion, storage, built-ins, reference conversion) | 83 | `crates/presets/src/**` |
+| Interface (formatting, response axis, state model, banners) | 15 | `crates/ui/src/**` |
 | Live PipeWire integration (ignored by default) | 3 | `crates/engine/tests/live_pipewire.rs` |
+
+`cargo test --workspace` therefore runs 203 tests, none of which need a display
+or an audio device. The three live tests are `#[ignore]`d and are run
+explicitly against a running daemon.
 
 ## 4. Deliberate exclusions and their justification
 
@@ -103,3 +108,64 @@ Reference evidence refers to files under `references/`.
 - **No input pipeline.** Adding it would require a second processor, a second
   ring buffer and a virtual source; the current structures are symmetric but the
   work is not done, so it is reported as missing rather than stubbed.
+
+## 5. Reference preset conversion
+
+An EasyEffects document is recognised by the absence of `schema_version` and the
+presence of an `output` section, and is converted on load. The table records
+exactly what is transferred, and what is reported back to the user when a
+reference setting has no equivalent here.
+
+| Reference effect | Reference keys transferred | Converted here as | Reported as left at the default |
+|---|---|---|---|
+| `filter` | `type`, `frequency`, `quality`, `gain`, `slope` | `mode`, `frequency`, `q`, `gain`, `order` | `mode`, `width`, `decramp`, `equal-mode`, `balance`; unknown types and slopes. The reference default `slope` is `x1`, so an omitted slope becomes order 1. The two ladder types have no exact equivalent: `Ladder-pass` is mapped to a plain low pass and `Ladder-rejection` to a notch, and both are reported. |
+| `equalizer` | `left`/`right` `bandN.{frequency,gain,q,type}`, `input-gain`, `output-gain` | ten fixed bands, `output_gain`, shared `bandwidth` (median reference `q`) | `num-bands`, `mode`, `decramp`, `split-channels`, `balance`, `pitch-left`, `pitch-right`; bands that are not bell or shelf, bands folded beyond ten, bands that are muted or not soloed while another band is soloed, and bands with no usable frequency. Both channel blocks are folded into the one shared curve, and a right channel that differs from the left is reported. The per-band `mode`, `slope` and `width` are reported because every band here is one filter with a shared bandwidth. |
+| `bass_enhancer` | `scope`, `amount` (dB), `output-gain` | `frequency`, `amount` (linear), `gain` | `harmonics`, `floor`, `floor-active`, `blend`, `listen`. The reference default `amount` of 0 dB becomes the full amount here. |
+| `crystalizer` | `output-gain` | `gain` | everything else, including `band0`…`band12`: the reference splits thirteen bands with adaptive intensity, oversampling and a per-band bypass, which is a different algorithm rather than a parameter rescaling. The per-band settings are reported instead of being dropped. |
+| `stereo_tools` | `input-gain`, `balance-out`, `side-level` (dB) | `input_gain`, `balance`, `stereo_width` | `output-gain`, `mode`, `balance-in`, `softclip`, `mutel`, `muter`, `phasel`, `phaser`, `side-balance`, `middle-level`, `middle-panorama`, `stereo-base`, `delay`, `sc-level`, `stereo-phase`, `dry`, `wet` |
+| `compressor` | `threshold`, `ratio`, `knee`, `attack`, `release`, `makeup`, `wet`, `sidechain.mode` | `threshold`, `ratio`, `knee` (width, positive), `attack`, `release`, `makeup`, `mix`, `detector` | `mode`, `dry`, `release-threshold`, `boost-threshold`, `boost-amount`, `stereo-split`, `hpf-*`, `lpf-*`, the sidechain mix controls; the `Low-Pass` and `SMA` sidechain modes, which have no detector here |
+| `limiter` | `threshold`, `release`, `input-gain` | `limit`, `release`, `input_gain` | `output-gain`, `mode`, `oversampling`, `dithering`, `sidechain-type`, `lookahead`, `attack`, `stereo-link`, `alr*`, `gain-boost`, `sidechain-preamp`, the sidechain mix controls |
+| `gate` | `curve-threshold`, `reduction`, `attack`, `release`, `wet` | `threshold`, `range` (magnitude), `attack`, `release`, `mix` | `input-gain`, `output-gain`, `dry`, `curve-zone`, `hysteresis`, `hysteresis-threshold`, `hysteresis-zone`, `makeup`, `stereo-split`, `sidechain`, `hpf-mode`, `hpf-frequency`, `lpf-mode`, `lpf-frequency`, `input-to-sidechain`, `input-to-link`, `sidechain-to-input`, `sidechain-to-link`, `link-to-input`, `link-to-sidechain`; the reverse mode is refused because the gate here has no upward mode |
+| `deesser` | `f1-freq`, `threshold`, `ratio`, `mode` | `frequency`, `threshold`, `ratio`, `mode` (`Wide` or `Wideband`) | `detection`, `laxity`, `makeup`, `f1-level`, `f2-*`, `sc-listen`. The reference default mode is `Wide`, so a document without one becomes wideband, as it does in the reference. |
+| `autogain` | `target`, `silence-threshold` | `target`, `silence_threshold` | `maximum-history`, `reference`, `force-silence`; the reference measures EBU R128 and this auto gain is RMS based |
+| `delay` | `time-l`, `time-r`, `mode-l`, `mode-r`, `wet-l`/`wet-r` | `delay_left`, `delay_right`, `mix` | `dry-*`, `sample-*`, `meters-*`, `centimeters-*`, `temperature-*`, `invert-phase-*`; a non-time mode keeps the reference default delay (0 ms) and is reported, and so is a left/right wet pair that differs, because one mix cannot carry both. |
+| `reverb` | `predelay`, `decay-time`, `hf-damp`, `amount`, `dry` | `pre_delay`, `room_size` (`decay-time` × 40), `damping` (`hf-damp` ÷ 200), `wet`, `dry` | `room-size`, `diffusion`, `bass-cut`, `treble-cut` |
+| any other instance | - | - | the whole instance is named in the warning list |
+
+Two of these conversions are rescalings rather than transfers and are recorded
+as such: the reference reverb `decay-time` is a decay in seconds while `room_size`
+here is a comb-feedback percentage, and `hf-damp` is a cutoff in hertz while
+`damping` here is a percentage. Both are monotonic, and the reference defaults
+(`1.5 s`, `5000 Hz`) land on the defaults of this project (`60 %`, `25 %`).
+
+Every converter treats the reference's per-plugin `input-gain` and `output-gain`
+the same way. Where this project has an equivalent control, the value is
+transferred: the equalizer output gain, the limiter and stereo tools input gain,
+and the bass enhancer and crystalizer output gain. Everywhere else both keys are
+reported. A reference preset that changes the level of the filter, compressor,
+gate, de-esser, auto gain, delay or reverb therefore says so instead of loading at
+a different level.
+
+The reference writes an effect's parameters under `<effect>#<instance>` and falls
+back to the bare `<effect>` key when reading a document that predates instance
+suffixes. The conversion applies the same fallback, so such a document loads here
+as it does there.
+
+Values outside this project's parameter ranges are clamped when the preset is
+applied rather than rejected, because the reference allows a wider equalizer gain
+and a wider compressor ratio than the effects here. Such a value is not
+rescaled or dropped silently; it is applied at the limit of the range.
+
+Warnings reach the user in two places: the banner that follows a load or an
+import, summarized when there are more than three, and the `Skipped files` row
+of the preset list, which shows every warning in full. A family of settings that
+differs only by a trailing number, such as the thirteen crystalizer bands, is
+summarised as one entry (`band*`) rather than listed key by key. A file whose
+name is not a valid preset name is never offered in the browser, and a malformed
+file never hides the preset it shadows: it is reported in the `Skipped files`
+row, and the entry that is shown is the entry that loads.
+
+Dropping a reference value is only acceptable when this project has no equivalent
+for it; where the reference default itself is meaningful, it is honoured. An
+omitted filter slope is the reference's `x1` (order 1), an omitted de-esser mode
+is the reference's `Wide`, and an omitted delay time is the reference's 0 ms.

@@ -49,6 +49,13 @@ Two `pw_stream`s are used, joined into the same PipeWire node group
   `media.class = Stream/Output/Audio`, auto-connected with `target.object` (and
   `node.target`) set to the chosen sink node name.
 
+Both streams set `state.restore-props = false` and `state.restore-target =
+false`. A session manager remembers stream volumes and link targets by name, and
+the virtual sink keeps a stable name, so a volume left behind by an earlier
+session would silently scale everything entering the chain. These two nodes are
+internal, they must pass audio at unity gain, and the device the playback stream
+is linked to is chosen by this application, not restored from metadata.
+
 A ring buffer between them absorbs scheduling jitter. The alternative - one
 `pw_filter` node per effect, linked with `link-factory`, exactly as the reference
 implementation does it - would remove the buffer and the drift correction, but
@@ -204,8 +211,14 @@ Decisions and reasons:
   preset directory.
 - **Malformed files are skipped, not fatal.** The browser reports them and keeps
   the other presets.
-- **A user preset shadows a built-in and stays deletable.** Deleting it reveals
-  the built-in again.
+- **Reference presets are converted, and what could not be converted is
+  reported.** A warning list travels back with the loaded preset: the banner
+  shows a summary, and the preset list shows every warning in full. The mapping
+  per effect is in `docs/feature-matrix.md`.
+- **A user preset shadows a built-in and stays deletable.** The lookup order is
+  the user directory, then the system directories, then the compiled-in set, and
+  the browser uses the same order, so the entry that is shown is the entry that
+  is loaded. Only a file in the user directory can be deleted.
 - **Writes are atomic.** A temporary file is renamed into place.
 - **Only non-default parameters are written**, which keeps saved presets short
   and reviewable.
@@ -225,7 +238,7 @@ without a system preset directory.
 
 ## 10. Verification
 
-- `cargo test --workspace`: 128 tests, no display and no audio device required.
+- `cargo test --workspace`: 203 tests, no display and no audio device required.
 - Filter designs are checked against their analytic magnitude response, `Q` and
   gain sweeps, and a pole-stability sweep.
 - Effects are checked against measured levels: 20 dB of gain, −6 dB of gain,
@@ -236,11 +249,17 @@ without a system preset directory.
   `rtrb` producer and consumer.
 - Presets are round-tripped through JSON, hostile names are rejected, malformed
   files are skipped.
+- Reference presets are converted against the keys and labels the reference
+  actually writes, and the warnings that report what was dropped are covered,
+  including that they reach the caller through the store.
 - `crates/engine/tests/live_pipewire.rs` runs the real engine against the running
-  daemon, feeds a tone with `pw-cat` into the virtual sink and asserts the
-  measured output level. Three tests, `#[ignore]`d so they do not run by default.
+  daemon. The processing test opens its own virtual sink under a
+  process-specific name so that unrelated applications cannot be routed into it,
+  feeds a −20 dB tone with `pw-cat` into that sink and asserts both the level the
+  tone reaches the chain at and the level reduction of a −20 dB gain stage.
+  Three tests, `#[ignore]`d so they do not run by default.
 - `PIPEWIRE_EFFECTS_SMOKE_TEST=1` builds the real window, adds an effect, loads
-  the *Podcast* preset and exits with a status. It requires a display and a
+  the *Default* preset and exits with a status. It requires a display and a
   running PipeWire.
 
 ## 11. Performance
@@ -252,6 +271,7 @@ without a system preset directory.
 - Coefficient recomputation and knob reads happen once per block, not per sample.
 - The interface refreshes at 20 Hz and rebuilds only the widgets that changed
   (chain list or editor), never on a timer.
-- Measured during the live test on the development machine: 54 272 frames
-  captured and processed at 48 kHz, with 4 096 underrun samples from the initial
-  fill and no overruns or trims.
+- Measured during the live test on the development machine: a −20 dB tone fed
+  through a −20 dB gain stage was measured at −20.00 dB at the input and
+  −40.00 dB at the output, with 16 384 frames captured and processed, 4 096
+  underrun samples from the initial fill, and no overruns or trims.

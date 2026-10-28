@@ -6,7 +6,7 @@
 |---|---|
 | Project | EasyEffects |
 | Location | `references/` (a separate Git checkout, left untouched) |
-| Revision | `7e314dc53`, `git describe` → `v8.3.0-242-g7e314dc53`, branch `master` |
+| Revision | `7e314dc536481aa0426dbe68a603b30e65164e50`, `git describe` → `v8.3.0-242-g7e314dc53`, branch `master` |
 | Declared version | `8.3.0` (`references/CMakeLists.txt`, `project(easyeffects VERSION 8.3.0)`) |
 | Language | C++20 and C17 |
 | UI | Qt 6, QML, KDE Frameworks 6, Kirigami |
@@ -19,27 +19,48 @@ The checkout also contains branches for the project's history, including
 
 ## 2. Coverage of this audit
 
-This audit was targeted at the subsystems needed to design an independent Rust
-implementation. It was **not** a line-by-line reading of every file in the
-checkout; the checkout is large (C++ sources, 30+ translation catalogues, help
-pages, Flatpak manifests, images). Files were read in full where they were used
-as evidence; the table below records exactly which ones.
+The audit was deliberately binary: the material that carries behaviour was read
+in full, and the material that cannot change behaviour was excluded with a
+recorded reason.
 
-| Area | Files inspected | What was established |
+Read in full:
+
+| Area | Files | What was established |
 |---|---|---|
-| Project identity | `README.md`, `CMakeLists.txt`, `.github/`, `debian/`, `PKGBUILD` | Version, licence, effect inventory, dependency list, build requirements |
-| Effect inventory | `README.md`, `src/effects_base.cpp`, `src/stream_output_effects.hpp` | The 33 plugin constructors and the attribute set used to build the pipeline |
-| Plugin contract | `src/plugin_base.hpp` | Every effect is a `pw_filter` node with two input and two output ports plus optional probe ports |
-| PipeWire lifecycle | `src/pw_manager.hpp`, `src/pw_manager.cpp` | One `pw_thread_loop`, one `pw_core`, one registry, metadata and node/link/module/client/device managers |
-| Virtual devices | `src/pw_node_manager.cpp` (`load_virtual_devices`) | Sink and source are created with `pw_core_create_object(core, "adapter", ...)` and `factory.name = support.null-audio-sink` |
-| Naming | `src/tags_pipewire.hpp` | `easyeffects_sink`, `easyeffects_source`, media classes |
-| Presets | `src/presets_manager.cpp` (partially), `src/presets_manager.hpp` | JSON layout, `plugins_order`, blocklist, user directories, directory watcher |
-| Documentation | `src/contents/docs/plugins/*.md` (directory listed, limiter and a few pages read), `src/contents/docs/user_interface/*.md` | Documented behaviour and parameter intent |
+| Project identity | `README.md`, `CMakeLists.txt`, `mkdocs.yaml` | Version, licence, effect inventory, dependency list, build requirements |
+| Pipeline and lifecycle | `src/main.cpp`, `src/pw_manager.{hpp,cpp}`, `src/pw_node_manager.{hpp,cpp}`, `src/pw_link_manager.{hpp,cpp}`, `src/pw_device_manager.{hpp,cpp}`, `src/pw_metadata_manager.{hpp,cpp}`, `src/pw_module_manager.{hpp,cpp}`, `src/pw_client_manager.{hpp,cpp}`, `src/pw_model_*.{hpp,cpp}`, `src/pw_objects.hpp` | One `pw_thread_loop` and one `pw_core`; registry binding per object type; virtual devices created through the `adapter` factory; node and port bookkeeping; the `target.object` metadata mechanism |
+| Effect hosting | `src/plugin_base.{hpp,cpp}`, `src/effects_base.{hpp,cpp}`, `src/stream_output_effects.{hpp,cpp}`, `src/stream_input_effects.{hpp,cpp}`, `src/lv2_wrapper.{hpp,cpp}`, `src/lv2_ui.{hpp,cpp}`, `src/ladspa_wrapper.{hpp,cpp}`, `src/lv2_macros.hpp`, `src/ladspa_macros.hpp`, `src/multi_band_macros.hpp`, `src/equalizer_macros.hpp` | One `pw_filter` node per effect with two inputs, two outputs and optional probe ports, linked in reverse order through `link-factory`; the LV2 and LADSPA wrappers |
+| Effects | all `src/<effect>.{hpp,cpp}` and `src/<effect>_preset.{hpp,cpp}` | Parameter inventory, defaults, ranges and the JSON keys each effect writes |
+| Curves and analysis | `src/equalizer_apo.{hpp,cpp}`, `src/spectrum.{hpp,cpp}`, `src/spectrum_dsp.{hpp,cpp}`, `src/fir_filter_*.{hpp,cpp}`, `src/resampler.{hpp,cpp}`, `src/level_meter.{hpp,cpp}`, `src/output_level.{hpp,cpp}`, `src/test_signals.{hpp,cpp}` | The APO and GraphicEQ importers, the FFT analyser and its double-buffered hand-off, the FIR kernels, the Speex resampler |
+| Configuration | `src/db_manager.{hpp,cpp}`, `src/kconfig_base_ee.{hpp,cpp}`, all of `src/contents/kcfg/` (80 files) | The complete KConfig parameter vocabulary, group naming, defaults and ranges, including the per-band equalizer schema |
+| Presets | `src/presets_manager.cpp`, `src/presets_directory_manager.{hpp,cpp}`, `src/presets_autoload_manager.{hpp,cpp}`, `src/presets_community_manager.{hpp,cpp}`, `src/presets_irs_manager.{hpp,cpp}`, `src/presets_rnnoise_manager.{hpp,cpp}`, `src/presets_list_model.{hpp,cpp}`, `src/preset_macros.hpp` (as `presets_macros.hpp`), `src/plugin_preset_base.{hpp,cpp}` | The preset layout, `plugins_order`, the blocklist field, the user and system directories, autoload profiles, community packages and the addon import |
+| Command surface | `src/local_server.{hpp,cpp}`, `src/local_client.{hpp,cpp}`, `src/command_line_parser.{hpp,cpp}`, `src/tags_local_server.hpp` | The socket protocol and the command line options |
+| Desktop integration | `src/autostart.{hpp,cpp}`, `src/global_shortcuts.{hpp,cpp}`, `src/kcolor_manager.{hpp,cpp}`, `src/tags_app.hpp`, `src/tags_pipewire.hpp`, `src/tags_plugin_name.{hpp,cpp}`, `src/units.hpp`, `src/hearing_profile.hpp`, `src/microphone_monitor.hpp`, `src/pipeline_type.hpp`, `src/string_literal_wrapper.hpp`, `src/config.h.in`, `src/CMakeLists.txt` | Autostart, the XDG global shortcuts portal, the naming vocabulary |
+| Documentation | every `.md` under `src/contents/docs/` | Documented behaviour and parameter intent |
+| Tooling | every file under `util/` | The release workflow, the KConfig checks, the Flatpak manifests and the translation tooling |
 
-Not inspected in depth: the individual DSP implementations of the effects
-(`*.cpp` bodies), the QML view tree, kcfg schemas, translation catalogues, and
-packaging manifests beyond their existence. No claim in this repository depends
-on the unread material.
+Excluded, with the reason recorded:
+
+- `src/contents/ui/**` (69 QML files). The interface of the reference is Qt and
+  Kirigami, which this project is required not to reproduce, and the audit of
+  interface behaviour was already covered by the documented behaviour in
+  `src/contents/docs/user_interface/`.
+- `src/contents/site/**`, `src/contents/docs/database/plugins_properties.md`
+  and `src/contents/docs/community/CHANGELOG.md`. Generated output: a mkdocs
+  build, a table generated by `util/generate_command_docs.py` from the KConfig
+  schemas that were read directly, and a changelog generated from
+  `util/NEWS.yaml`, which was read directly.
+- `src/contents/com.github.wwmm.easyeffects.metainfo.xml.in`,
+  `src/contents/com.github.wwmm.easyeffects.desktop.in`,
+  `src/contents/com.github.wwmm.easyeffects.Source.svg` and
+  `src/contents/icons/*.svg`. Application metadata and artwork; the Linux
+  packaging conventions they follow are already mirrored by `data/`.
+- Images, `util/test.wav` and `.git` internals. Not text, not behaviour.
+- `po/`, `po_news/`, `debian/`, `PKGBUILD*`, `images/`, `.github/` of the
+  reference. Distribution packaging and translation catalogues that this
+  project does not ship.
+
+No claim in this repository depends on material in the excluded set.
 
 ## 3. Architecture of the reference
 
@@ -65,13 +86,80 @@ Facts that shaped the Rust design:
 3. **The effects are third-party plugins.** Most of the inventory is a wrapper
    around LSP, Calf, ZamAudio, MDA, SpeexDSP, SoundTouch, RNNoise,
    DeepFilterNet, HushMic, x42 or Rakarrack. Only a minority are implemented in
-   the repository.
-4. **Presets are JSON with a flat plugin map**: `output.plugins_order` plus
+   the repository, and two of those are the ones whose algorithms this project
+   reimplemented: `src/crystalizer.cpp` and `src/autogain.cpp`.
+4. **The realtime path is not lock-free.** Each effect takes a `std::mutex`
+   around `process`, and instance creation, destruction and the native plugin
+   window are moved to a worker object with `QMetaObject::invokeMethod`. FFTW
+   planning is serialised behind a single global lock. This project takes the
+   opposite approach on purpose: no lock on the audio thread, and effects are
+   discarded through a bounded lock-free queue.
+5. **Presets are JSON with a flat plugin map**: `output.plugins_order` plus
    `output.<plugin>#<instance>` objects, and a `blocklist` of applications.
-5. **Settings are KConfig-based** (`src/contents/kcfg`), including buffer size,
-   samplerate and the last used preset.
+6. **Settings are KConfig-based** (`src/contents/kcfg`), including buffer size,
+   samplerate and the last used preset. The schemas are the authoritative
+   parameter vocabulary: `plugins_order` stores base names, and every parameter
+   of every effect is written from the matching schema entry, with labels taken
+   from a `...Labels` `StringList` entry rather than from numbers.
 
-## 4. Dependency consequences
+## 4. Findings taken from the reference schemas
+
+The KConfig schemas and the preset writers, read together, give the exact
+on-disk vocabulary. The following were established from them and are the basis
+of the conversion table in `docs/feature-matrix.md`:
+
+- Choice-valued settings are written as their label text. `filter.type` is one
+  of `Low-pass`, `High-pass`, `Low-shelf`, `High-shelf`, `Bell`, `Band-pass`,
+  `Notch`, `Resonance`, `Ladder-pass`, `Ladder-rejection`, `All-pass`.
+  `deesser.mode` is `Wide` or `Split`. `reverb.room-size` is a character preset
+  and is separate from the `decay-time` in seconds.
+- Equalizer bands are per channel under `left` and `right`, each with
+  `bandN.{type,mode,slope,solo,mute,gain,frequency,q,width}`, and the band count
+  is a channel-independent `num-bands`.
+- The reference defaults are part of the vocabulary. `filter.slope` defaults to
+  index 0, which is `x1`; `deesser.mode` defaults to index 0, which is `Wide`;
+  `delay.timeL` and `delay.timeR` default to `0 ms`. A document that omits them
+  means those values, not the middle of the range.
+- `compressor.sidechainMode` is one of `Peak`, `RMS`, `Low-Pass` or `SMA`. Only
+  the first two have a counterpart here.
+- The crystalizer writes `band0` … `band12`, each with `intensity`, `mute` and
+  `bypass`, and has no global amount.
+- The delay writes `time-l`, `time-r`, `dry-l`, `dry-r`, `wet-l`, `wet-r` and
+  `mode-l`, `mode-r`; it has no feedback loop at all, and its mix is per channel.
+- The gate writes `curve-threshold`, `curve-zone`, `hysteresis*` and
+  `reduction`, not a plain `threshold` and `range`.
+- Mix levels are decibels with `-80.01` as the floor, and a floor value means
+  silence rather than full level.
+- The compressor knee is a negative width in decibels, so its magnitude is the
+  knee width.
+- `stereo_tools.side-level` is the Side signal level in decibels, so unity is
+  `0`, not `0.5`.
+- The convolver and the noise reduction store a file name (`kernel-name`,
+  `model-name`) and accept the older `kernel-path` and `model-path` on load.
+- Autoload profiles are `{device, device-description, device-profile,
+  preset-name}` files, one per device and route.
+- A preset document written before instance suffixes existed keys a plugin's
+  parameters as `<effect>` rather than `<effect>#<instance>`. `read()` in
+  `plugin_preset_base.hpp` strips the suffix from the instance name and retries,
+  so both spellings load.
+
+## 4.1 How the session manager treats a virtual device
+
+The reference creates its sink and source as real `adapter` nodes with
+`node.virtual = true`, `media.class = Audio/Sink` (or `Audio/Source`) and
+`priority.session = 0`. A WirePlumber session manager still stores and restores
+properties for nodes it recognises, keyed by `media.class` plus the first of
+`application.id`, `application.name`, `media.name` and `node.name` that the node
+carries, unless the node itself sets `state.restore-props = false`. That escape
+hatch is what protects a stable node name from a stale saved volume.
+
+This was observed, not assumed: on the development machine WirePlumber had
+`Audio/Sink:media.name:pipewire-effects-sink` stored with
+`channelVolumes: [0.017724, 0.017724]`, i.e. −35 dB, and a −20 dB test tone
+reached the chain at −55 dB until the two internal streams were given
+`state.restore-props = false` and `state.restore-target = false`.
+
+## 5. Dependency consequences
 
 The reference's dependency list (from `CMakeLists.txt` and `README.md`) is
 substantial: libpipewire, lilv, libebur128, fftw3/fftw3f, speexdsp,
@@ -88,7 +176,7 @@ in `docs/feature-matrix.md`:
 - Pitch shifting and autotune (needs a phase vocoder or SoundTouch-like
   library).
 
-## 5. Licence position
+## 6. Licence position
 
 EasyEffects is GPL-3.0-or-later. This project is also GPL-3.0-or-later
 (`LICENSE`, `Cargo.toml`), so the licences are compatible.
@@ -101,13 +189,15 @@ are credited in `CREDITS.md`.
 
 The reference directory was not modified at any point.
 
-## 6. Findings that were deliberately not adopted
+## 7. Findings that were deliberately not adopted
 
 | Reference behaviour | Decision here |
 |---|---|
 | One `pw_filter` per effect | `pipewire-rs` 0.10 exposes no `pw_filter` binding; two `pw_stream`s with a ring buffer are used instead. Documented in `docs/architecture.md`. |
+| A mutex and a worker object around every effect | The audio thread here allocates nothing, locks nothing and frees nothing; parameters are atomics and structure changes travel through a bounded lock-free queue. |
 | Third-party plugin wrappers | Replaced with native Rust DSP for a self-contained binary; the plugin-based effects are listed as unimplemented rather than faked. |
 | 30-band equalizer with per-band type/Q and channel splitting | A 10-band octave equalizer with a shared bandwidth and output gain. Reduction recorded in the matrix. |
 | EBU R128 loudness (libebur128) | RMS-based auto gain. The measurement is not R128 and is labelled as such. |
 | KConfig settings | Plain JSON presets plus runtime-only engine settings. |
 | Metadata-driven default device | `priority.session` heuristic, documented as a limitation. |
+| The local socket server and the command line options | Not implemented; the interface is the only control surface in this increment. |

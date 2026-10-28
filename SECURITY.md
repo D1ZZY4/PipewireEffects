@@ -28,9 +28,9 @@ Only the latest release is supported. There are no maintenance branches.
 
 Worth reporting:
 
-- Memory safety problems, including any way to reach unsound behaviour through
-  the `unsafe` blocks in `crates/core/src/rt.rs` and
-  `crates/engine/src/pipewire.rs`.
+- Memory safety problems. The crate is safe Rust: it contains no `unsafe`
+  blocks, so a report would mean a bug in the standard library, in
+  `pipewire-rs`, or in one of the other dependencies rather than in this code.
 - Denial of service: a preset, a parameter value, or a stream format that makes
   the audio thread hang, allocate without bound, or panic.
 - Path traversal or unexpected file writes through preset names.
@@ -55,15 +55,21 @@ For readers auditing this codebase:
 
 - The application runs as an ordinary PipeWire client. It does not use the
   system bus, does not run privileged and does not install anything.
-- Preset names are normalised to lowercase ASCII with single dashes before being
-  used as file names, and `PresetStore` only ever reads and writes inside one
-  directory. There is a test for the normalisation.
-- The `unsafe` code is confined to the single-producer/single-consumer ring
-  buffer and to reinterpretating PipeWire's `f32` sample buffers. Both are
-  documented with the invariant that makes them sound, and the sample buffer
-  path checks alignment and endianness at run time before taking the fast path.
+- Preset names are validated before being used as file names: path separators,
+  `..`, leading dots, empty names and over-long names are rejected, and
+  `PresetStore` only ever reads and writes inside one directory. Tests cover the
+  validation and the rejection of traversal attempts.
+- Audio samples cross the SPA boundary through explicit little-endian byte
+  conversion (`f32::from_le_bytes` and `f32::to_le_bytes`), so no aliasing,
+  alignment or pointer assumption is involved.
 - Realtime code is allocation-free by design, which also means a hostile
-  parameter value cannot make the audio thread allocate.
+  parameter value cannot make the audio thread allocate. Parameters are clamped
+  and rejected if non-finite before they are published to the audio thread.
+- The two internal streams opt out of the session manager's stream-property
+  restore (`state.restore-props` and `state.restore-target` are `false`), so a
+  stored volume or link target that happens to match the sink name cannot change
+  what the application processes or where it sends it. The two nodes are always
+  at unity gain and the output device is the one this application chose.
 - Filter designs are validated before use: a `NaN` or out-of-range parameter
   yields a pass-through section rather than an unstable filter, and filter state
   is sanitised once per block so a single non-finite sample cannot silence the

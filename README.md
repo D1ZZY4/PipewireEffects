@@ -187,28 +187,32 @@ drift between them is corrected.
 cargo test --workspace
 ```
 
-127 tests, none of which need a display or an audio device. They cover biquad
+203 tests, none of which need a display or an audio device. They cover biquad
 designs against their analytic magnitude response, the effects against measured
 signal levels and numerical bounds, the ring buffer and trimming policy with a
 real producer and consumer, preset parsing, coercion and path-traversal
 rejection.
 
 Three live tests run the real engine against the running daemon, feed a tone
-into the virtual sink with `pw-cat`, and check the level leaving the chain:
+into a virtual sink with `pw-cat`, and check the level leaving the chain. The
+processing test opens its own sink under a process-specific name, so the level it
+measures is its own tone rather than whatever else the session has routed to the
+shared sink:
 
 ```sh
 cargo test -p pwe-engine --test live_pipewire -- --ignored --test-threads=1 --nocapture
 ```
 
 ```text
-sampled 31 times; captured 54272 frames, processed 54272 frames, underruns 4096, overruns 0, trims 0
-loudest input -20.00 dB, reduction 20.00 dB; last read: input peak -20.00 dB, output peak -40.00 dB
+attempts 1; sampled 10 times; captured 16384 frames, processed 16384 frames, underruns 4096, overruns 0, trims 0, occupancy 0
+tone measured at -20.00 dB with 20.00 dB of reduction; last read: input peak -20.00 dB, output peak -40.00 dB
 ```
 
-That is a −20 dB gain stage measured end to end on real PipeWire.
+That is a −20 dB gain stage measured end to end on real PipeWire, with the tone
+reaching the chain at its own level.
 
 There is also a window smoke test, which builds the real interface, adds an
-effect, loads the *Podcast* preset and exits with a status:
+effect, loads the built-in *Default* preset and exits with a status:
 
 ```sh
 PIPEWIRE_EFFECTS_SMOKE_TEST=1 ./target/release/pipewire-effects
@@ -218,6 +222,10 @@ PIPEWIRE_EFFECTS_SMOKE_TEST=1 ./target/release/pipewire-effects
 
 Working, and honest about the gaps:
 
+- The virtual sink always passes audio at unity gain. Both internal streams opt
+  out of the session manager's remembered stream volume and link target, so a
+  value saved for the sink name in an earlier session cannot attenuate or
+  retarget the chain.
 - Only the output pipeline exists. Microphone processing is not implemented, so
   there is no virtual source.
 - Changing the output device rebuilds both streams; audio stops for a fraction
