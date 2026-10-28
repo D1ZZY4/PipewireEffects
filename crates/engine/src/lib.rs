@@ -1,15 +1,19 @@
+pub mod command;
 pub mod config;
-pub mod devices;
-pub mod error;
-pub mod events;
-pub mod pipewire;
-pub mod processor;
-pub mod stats;
+pub mod device;
+mod engine;
+mod processor;
+mod processors;
+mod runtime;
+mod shared;
+mod stream_setup;
+mod streams;
 
-pub use config::{EngineConfig, NODE_GROUP};
-pub use devices::{AudioDevice, DEFAULT_DISCOVERY_TIMEOUT, list_devices, list_sinks};
-pub use error::{EngineError, Result};
-pub use events::{ConnectionState, EngineEvent, EventSink, StreamRole, ignore_events};
-pub use pipewire::{Engine, EngineHandles};
-pub use processor::{CaptureSource, ProcessorReport, RtProcessor, recycle_queue};
-pub use stats::{StatsSnapshot, StreamStats};
+pub use command::{EffectSlot, EngineCommand};
+pub use config::{EngineConfig, SINK_NODE_DESCRIPTION, SINK_NODE_NAME};
+pub use device::{DeviceInfo, list_devices};
+pub use engine::EngineHandle;
+pub use error::{EngineError, EngineResult};
+pub use shared::{EngineState, MeterSnapshot, Shared, Snapshot, StatsSnapshot};
+
+mod error;

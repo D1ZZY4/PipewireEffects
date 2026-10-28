@@ -1,75 +1,47 @@
-use std::time::Duration;
+pub const SINK_NODE_NAME: &str = "pipewire-effects-sink";
+pub const SINK_NODE_DESCRIPTION: &str = "PipeWire Effects Sink";
+pub const GROUP_NAME: &str = "pipewire-effects";
+pub const MAX_EFFECTS: usize = 16;
+pub const MAX_QUANTUM_FRAMES: usize = 8_192;
+pub const RING_SECONDS: f32 = 0.5;
+pub const MAX_RATE_FOR_RING: u32 = 192_000;
+pub const PROCESS_TIMEOUT_MS: u64 = 20;
 
-use pipewire_effects_core::AudioFormat;
-
-pub const NODE_GROUP: &str = "pipewire-effects";
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EngineConfig {
-    pub format: AudioFormat,
-
-    pub capture_node_name: String,
-    pub capture_node_description: String,
-    pub playback_node_name: String,
-
-    pub target_sink: Option<String>,
-
-    pub ring_capacity: Duration,
-
-    pub target_latency: Duration,
-
-    pub play_audio: bool,
+    pub target: String,
+    pub sink_node_name: String,
+    pub sink_description: String,
+    pub channels: usize,
+    pub bypassed: bool,
 }
 
 impl Default for EngineConfig {
     fn default() -> Self {
         Self {
-            format: AudioFormat::default_stereo(),
-            capture_node_name: String::from("pipewire-effects-sink"),
-            capture_node_description: String::from("PipewireEffects Sink"),
-            playback_node_name: String::from("pipewire-effects-output"),
-            target_sink: None,
-            ring_capacity: Duration::from_millis(500),
-            target_latency: Duration::from_millis(20),
-            play_audio: true,
+            target: String::new(),
+            sink_node_name: SINK_NODE_NAME.to_owned(),
+            sink_description: SINK_NODE_DESCRIPTION.to_owned(),
+            channels: 2,
+            bypassed: false,
         }
     }
 }
 
 impl EngineConfig {
-    #[must_use]
-    pub fn target_fill_samples(&self) -> usize {
-        let rate = f64::from(self.format.sample_rate);
-        let samples = rate * self.target_latency.as_secs_f64() * f64::from(self.format.channels);
-        (samples.ceil() as usize).max(1_024)
-    }
-
-    #[must_use]
     pub fn ring_capacity_samples(&self) -> usize {
-        let rate = f64::from(self.format.sample_rate);
-        let samples = rate * self.ring_capacity.as_secs_f64() * f64::from(self.format.channels);
-        (samples.ceil() as usize).max(self.target_fill_samples() * 4)
-    }
-
-    pub fn validate(&self) -> Result<(), String> {
-        if !self.format.is_plausible() {
-            return Err(format!("implausible audio format: {}", self.format));
-        }
-        if self.target_latency > self.ring_capacity {
-            return Err(format!(
-                "target latency ({:?}) exceeds ring capacity ({:?})",
-                self.target_latency, self.ring_capacity
-            ));
-        }
-        if self.capture_node_name.is_empty() {
-            return Err(String::from("the capture node needs a name"));
-        }
-        if self.play_audio && self.playback_node_name.is_empty() {
-            return Err(String::from("the playback node needs a name"));
-        }
-        Ok(())
+        let seconds = RING_SECONDS.max(0.05);
+        (MAX_RATE_FOR_RING as f32 * seconds) as usize * self.channels.max(1)
     }
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_ring_holds_half_a_second_of_stereo_audio() {
+        let config = EngineConfig::default();
+        assert_eq!(config.ring_capacity_samples(), 192_000 * 2 / 2);
+    }
+}

@@ -1,234 +1,325 @@
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use crossbeam_queue::ArrayQueue;
-use pipewire_effects_core::{
-    AudioBlock, AudioEffect, AudioFormat, AudioRing, BlockMeter, ChainCommand, EffectChain,
-    SharedMeters,
-};
+use pwe_core::{AudioBuffer, AudioFormat, ChainCommand, Effect, EffectChain, LevelMeter, math};
+use rtrb::{Consumer, Producer};
 
-use crate::stats::StreamStats;
+use crate::config::MAX_QUANTUM_FRAMES;
+use crate::shared::Shared;
+use crate::streams::bytes_to_samples;
 
-const MAX_COMMANDS_PER_BLOCK: usize = 16;
-
-const RECYCLE_CAPACITY: usize = 256;
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct ProcessorReport {
-    pub frames: usize,
-    pub sampled: usize,
-    pub underrun_samples: usize,
-    pub trimmed_samples: usize,
-    pub commands_applied: usize,
+pub struct CaptureState {
+    producer: Producer<f32>,
+    scratch: Vec<f32>,
+    meter: LevelMeter,
+    shared: Arc<Shared>,
+    channels: usize,
+    rate: Arc<AtomicU32>,
+    meter_rate: u32,
 }
 
-impl ProcessorReport {
-    #[must_use]
-    pub const fn is_clean(&self) -> bool {
-        self.underrun_samples == 0 && self.trimmed_samples == 0
+impl CaptureState {
+    pub fn new(
+        producer: Producer<f32>,
+        shared: Arc<Shared>,
+        rate: Arc<AtomicU32>,
+        channels: usize,
+    ) -> Self {
+        let mut meter = LevelMeter::new();
+        meter.set_rate(rate.load(Ordering::Relaxed).max(8_000));
+        Self {
+            producer,
+            scratch: vec![0.0; MAX_QUANTUM_FRAMES * channels.max(1)],
+            meter,
+            shared,
+            channels: channels.max(1),
+            rate,
+            meter_rate: 0,
+        }
     }
 
-    #[must_use]
-    pub const fn is_complete(&self) -> bool {
-        self.underrun_samples == 0
+    pub fn submit(&mut self, bytes: &[u8]) -> usize {
+        let channels = self.channels;
+        let capacity = self.scratch.len();
+        let samples = bytes_to_samples(bytes, &mut self.scratch[..capacity]);
+        if samples == 0 {
+            return 0;
+        }
+        let rate = self.rate.load(Ordering::Relaxed);
+        if rate >= 8_000 && rate != self.meter_rate {
+            self.meter_rate = rate;
+            self.meter.set_rate(rate);
+        }
+        let slice = &self.scratch[..samples];
+        self.meter.process_interleaved(slice, channels);
+        self.shared.meters().publish_input(
+            [self.meter.peak_db(0), self.meter.peak_db(1)],
+            [self.meter.rms_db(0), self.meter.rms_db(1)],
+        );
+        let mut pushed = 0;
+        for sample in slice {
+            if self.producer.push(*sample).is_err() {
+                break;
+            }
+            pushed += 1;
+        }
+        let frames = samples / channels;
+        self.shared.stats().add_captured(frames as u64);
+        if pushed < samples {
+            self.shared.stats().add_overrun((samples - pushed) as u64);
+        }
+        frames
     }
 }
 
-pub struct RtProcessor {
+pub struct Processor {
     chain: EffectChain,
     commands: Arc<ArrayQueue<ChainCommand>>,
-    recycle: Arc<ArrayQueue<Box<dyn AudioEffect>>>,
-    ring: Arc<AudioRing>,
-    output_meters: Arc<SharedMeters>,
-    stats: Arc<StreamStats>,
-    meter: BlockMeter,
+    retired: Arc<ArrayQueue<Box<dyn Effect>>>,
+    shared: Arc<Shared>,
+    rate: Arc<AtomicU32>,
     format: AudioFormat,
+    buffer: AudioBuffer,
+    scratch: Vec<f32>,
+    target_samples: usize,
     channels: usize,
-    target_fill: usize,
-    high_watermark: usize,
 }
 
-impl RtProcessor {
-    #[must_use]
-    #[allow(clippy::too_many_arguments)]
+impl Processor {
     pub fn new(
-        format: AudioFormat,
         commands: Arc<ArrayQueue<ChainCommand>>,
-        recycle: Arc<ArrayQueue<Box<dyn AudioEffect>>>,
-        ring: Arc<AudioRing>,
-        output_meters: Arc<SharedMeters>,
-        stats: Arc<StreamStats>,
-        target_fill: usize,
-        high_watermark: usize,
+        retired: Arc<ArrayQueue<Box<dyn Effect>>>,
+        shared: Arc<Shared>,
+        rate: Arc<AtomicU32>,
+        channels: usize,
     ) -> Self {
-        let channels = format.channels_usize().max(1);
+        let channels = channels.max(1);
+        let rate_value = rate.load(Ordering::Relaxed).max(48_000);
+        let format = AudioFormat::new(rate_value, channels);
         Self {
-            chain: EffectChain::new(format),
+            chain: EffectChain::new(crate::config::MAX_EFFECTS, format),
             commands,
-            recycle,
-            ring,
-            output_meters,
-            stats,
-            meter: BlockMeter::new(channels),
+            retired,
+            shared,
+            rate,
             format,
+            buffer: AudioBuffer::new(channels, MAX_QUANTUM_FRAMES),
+            scratch: vec![0.0; MAX_QUANTUM_FRAMES * channels],
+            target_samples: channels * (rate_value as usize / 32),
             channels,
-            target_fill,
-            high_watermark: high_watermark.max(target_fill + 1),
         }
     }
 
-    #[must_use]
-    pub fn chain(&self) -> &EffectChain {
-        &self.chain
-    }
-
-    #[must_use]
-    pub fn recycle_queue(&self) -> &Arc<ArrayQueue<Box<dyn AudioEffect>>> {
-        &self.recycle
-    }
-
-    pub fn set_format(&mut self, format: AudioFormat) {
+    pub fn prepare(&mut self, format: AudioFormat) {
+        self.chain.prepare(format);
         self.format = format;
-        self.channels = format.channels_usize().max(1);
-        self.chain.set_format(format);
-        self.meter = BlockMeter::new(self.channels);
     }
 
-    pub fn drain_commands(&mut self) -> usize {
-        let Self {
-            chain,
-            commands,
-            recycle,
-            stats,
-            ..
-        } = self;
+    pub fn process(
+        &mut self,
+        consumer: &mut Consumer<f32>,
+        frames: usize,
+        destination: &mut [f32],
+    ) {
+        self.drain_commands();
+        self.follow_rate();
+        let channels = self.channels;
+        let wanted = (frames * channels).min(self.scratch.len());
+        self.trim(consumer);
 
-        let mut applied = 0;
-        while applied < MAX_COMMANDS_PER_BLOCK {
-            let Some(command) = commands.pop() else {
+        let available = consumer.slots().min(wanted);
+        let mut filled = 0;
+        while filled < available {
+            match consumer.pop() {
+                Ok(sample) => {
+                    self.scratch[filled] = sample;
+                    filled += 1;
+                }
+                Err(_) => break,
+            }
+        }
+        if filled < wanted {
+            for sample in &mut self.scratch[filled..wanted] {
+                *sample = 0.0;
+            }
+            self.shared.stats().add_underrun((wanted - filled) as u64);
+        }
+
+        let processed_frames = wanted / channels;
+        if self.buffer.configure(channels, processed_frames).is_err() {
+            self.shared
+                .add_warning("the graph quantum is larger than the processing buffer".to_owned());
+            return;
+        }
+        self.buffer.deinterleave_from(&self.scratch[..wanted]);
+        self.chain.process(&mut self.buffer);
+        self.buffer.sanitize();
+        self.publish_output();
+        self.shared.stats().add_processed(processed_frames as u64);
+        self.shared
+            .stats()
+            .set_buffer_frames(processed_frames as u64);
+        self.shared
+            .stats()
+            .set_ring_occupancy(consumer.slots() as u64);
+        self.buffer.interleave_into(destination);
+    }
+
+    pub fn drain_commands(&mut self) {
+        let retired = &self.retired;
+        let mut budget = 128;
+        while budget > 0 {
+            let Some(command) = self.commands.pop() else {
                 break;
             };
-            command.apply(chain, &mut |effect| {
-                if recycle.push(effect).is_err() {
-                    stats.add_retired_drop();
-                }
+            budget -= 1;
+            self.chain.apply(command, |effect| {
+                let _ = retired.push(effect);
             });
-            applied += 1;
-        }
-        applied
-    }
-
-    pub fn process(&mut self, buffer: &mut [f32], frames: usize) -> ProcessorReport {
-        let channels = self.channels;
-        let frames = frames.min(buffer.len() / channels);
-        let needed = frames * channels;
-
-        let mut report = ProcessorReport {
-            frames,
-            commands_applied: self.drain_commands(),
-            ..ProcessorReport::default()
-        };
-
-        let buffered = self.ring.len();
-        if buffered > self.high_watermark {
-            let excess = buffered - self.target_fill;
-            let trimmed = self.ring.discard_oldest(excess);
-            self.stats.add_trim(trimmed as u64);
-            report.trimmed_samples = trimmed;
-        }
-
-        let read = self.ring.read(&mut buffer[..needed]);
-        report.sampled = read.moved;
-        if read.shortfall > 0 {
-            buffer[read.moved..needed].fill(0.0);
-            self.stats.add_underrun_samples(read.shortfall as u64);
-            report.underrun_samples = read.shortfall;
-        }
-
-        if frames > 0 {
-            let mut block = AudioBlock::with_frames(&mut buffer[..needed], self.format, frames);
-            self.chain.process(&mut block);
-            block.sanitise();
-            self.meter.accumulate_block(&block);
-        }
-        self.meter.publish(&self.output_meters);
-
-        self.stats
-            .add_processed_frames(u64::try_from(frames).unwrap_or(u64::MAX));
-        self.stats
-            .set_latency_samples(u64::try_from(self.ring.len()).unwrap_or(u64::MAX));
-        report
-    }
-}
-
-impl std::fmt::Debug for RtProcessor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RtProcessor")
-            .field("format", &self.format)
-            .field("chain_len", &self.chain.len())
-            .field("buffered_samples", &self.ring.len())
-            .field("target_fill", &self.target_fill)
-            .finish_non_exhaustive()
-    }
-}
-
-pub struct CaptureSource {
-    ring: Arc<AudioRing>,
-    input_meters: Arc<SharedMeters>,
-    stats: Arc<StreamStats>,
-    meter: BlockMeter,
-    channels: usize,
-}
-
-impl CaptureSource {
-    #[must_use]
-    pub fn new(
-        ring: Arc<AudioRing>,
-        input_meters: Arc<SharedMeters>,
-        stats: Arc<StreamStats>,
-        format: AudioFormat,
-    ) -> Self {
-        let channels = format.channels_usize().max(1);
-        Self {
-            ring,
-            input_meters,
-            stats,
-            meter: BlockMeter::new(channels),
-            channels,
         }
     }
 
-    pub fn capture(&mut self, samples: &[f32]) -> usize {
-        let channels = self.channels;
-        let frames = samples.len() / channels;
-        let samples = &samples[..frames * channels];
-
-        let report = self.ring.write(samples);
-        if report.shortfall > 0 {
-            self.stats.add_overrun_samples(report.shortfall as u64);
+    fn trim(&mut self, consumer: &mut Consumer<f32>) {
+        let occupancy = consumer.slots();
+        let limit = self.target_samples + self.target_samples / 2;
+        if occupancy > limit {
+            let excess = occupancy - self.target_samples;
+            for _ in 0..excess {
+                if consumer.pop().is_err() {
+                    break;
+                }
+            }
+            self.shared.stats().record_trim();
         }
-        self.stats
-            .add_capture_frames(u64::try_from(frames).unwrap_or(u64::MAX));
-
-        self.meter.accumulate(samples, channels);
-        self.meter.publish(&self.input_meters);
-
-        report.moved
     }
-}
 
-impl std::fmt::Debug for CaptureSource {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CaptureSource")
-            .field("channels", &self.channels)
-            .field("buffered_samples", &self.ring.len())
-            .finish_non_exhaustive()
+    fn follow_rate(&mut self) {
+        let rate = self.rate.load(Ordering::Relaxed);
+        if rate < 8_000 || rate == self.format.rate() {
+            return;
+        }
+        self.format = AudioFormat::new(rate, self.channels);
+        self.chain.prepare(self.format);
+        self.target_samples = self.channels * (rate as usize / 32);
+        self.shared
+            .stats()
+            .set_latency_frames((self.target_samples / self.channels) as u64);
     }
-}
 
-#[must_use]
-pub fn recycle_queue() -> Arc<ArrayQueue<Box<dyn AudioEffect>>> {
-    Arc::new(ArrayQueue::new(RECYCLE_CAPACITY))
+    fn publish_output(&mut self) {
+        let buffer = &self.buffer;
+        let mut peaks = [0.0f32; 2];
+        let mut rms = [0.0f32; 2];
+        for channel in 0..buffer.channels().min(2) {
+            let mut peak = 0.0f32;
+            let mut sum = 0.0f64;
+            for sample in buffer.channel(channel) {
+                peak = peak.max(sample.abs());
+                sum += f64::from(*sample) * f64::from(*sample);
+            }
+            peaks[channel] = math::gain_to_db(peak);
+            let count = buffer.frames().max(1) as f64;
+            rms[channel] = math::gain_to_db((sum / count).sqrt() as f32);
+        }
+        self.shared.meters().publish_output(peaks, rms);
+    }
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+    use crate::shared::Shared;
+
+    #[test]
+    fn a_silent_ring_produces_silence_and_counts_underruns() {
+        let shared = Arc::new(Shared::new());
+        let commands = Arc::new(ArrayQueue::new(8));
+        let retired = Arc::new(ArrayQueue::new(8));
+        let rate = Arc::new(AtomicU32::new(48_000));
+        let (_producer, mut consumer) = rtrb::RingBuffer::new(4096);
+        let mut processor = Processor::new(commands, retired, Arc::clone(&shared), rate, 2);
+
+        let mut destination = vec![0.0f32; 2048];
+        processor.process(&mut consumer, 1024, &mut destination);
+        assert_eq!(shared.stats().underrun_samples(), 2048);
+        assert!(destination.iter().all(|sample| *sample == 0.0));
+    }
+
+    #[test]
+    fn audio_written_to_the_ring_reaches_the_output() {
+        let shared = Arc::new(Shared::new());
+        let commands = Arc::new(ArrayQueue::new(8));
+        let retired = Arc::new(ArrayQueue::new(8));
+        let rate = Arc::new(AtomicU32::new(48_000));
+        let (mut producer, mut consumer) = rtrb::RingBuffer::new(8192);
+        let mut processor = Processor::new(commands, retired, Arc::clone(&shared), rate, 2);
+
+        for value in [0.5f32, -0.5].iter().cycle().take(2048) {
+            producer.push(*value).unwrap();
+        }
+        let mut destination = vec![0.0f32; 2048];
+        processor.process(&mut consumer, 1024, &mut destination);
+        assert!((destination[0] - 0.5).abs() < 1.0e-6);
+        assert!((destination[1] + 0.5).abs() < 1.0e-6);
+        assert_eq!(shared.stats().processed_frames(), 1024);
+    }
+
+    #[test]
+    fn an_excessively_full_ring_is_trimmed_back_to_the_target() {
+        let shared = Arc::new(Shared::new());
+        let commands = Arc::new(ArrayQueue::new(8));
+        let retired = Arc::new(ArrayQueue::new(8));
+        let rate = Arc::new(AtomicU32::new(48_000));
+        let (mut producer, mut consumer) = rtrb::RingBuffer::new(16_384);
+        let mut processor = Processor::new(commands, retired, Arc::clone(&shared), rate, 2);
+        processor.follow_rate();
+        processor.target_samples = 480;
+
+        for _ in 0..8000 {
+            producer.push(0.25).unwrap();
+        }
+        let mut destination = vec![0.0f32; 256];
+        processor.process(&mut consumer, 128, &mut destination);
+        assert!(shared.stats().trim_events() >= 1);
+        assert!(consumer.slots() <= 480 + 128 + 1);
+    }
+
+    #[test]
+    fn commands_add_and_remove_effects() {
+        use pwe_core::{ChainCommand, ParamSet};
+
+        let shared = Arc::new(Shared::new());
+        let commands = Arc::new(ArrayQueue::new(8));
+        let retired: Arc<ArrayQueue<Box<dyn Effect>>> = Arc::new(ArrayQueue::new(8));
+        let rate = Arc::new(AtomicU32::new(48_000));
+        let (mut producer, mut consumer) = rtrb::RingBuffer::new(8192);
+        let mut processor = Processor::new(
+            commands.clone(),
+            retired.clone(),
+            Arc::clone(&shared),
+            rate,
+            2,
+        );
+
+        let params = ParamSet::new(pwe_dsp_specs());
+        params.set_f32("gain", -6.0).unwrap();
+        let effect = Box::new(pwe_dsp::effects::Gain::new(params));
+        assert!(commands.push(ChainCommand::Add(effect)).is_ok());
+
+        for _ in 0..2048 {
+            producer.push(0.5).unwrap();
+        }
+        let mut destination = vec![0.0f32; 256];
+        processor.process(&mut consumer, 128, &mut destination);
+        assert!(destination[0] < 0.5, "{}", destination[0]);
+
+        assert!(commands.push(ChainCommand::Remove(0)).is_ok());
+        processor.drain_commands();
+        assert_eq!(retired.len(), 1);
+    }
+
+    fn pwe_dsp_specs() -> Vec<pwe_core::ParamSpec> {
+        pwe_dsp::find("gain").map_or_else(Vec::new, |descriptor| descriptor.specs())
+    }
+}

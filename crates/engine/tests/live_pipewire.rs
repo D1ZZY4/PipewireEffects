@@ -1,190 +1,206 @@
-use std::f32::consts::PI;
-use std::io::Write;
-use std::process::{Command, Stdio};
-use std::thread;
+use std::f32::consts::TAU;
+use std::path::PathBuf;
+use std::process::Command;
+use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use pipewire_effects_core::{ChainController, ParamValue};
-use pipewire_effects_dsp::registry;
-use pipewire_effects_engine::{Engine, EngineConfig, ignore_events, list_devices, list_sinks};
+use pwe_core::ParamSet;
+use pwe_engine::{EffectSlot, EngineConfig, EngineHandle, EngineState};
 
-const TONE_AMPLITUDE: f32 = 0.5;
-const TONE_SECONDS: f32 = 0.6;
-const APPLIED_GAIN_DB: f32 = -20.0;
-const STARTUP: Duration = Duration::from_secs(3);
-
-fn config(tag: &str) -> EngineConfig {
-    EngineConfig {
-        capture_node_name: format!("pipewire-effects-sink-{}-{tag}", std::process::id()),
-        playback_node_name: format!("pipewire-effects-out-{}-{tag}", std::process::id()),
-        ..EngineConfig::default()
+fn write_wav(path: &PathBuf, seconds: f32, frequency: f32, amplitude: f32) -> std::io::Result<()> {
+    let rate = 48_000u32;
+    let frames = (rate as f32 * seconds) as u32;
+    let channels = 2u16;
+    let mut bytes = Vec::with_capacity(44 + frames as usize * 8);
+    let data_size = frames * u32::from(channels) * 4;
+    bytes.extend_from_slice(b"RIFF");
+    bytes.extend_from_slice(&(36 + data_size).to_le_bytes());
+    bytes.extend_from_slice(b"WAVEfmt ");
+    bytes.extend_from_slice(&16u32.to_le_bytes());
+    bytes.extend_from_slice(&3u16.to_le_bytes());
+    bytes.extend_from_slice(&channels.to_le_bytes());
+    bytes.extend_from_slice(&rate.to_le_bytes());
+    bytes.extend_from_slice(&(rate * u32::from(channels) * 4).to_le_bytes());
+    bytes.extend_from_slice(&(channels * 4).to_le_bytes());
+    bytes.extend_from_slice(&32u16.to_le_bytes());
+    bytes.extend_from_slice(b"data");
+    bytes.extend_from_slice(&data_size.to_le_bytes());
+    for frame in 0..frames {
+        let value = amplitude * (TAU * frequency * frame as f32 / rate as f32).sin();
+        for _ in 0..channels {
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
     }
+    std::fs::write(path, bytes)
 }
 
-fn wait_for_device(name: &str, timeout: Duration) -> bool {
+fn wait_for(engine: &EngineHandle, state: EngineState, timeout: Duration) -> bool {
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
-        if let Ok(devices) = list_devices(Duration::from_millis(300)) {
-            if devices.iter().any(|device| device.name == name) {
-                return true;
-            }
+        if engine.shared().state() == state {
+            return true;
         }
-        thread::sleep(Duration::from_millis(100));
+        sleep(Duration::from_millis(25));
     }
-    false
+    engine.shared().state() == state
 }
 
-fn play_tone(target: &str, on_chunk: &mut dyn FnMut()) -> std::io::Result<()> {
-    let mut child = Command::new("pw-cat")
-        .args([
-            "--playback",
-            "--raw",
-            "--format",
-            "f32",
-            "--rate",
-            "48000",
-            "--channels",
-            "2",
-            "--target",
-            target,
-            "-",
-        ])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()?;
+#[test]
+#[ignore = "needs a running PipeWire daemon"]
+fn the_engine_connects_and_reports_its_devices() {
+    let mut engine = EngineHandle::spawn(EngineConfig::default()).expect("engine should start");
+    assert!(
+        wait_for(&engine, EngineState::Running, Duration::from_secs(5)),
+        "engine did not start"
+    );
+    let snapshot = engine.shared().snapshot();
+    assert!(!snapshot.devices.is_empty(), "no devices were discovered");
+    assert!(snapshot.devices.iter().any(|device| device.is_sink()));
+    assert_eq!(snapshot.channels, 2);
+    assert_eq!(snapshot.sink_node_name, "pipewire-effects-sink");
+    engine.shutdown();
+    assert_eq!(engine.shared().state(), EngineState::Stopped);
+}
 
-    let mut stdin = child.stdin.take().expect("stdin was piped");
+#[test]
+#[ignore = "needs a running PipeWire daemon and plays a quiet tone"]
+fn audio_is_processed_by_the_chain_and_measured_at_the_output() {
+    let mut engine = EngineHandle::spawn(EngineConfig::default()).expect("engine should start");
+    assert!(
+        wait_for(&engine, EngineState::Running, Duration::from_secs(5)),
+        "engine did not start"
+    );
 
-    const CHUNK_FRAMES: usize = 480;
-    let chunks = ((TONE_SECONDS * 48_000.0) as usize) / CHUNK_FRAMES;
-    let mut phase = 0.0_f32;
+    let params = ParamSet::new(pwe_dsp::effects::gain_specs());
+    params.set_f32("gain", -20.0).unwrap();
+    engine
+        .add_effect(EffectSlot(1), Box::new(pwe_dsp::effects::Gain::new(params)))
+        .expect("effect should be accepted");
+    sleep(Duration::from_millis(200));
 
-    for _ in 0..chunks {
-        let mut bytes = Vec::with_capacity(CHUNK_FRAMES * 2 * 4);
-        for _ in 0..CHUNK_FRAMES {
-            let value = phase.sin() * TONE_AMPLITUDE;
-            phase = (phase + 2.0 * PI * 440.0 / 48_000.0) % (2.0 * PI);
-            bytes.extend_from_slice(&value.to_le_bytes());
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
-        if stdin.write_all(&bytes).is_err() {
+    let sink_deadline = Instant::now() + Duration::from_secs(5);
+    let mut sink_registered = false;
+    while Instant::now() < sink_deadline {
+        let snapshot = engine.shared().snapshot();
+        if snapshot
+            .devices
+            .iter()
+            .any(|device| device.name == "pipewire-effects-sink")
+        {
+            sink_registered = true;
             break;
         }
-        let _ = stdin.flush();
-        on_chunk();
-        thread::sleep(Duration::from_millis(4));
+        sleep(Duration::from_millis(50));
     }
+    assert!(
+        sink_registered,
+        "the virtual sink never appeared, so a client cannot be routed into it"
+    );
 
-    drop(stdin);
+    let path = std::env::temp_dir().join("pipewire-effects-live-test.wav");
+    write_wav(&path, 2.5, 1_000.0, 0.1).expect("the test signal should be written");
+
+    let child = Command::new("pw-cat")
+        .args(["--playback", "--target", "pipewire-effects-sink"])
+        .arg(&path)
+        .spawn();
+    let Ok(mut child) = child else {
+        eprintln!("pw-cat is unavailable; the live processing test was not executed");
+        let _ = std::fs::remove_file(&path);
+        return;
+    };
+
+    let deadline = Instant::now() + Duration::from_secs(8);
+    let mut loudest_input = f32::MIN;
+    let mut reduction = 0.0f32;
+    let mut samples = 0u32;
+    while Instant::now() < deadline {
+        let meters = engine.shared().meters().snapshot();
+        let input = meters.input_peak_db[0];
+        if input > loudest_input {
+            loudest_input = input;
+            reduction = input - meters.output_peak_db[0];
+        }
+        samples += 1;
+        if samples > 30 && loudest_input > -30.0 && reduction > 10.0 {
+            break;
+        }
+        sleep(Duration::from_millis(20));
+    }
+    let meters = engine.shared().meters().snapshot();
+    let stats = engine.shared().stats().snapshot();
+
+    let _ = child.kill();
     let _ = child.wait();
-    Ok(())
-}
-
-#[test]
-#[ignore = "needs a running PipeWire daemon"]
-fn the_virtual_sink_is_registered_as_a_real_audio_sink() {
-    let config = config("register");
-    let node = config.capture_node_name.clone();
-    let controller = ChainController::new(registry());
-
-    let (mut engine, _handles) = Engine::spawn(config, controller.command_queue(), ignore_events())
-        .expect("the engine should start against a running PipeWire daemon");
-
-    let found = wait_for_device(&node, STARTUP);
-    engine.stop();
-
-    assert!(
-        found,
-        "`{node}` never appeared as an audio device, so nothing can be routed to it"
-    );
-}
-
-#[test]
-#[ignore = "needs a running PipeWire daemon"]
-fn audio_flows_from_a_client_through_the_chain_at_the_expected_level() {
-    let controller = ChainController::new(registry());
-
-    controller.add("gain").expect("gain is registered");
-    controller.with_model(|model| {
-        model.entries[0]
-            .parameters
-            .set_by_id("gain", ParamValue::Float(APPLIED_GAIN_DB))
-            .expect("the gain parameter exists");
-    });
-
-    let config = config("audio");
-    let node = config.capture_node_name.clone();
-    let (mut engine, handles) = Engine::spawn(config, controller.command_queue(), ignore_events())
-        .expect("the engine should start against a running PipeWire daemon");
-
-    assert!(
-        wait_for_device(&node, STARTUP),
-        "`{node}` never appeared, so the test cannot feed it audio"
-    );
-
-    let mut loudest_output = 0.0_f32;
-    let mut loudest_input = 0.0_f32;
-    play_tone(&node, &mut || {
-        loudest_input = loudest_input.max(handles.input_meters().snapshot().loudest_peak());
-        loudest_output = loudest_output.max(handles.output_meters().snapshot().loudest_peak());
-    })
-    .expect("pw-cat should run");
-
-    let stats = handles.stats();
-    let latency_ms = stats.latency_ms(48_000, 2);
-    engine.stop();
-
-    assert!(
-        stats.capture_frames > 0,
-        "no audio reached the virtual sink: {stats:?}"
-    );
-    assert!(
-        stats.processed_frames > 0,
-        "nothing was processed or played: {stats:?}"
-    );
-    assert!(
-        loudest_input > 0.05,
-        "the input meter never showed the tone, peak was {loudest_input}"
-    );
-
-    let expected = TONE_AMPLITUDE * 10.0_f32.powf(APPLIED_GAIN_DB / 20.0);
-    assert!(
-        loudest_output > expected * 0.5 && loudest_output < expected * 1.6,
-        "expected about {expected} on the output meter after {APPLIED_GAIN_DB} dB of gain, \
-         but measured {loudest_output}"
-    );
+    let _ = std::fs::remove_file(&path);
 
     println!(
-        "captured {} frames, processed {} frames, buffer {:.1} ms, \
-         input peak {loudest_input:.4}, output peak {loudest_output:.4} (expected {expected:.4}), \
-         glitches {} ",
-        stats.capture_frames,
+        "sampled {} times; captured {} frames, processed {} frames, underruns {}, overruns {}, trims {}, occupancy {}",
+        samples,
+        stats.captured_frames,
         stats.processed_frames,
-        latency_ms,
-        stats.glitch_samples()
+        stats.underrun_samples,
+        stats.overrun_samples,
+        stats.trim_events,
+        stats.ring_occupancy
     );
+    println!(
+        "loudest input {:.2} dB, reduction {:.2} dB; last read: input peak {:.2} dB, output peak {:.2} dB",
+        loudest_input, reduction, meters.input_peak_db[0], meters.output_peak_db[0]
+    );
+
+    assert!(
+        stats.captured_frames > 4_800,
+        "the capture stream saw no audio"
+    );
+    assert!(stats.processed_frames > 4_800, "the chain never ran");
+    assert!(loudest_input > -30.0, "the input meter never moved");
+    assert!(
+        (reduction - 20.0).abs() < 4.0,
+        "expected about 20 dB of gain reduction, measured {reduction}"
+    );
+
+    engine.shutdown();
 }
 
 #[test]
 #[ignore = "needs a running PipeWire daemon"]
-fn the_virtual_sink_is_listed_alongside_the_real_devices() {
-    let config = config("listed");
-    let node = config.capture_node_name.clone();
-    let controller = ChainController::new(registry());
-
-    let (mut engine, _handles) =
-        Engine::spawn(config, controller.command_queue(), ignore_events()).unwrap();
-
-    let appeared = wait_for_device(&node, STARTUP);
-    let visible_as_output = list_sinks(Duration::from_millis(300))
-        .map(|sinks| sinks.iter().any(|sink| sink.name == node))
-        .unwrap_or(false);
-    engine.stop();
-
-    assert!(appeared, "the virtual sink was not registered");
+fn the_target_device_can_be_changed_while_running() {
+    let mut engine = EngineHandle::spawn(EngineConfig::default()).expect("engine should start");
     assert!(
-        !visible_as_output,
-        "`list_sinks` should hide our own virtual sink from the device chooser"
+        wait_for(&engine, EngineState::Running, Duration::from_secs(5)),
+        "engine did not start"
     );
+
+    let devices = engine.shared().snapshot().devices;
+    let Some(sink) = devices.iter().find(|device| device.is_sink()) else {
+        eprintln!("no sink is available; the retarget test was not executed");
+        return;
+    };
+    let name = sink.name.clone();
+    engine
+        .set_target_device(name.clone())
+        .expect("the command should be queued");
+    sleep(Duration::from_millis(500));
+    assert_eq!(engine.shared().snapshot().target, name);
+    assert!(wait_for(
+        &engine,
+        EngineState::Running,
+        Duration::from_secs(3)
+    ));
+
+    engine
+        .set_target_device("does-not-exist")
+        .expect("the command should be queued");
+    sleep(Duration::from_millis(500));
+    assert!(
+        engine
+            .shared()
+            .snapshot()
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("does-not-exist")),
+        "the missing device was not reported"
+    );
+    engine.shutdown();
 }
