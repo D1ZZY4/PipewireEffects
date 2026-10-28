@@ -1,12 +1,8 @@
-pub mod biquad;
+mod biquad;
 pub mod effects;
-pub mod util;
+mod knob;
+mod registry;
 
-use pipewire_effects_core::EffectDef;
-
-pub static REGISTRY: &[EffectDef] = &[effects::eq::DEF, effects::gain::DEF, effects::limiter::DEF];
-
-#[must_use]
-pub const fn registry() -> &'static [EffectDef] {
-    REGISTRY
-}
+pub use biquad::{Biquad, Coefficients, FilterKind};
+pub use knob::Knob;
+pub use registry::{EFFECTS, EffectCategory, EffectDescriptor, find, instantiate};

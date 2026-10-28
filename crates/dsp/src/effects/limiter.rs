@@ -1,152 +1,176 @@
-use pipewire_effects_core::{
-    AudioBlock, AudioEffect, AudioFormat, EffectCategory, EffectDef, EffectKind, ParamSet,
-    ParamSpec, ParamUnit,
-};
+use pwe_core::{AudioBuffer, AudioFormat, Effect, ParamSet, ParamSpec, ParamUnit, math};
 
-use crate::util::{db_to_linear, one_pole_coefficient};
+use crate::effects::util::MAX_CHANNELS;
+use crate::knob::Knob;
 
-const PARAM_THRESHOLD: usize = 0;
-const PARAM_MAKEUP: usize = 1;
-const PARAM_RELEASE: usize = 2;
-const PARAM_LINKED: usize = 3;
-
-pub const KIND: EffectKind = EffectKind::new("limiter");
-
-pub const DEF: EffectDef = EffectDef::new(
-    KIND,
-    "Limiter",
-    "Brick-wall peak limiter with make-up gain and a linked stereo detector.",
-    EffectCategory::Dynamics,
-    LimiterEffect::boxed,
-);
-
-#[derive(Debug)]
-pub struct LimiterEffect {
-    parameters: ParamSet,
-    envelopes: Vec<f32>,
+pub fn specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::float("input_gain", "Input gain", ParamUnit::Decibel)
+            .range(-20.0, 20.0, 0.0)
+            .step(0.1)
+            .group("Input")
+            .build(),
+        ParamSpec::float("limit", "Limit", ParamUnit::Decibel)
+            .range(-30.0, 0.0, -1.0)
+            .step(0.1)
+            .group("Output")
+            .build(),
+        ParamSpec::float("release", "Release", ParamUnit::Milliseconds)
+            .range(5.0, 1000.0, 60.0)
+            .logarithmic()
+            .group("Timing")
+            .build(),
+    ]
 }
 
-impl LimiterEffect {
-    #[must_use]
-    pub fn new() -> Self {
-        let mut effect = Self {
-            parameters: ParamSet::new(vec![
-                ParamSpec::float(
-                    "threshold",
-                    "Ceiling",
-                    -30.0,
-                    0.0,
-                    -1.0,
-                    0.1,
-                    ParamUnit::Decibel,
-                )
-                .with_doc("The loudest sample the limiter will let through."),
-                ParamSpec::float("makeup", "Make-up", 0.0, 24.0, 0.0, 0.1, ParamUnit::Decibel)
-                    .with_doc("Gain applied before limiting, to restore loudness."),
-                ParamSpec::float_log(
-                    "release",
-                    "Release",
-                    5.0,
-                    2_000.0,
-                    150.0,
-                    ParamUnit::Milliseconds,
-                )
-                .with_doc("How quickly the limiter recovers once the signal drops."),
-                ParamSpec::boolean("linked", "Link channels", true).with_doc(
-                    "Reduce all channels by the same amount, preserving the stereo image.",
-                ),
-            ]),
-            envelopes: Vec::new(),
-        };
-        effect.prepare(AudioFormat::default());
-        effect
+pub struct Limiter {
+    input_gain: Knob,
+    limit: Knob,
+    release: Knob,
+    gain: f32,
+    release_coefficient: f32,
+    input_smoothed: math::Smoothed,
+    rate: u32,
+}
+
+impl Limiter {
+    pub fn new(params: ParamSet) -> Self {
+        Self {
+            input_gain: Knob::new(&params, "input_gain", 0.0),
+            limit: Knob::new(&params, "limit", -1.0),
+            release: Knob::new(&params, "release", 60.0),
+            gain: 1.0,
+            release_coefficient: 0.001,
+            input_smoothed: math::Smoothed::new(1.0),
+            rate: 48_000,
+        }
     }
 
-    #[must_use]
-    pub fn boxed() -> Box<dyn AudioEffect> {
-        Box::new(Self::new())
-    }
-
-    #[must_use]
-    pub fn ceiling(&self) -> f32 {
-        db_to_linear(self.parameters.value_f32(PARAM_THRESHOLD))
+    fn update_coefficient(&mut self) {
+        let seconds = (self.release.value().max(0.5) / 1000.0).max(1.0e-6);
+        self.release_coefficient = 1.0 - (-1.0 / (seconds * self.rate.max(1) as f32)).exp();
+        self.input_smoothed.set_time_constant(20.0, self.rate);
     }
 }
 
-impl Default for LimiterEffect {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl AudioEffect for LimiterEffect {
-    fn kind(&self) -> EffectKind {
-        KIND
-    }
-
-    fn parameters(&self) -> &ParamSet {
-        &self.parameters
+impl Effect for Limiter {
+    fn id(&self) -> &'static str {
+        "limiter"
     }
 
     fn prepare(&mut self, format: AudioFormat) {
-        self.envelopes = vec![1.0; format.channels_usize().max(1)];
+        self.rate = format.rate();
+        self.update_coefficient();
+        self.reset();
     }
 
     fn reset(&mut self) {
-        self.envelopes.fill(1.0);
+        self.gain = 1.0;
+        self.input_smoothed
+            .snap(math::db_to_gain(self.input_gain.value()));
     }
 
-    fn process(&mut self, block: &mut AudioBlock<'_>) {
-        let channels = block.channels();
-        if channels == 0 || channels != self.envelopes.len() {
-            return;
-        }
+    fn process(&mut self, buffer: &mut AudioBuffer) {
+        self.update_coefficient();
+        self.input_smoothed
+            .set_target(math::db_to_gain(self.input_gain.value()));
+        let input_gain = self.input_smoothed.advance();
+        let ceiling = math::db_to_gain(self.limit.value());
+        let ceiling = ceiling.max(1.0e-5);
+        let release = self.release_coefficient;
+        let channels = buffer.channels().min(MAX_CHANNELS);
+        let frames = buffer.frames();
 
-        let ceiling = self.ceiling();
-        let makeup = db_to_linear(self.parameters.value_f32(PARAM_MAKEUP));
-        let linked = self.parameters.value_bool(PARAM_LINKED);
-        let release = one_pole_coefficient(
-            self.parameters.value_f32(PARAM_RELEASE),
-            block.format().sample_rate_f32(),
-        );
-
-        for frame in block.frames_iter_mut() {
-            let common_level = if linked {
-                frame.iter().fold(0.0_f32, |acc, s| acc.max(s.abs())) * makeup
+        for frame in 0..frames {
+            let mut peak = 0.0f32;
+            for channel in 0..channels {
+                let sample = buffer.channel_mut(channel)[frame] * input_gain;
+                peak = peak.max(sample.abs());
+            }
+            let required = if peak > ceiling { ceiling / peak } else { 1.0 };
+            if required < self.gain {
+                self.gain = required;
             } else {
-                0.0
-            };
-
-            for (channel, sample) in frame.iter_mut().enumerate() {
-                let level = if linked {
-                    common_level
-                } else {
-                    sample.abs() * makeup
-                };
-
-                let target = if level > ceiling {
-                    ceiling / level
-                } else {
-                    1.0
-                };
-                let envelope = &mut self.envelopes[channel];
-
-                if target < *envelope {
-                    *envelope = target;
-                } else {
-                    *envelope += (target - *envelope) * release;
+                self.gain += (1.0 - self.gain) * release;
+                if self.gain > 1.0 {
+                    self.gain = 1.0;
                 }
+            }
+            let gain = self.gain * input_gain;
+            for channel in 0..channels {
+                let plan = buffer.channel_mut(channel);
+                let value = plan[frame] * gain;
+                plan[frame] = if value > ceiling {
+                    ceiling
+                } else if value < -ceiling {
+                    -ceiling
+                } else {
+                    math::sanitize(value)
+                };
+            }
+        }
+    }
+}
 
-                *sample *= makeup * *envelope;
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hot_tone(amplitude: f32, frames: usize) -> AudioBuffer {
+        let mut buffer = AudioBuffer::new(2, frames);
+        buffer.configure(2, frames).unwrap();
+        for channel in 0..2 {
+            let plan = buffer.channel_mut(channel);
+            for (index, sample) in plan.iter_mut().enumerate() {
+                *sample =
+                    amplitude * (std::f32::consts::TAU * 300.0 * index as f32 / 48_000.0).sin();
+            }
+        }
+        buffer
+    }
+
+    #[test]
+    fn the_ceiling_is_never_exceeded() {
+        let params = ParamSet::new(specs());
+        params.set_f32("input_gain", 20.0).unwrap();
+        params.set_f32("limit", -6.0).unwrap();
+        let mut effect = Limiter::new(params);
+        effect.prepare(AudioFormat::new(48_000, 2));
+        let ceiling = math::db_to_gain(-6.0);
+        for _ in 0..128 {
+            let mut buffer = hot_tone(1.0, 1024);
+            effect.process(&mut buffer);
+            for channel in 0..2 {
+                for sample in buffer.channel(channel) {
+                    assert!(sample.abs() <= ceiling + 1.0e-6, "{sample} > {ceiling}");
+                }
             }
         }
     }
 
-    fn summary(&self) -> String {
-        format!(
-            "Ceiling {} · Make-up {}",
-            self.parameters.format(PARAM_THRESHOLD),
-            self.parameters.format(PARAM_MAKEUP)
-        )
+    #[test]
+    fn quiet_signal_passes_through_unity() {
+        let params = ParamSet::new(specs());
+        let mut effect = Limiter::new(params);
+        effect.prepare(AudioFormat::new(48_000, 2));
+        let mut buffer = hot_tone(0.1, 4096);
+        effect.process(&mut buffer);
+        assert!((buffer.peak() - 0.1).abs() < 0.01, "{}", buffer.peak());
+    }
+
+    #[test]
+    fn the_gain_recovers_after_a_transient() {
+        let params = ParamSet::new(specs());
+        params.set_f32("limit", -12.0).unwrap();
+        params.set_f32("release", 5.0).unwrap();
+        let mut effect = Limiter::new(params);
+        effect.prepare(AudioFormat::new(48_000, 2));
+        let mut burst = hot_tone(1.0, 256);
+        effect.process(&mut burst);
+        let mut quiet = hot_tone(0.02, 4096);
+        for _ in 0..64 {
+            effect.process(&mut quiet);
+        }
+        assert!((quiet.peak() - 0.02).abs() < 0.002, "{}", quiet.peak());
     }
 }

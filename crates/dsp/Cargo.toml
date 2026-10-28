@@ -1,14 +1,13 @@
 [package]
-name = "pipewire-effects-dsp"
-description = "Pure-Rust audio effects and DSP primitives for PipewireEffects."
+name = "pwe-dsp"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-repository.workspace = true
+description = "Native DSP effect implementations for PipewireEffects"
+
+[dependencies]
+pwe-core.workspace = true
 
 [lints]
 workspace = true
-
-[dependencies]
-pipewire-effects-core.workspace = true

@@ -1,98 +1,109 @@
-use pipewire_effects_core::{
-    AudioBlock, AudioEffect, AudioFormat, EffectCategory, EffectDef, EffectKind, ParamSet,
-    ParamSpec, ParamUnit,
-};
+use pwe_core::{AudioBuffer, AudioFormat, Effect, ParamSet, ParamSpec, ParamUnit, math};
 
-use crate::util::{Ramp, db_to_linear};
+use crate::effects::util;
+use crate::knob::Knob;
 
-const PARAM_GAIN: usize = 0;
-const PARAM_MUTE: usize = 1;
-
-pub const KIND: EffectKind = EffectKind::new("gain");
-
-pub const DEF: EffectDef = EffectDef::new(
-    KIND,
-    "Output Gain",
-    "Applies a constant gain to every channel, with an optional mute.",
-    EffectCategory::Utility,
-    GainEffect::boxed,
-);
-
-#[derive(Debug)]
-pub struct GainEffect {
-    parameters: ParamSet,
-    ramp: Ramp,
+pub fn specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::float("gain", "Gain", ParamUnit::Decibel)
+            .range(-30.0, 30.0, 0.0)
+            .step(0.1)
+            .group("Output")
+            .build(),
+        ParamSpec::boolean("mute", "Mute", false).group("Output"),
+    ]
 }
 
-impl GainEffect {
-    #[must_use]
-    pub fn new() -> Self {
+pub struct Gain {
+    gain: Knob,
+    mute: Knob,
+    smoothed: math::Smoothed,
+    rate: u32,
+}
+
+impl Gain {
+    pub fn new(params: ParamSet) -> Self {
         Self {
-            parameters: ParamSet::new(vec![
-                ParamSpec::float("gain", "Gain", -60.0, 24.0, 0.0, 0.1, ParamUnit::Decibel)
-                    .with_doc("Gain applied to every channel, in decibels."),
-                ParamSpec::boolean("mute", "Mute", false)
-                    .with_doc("Silences the output without losing the gain setting."),
-            ]),
-            ramp: Ramp::new(1.0),
+            gain: Knob::new(&params, "gain", 0.0),
+            mute: Knob::new(&params, "mute", 0.0),
+            smoothed: math::Smoothed::new(1.0),
+            rate: 48_000,
         }
     }
 
-    #[must_use]
-    pub fn boxed() -> Box<dyn AudioEffect> {
-        Box::new(Self::new())
-    }
-
-    fn target_gain(&self) -> f32 {
-        if self.parameters.value_bool(PARAM_MUTE) {
-            0.0
-        } else {
-            db_to_linear(self.parameters.value_f32(PARAM_GAIN))
-        }
+    fn update_coefficient(&mut self) {
+        self.smoothed.set_time_constant(20.0, self.rate);
     }
 }
 
-impl Default for GainEffect {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl AudioEffect for GainEffect {
-    fn kind(&self) -> EffectKind {
-        KIND
+impl Effect for Gain {
+    fn id(&self) -> &'static str {
+        "gain"
     }
 
-    fn parameters(&self) -> &ParamSet {
-        &self.parameters
-    }
-
-    fn prepare(&mut self, _format: AudioFormat) {
-        self.ramp.reset(self.target_gain());
+    fn prepare(&mut self, format: AudioFormat) {
+        self.rate = format.rate();
+        self.update_coefficient();
+        self.smoothed.snap(self.target_gain());
     }
 
     fn reset(&mut self) {
-        self.ramp.reset(self.target_gain());
+        self.smoothed.snap(self.target_gain());
     }
 
-    fn process(&mut self, block: &mut AudioBlock<'_>) {
-        self.ramp.set_target(self.target_gain());
-        self.ramp.begin(block.frames());
+    fn process(&mut self, buffer: &mut AudioBuffer) {
+        let target = self.target_gain();
+        self.smoothed.set_target(target);
+        let gain = self.smoothed.advance();
+        util::apply_gain(buffer, gain);
+    }
+}
 
-        for frame in block.frames_iter_mut() {
-            let gain = self.ramp.next_value();
-            for sample in frame.iter_mut() {
-                *sample *= gain;
-            }
+impl Gain {
+    fn target_gain(&self) -> f32 {
+        if self.mute.flag() {
+            0.0
+        } else {
+            math::db_to_gain(self.gain.value())
         }
+    }
+}
 
-        self.ramp.finish();
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn buffer() -> AudioBuffer {
+        let mut buffer = AudioBuffer::new(2, 4);
+        buffer.configure(2, 2).unwrap();
+        buffer.channel_mut(0).copy_from_slice(&[0.5, -0.5]);
+        buffer.channel_mut(1).copy_from_slice(&[0.5, -0.5]);
+        buffer
     }
 
-    fn summary(&self) -> String {
-        if self.parameters.value_bool(PARAM_MUTE) {
-            return String::from("Muted");
-        }
-        self.parameters.format(PARAM_GAIN)
+    #[test]
+    fn minus_six_db_halves_the_amplitude() {
+        let params = ParamSet::new(specs());
+        params.set_f32("gain", -6.0206).unwrap();
+        let mut effect = Gain::new(params);
+        effect.prepare(AudioFormat::new(48_000, 2));
+        let mut buf = buffer();
+        effect.process(&mut buf);
+        assert!(
+            (buf.channel(0)[0] - 0.25).abs() < 1.0e-3,
+            "{}",
+            buf.channel(0)[0]
+        );
+    }
+
+    #[test]
+    fn mute_silences_the_output() {
+        let params = ParamSet::new(specs());
+        params.set_bool("mute", true).unwrap();
+        let mut effect = Gain::new(params);
+        effect.prepare(AudioFormat::new(48_000, 2));
+        let mut buf = buffer();
+        effect.process(&mut buf);
+        assert_eq!(buf.channel(0)[0], 0.0);
     }
 }
