@@ -1,12 +1,12 @@
 [Desktop Entry]
 Type=Application
-Name=PipewireEffects
+Name=PipeWire Effects
 GenericName=Audio Effects Processor
-Comment=Shape the sound of any application with an equaliser, a limiter and a gain stage
+Comment=Process application audio through an equaliser, dynamics, tone shaping and time based effects
 Exec=pipewire-effects
 Icon=io.github.D1ZZY4.PipewireEffects
 Terminal=false
 Categories=AudioVideo;Audio;GTK;
-Keywords=PipeWire;Pipewire;audio;effects;equalizer;equaliser;EQ;limiter;gain;DSP;
+Keywords=PipeWire;audio;effects;equalizer;equaliser;EQ;compressor;limiter;reverb;delay;DSP;
 StartupNotify=true
 StartupWMClass=io.github.D1ZZY4.PipewireEffects
