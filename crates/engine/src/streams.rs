@@ -72,7 +72,13 @@ pub fn stream_properties(
     properties.insert("node.group", group);
     properties.insert("node.link-group", group);
     properties.insert("audio.position", "FL,FR");
+    disable_session_restore(&mut properties);
     properties
+}
+
+pub fn disable_session_restore(properties: &mut pw::properties::PropertiesBox) {
+    properties.insert("state.restore-props", "false");
+    properties.insert("state.restore-target", "false");
 }
 
 #[cfg(test)]
@@ -105,5 +111,21 @@ mod tests {
     fn a_format_pod_carries_the_channel_count() {
         let pod = audio_format_pod(2).expect("pod should serialize");
         assert!(Pod::from_bytes(&pod).is_some());
+    }
+
+    #[test]
+    fn internal_streams_opt_out_of_the_session_manager_restore() {
+        let properties = stream_properties(
+            "Audio/Sink",
+            "Capture",
+            "DSP",
+            "pipewire-effects-sink",
+            "Sink",
+            "pipewire-effects",
+        );
+        let properties: &pw::properties::Properties = properties.as_ref();
+        assert_eq!(properties.get("state.restore-props"), Some("false"));
+        assert_eq!(properties.get("state.restore-target"), Some("false"));
+        assert_eq!(properties.get("node.name"), Some("pipewire-effects-sink"));
     }
 }

@@ -7,6 +7,8 @@ use std::time::{Duration, Instant};
 use pwe_core::ParamSet;
 use pwe_engine::{EffectSlot, EngineConfig, EngineHandle, EngineState};
 
+const MIN_PROCESSED_FRAMES: u64 = 4_800;
+
 fn write_wav(path: &PathBuf, seconds: f32, frequency: f32, amplitude: f32) -> std::io::Result<()> {
     let rate = 48_000u32;
     let frames = (rate as f32 * seconds) as u32;
@@ -65,7 +67,12 @@ fn the_engine_connects_and_reports_its_devices() {
 #[test]
 #[ignore = "needs a running PipeWire daemon and plays a quiet tone"]
 fn audio_is_processed_by_the_chain_and_measured_at_the_output() {
-    let mut engine = EngineHandle::spawn(EngineConfig::default()).expect("engine should start");
+    let private = EngineConfig {
+        sink_node_name: format!("pipewire-effects-live-{}", std::process::id()),
+        sink_description: "PipeWire Effects live test".to_owned(),
+        ..EngineConfig::default()
+    };
+    let mut engine = EngineHandle::spawn(private).expect("engine should start");
     assert!(
         wait_for(&engine, EngineState::Running, Duration::from_secs(5)),
         "engine did not start"
@@ -106,11 +113,11 @@ fn audio_is_processed_by_the_chain_and_measured_at_the_output() {
     write_wav(&path, 2.5, 1_000.0, 0.1).expect("the test signal should be written");
 
     let mut child: Option<std::process::Child> = None;
-    let mut loudest_input = f32::MIN;
+    let mut tone_input_db = f32::MIN;
     let mut reduction = 0.0f32;
     let mut samples = 0u32;
     let mut attempts = 0u32;
-    while attempts < 3 && loudest_input <= -30.0 {
+    while attempts < 3 && tone_input_db <= -30.0 {
         attempts += 1;
         match Command::new("pw-cat")
             .args(["--playback", "--target", sink_target.as_str()])
@@ -138,15 +145,19 @@ fn audio_is_processed_by_the_chain_and_measured_at_the_output() {
                 if output > -100.0 {
                     let measured = input - output;
                     if measured > 10.0 && measured < 60.0 {
-                        loudest_input = input;
+                        tone_input_db = input;
                         reduction = measured;
-                        break;
+                        if engine.shared().stats().snapshot().processed_frames
+                            >= MIN_PROCESSED_FRAMES
+                        {
+                            break;
+                        }
                     }
                 }
             }
             sleep(Duration::from_millis(20));
         }
-        if heard && loudest_input > -30.0 {
+        if heard && tone_input_db > -30.0 {
             break;
         }
         if !heard {
@@ -180,16 +191,23 @@ fn audio_is_processed_by_the_chain_and_measured_at_the_output() {
         stats.ring_occupancy
     );
     println!(
-        "loudest input {:.2} dB, reduction {:.2} dB; last read: input peak {:.2} dB, output peak {:.2} dB",
-        loudest_input, reduction, meters.input_peak_db[0], meters.output_peak_db[0]
+        "tone measured at {tone_input_db:.2} dB with {reduction:.2} dB of reduction; last read: input peak {:.2} dB, output peak {:.2} dB",
+        meters.input_peak_db[0], meters.output_peak_db[0]
     );
 
     assert!(
-        stats.captured_frames > 4_800,
+        stats.captured_frames >= MIN_PROCESSED_FRAMES,
         "the capture stream saw no audio"
     );
-    assert!(stats.processed_frames > 4_800, "the chain never ran");
-    assert!(loudest_input > -30.0, "the input meter never moved");
+    assert!(
+        stats.processed_frames >= MIN_PROCESSED_FRAMES,
+        "the chain never ran"
+    );
+    assert!(tone_input_db > -30.0, "the input meter never moved");
+    assert!(
+        (tone_input_db + 20.0).abs() < 3.0,
+        "the tone reached the chain at {tone_input_db} dB instead of about -20 dB, so the sink or the source stream is not passing audio at unity"
+    );
     assert!(
         (reduction - 20.0).abs() < 4.0,
         "expected about 20 dB of gain reduction, measured {reduction}"
