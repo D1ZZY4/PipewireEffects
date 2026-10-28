@@ -22,9 +22,9 @@
 //! audible dropouts:
 //!
 //! 1. **Nothing in the audio callback allocates or locks.** Parameter changes
-//!    travel through [`AtomicParam`](param::AtomicParam) cells; structural
-//!    edits travel through a lock-free queue of [`ChainCommand`]s; retired
-//!    effects are handed out through a callback instead of being dropped.
+//!    travel through [`AtomicParam`] cells; structural edits travel through a
+//!    lock-free queue of [`ChainCommand`]s; retired effects are handed out
+//!    through a callback instead of being dropped.
 //! 2. **The audio thread never frees memory.** See
 //!    [`ChainCommand::apply`], which takes a `retire` closure precisely so
 //!    that deallocation happens on the interface thread.

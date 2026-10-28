@@ -6,11 +6,11 @@
 //!
 //! # How state flows
 //!
-//! Widgets never mutate anything. They emit a [`UiAction`]; [`State::handle`]
-//! performs the mutation through the domain objects; and the affected views are
-//! rebuilt. The periodic tick is deliberately separate and only ever *reads* —
-//! meters, counters and engine events. Keeping writes on the action path and
-//! reads on the tick path is what stops a redraw from racing an edit.
+//! Widgets never mutate anything. They emit a [`UiAction`]; the window's action
+//! handler performs the mutation through the domain objects, and the affected
+//! views are rebuilt. The periodic tick is deliberately separate and only ever
+//! *reads*: meters, counters and engine events. Keeping writes on the action
+//! path and reads on the tick path is what stops a redraw from racing an edit.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

@@ -117,9 +117,9 @@ impl Smoother {
 /// A linear ramp across one block.
 ///
 /// [`Ramp::begin`] freezes the start and end values for the current block and
-/// derives the per-frame increment; [`Ramp::next`] then walks the range. This
-/// gives click-free gain changes without a per-sample one-pole filter, and it
-/// reaches the target exactly at the end of the block.
+/// derives the per-frame increment; [`Ramp::next_value`] then walks the range.
+/// This gives click-free gain changes without a per-sample one-pole filter, and
+/// it reaches the target exactly at the end of the block.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Ramp {
     current: f32,
