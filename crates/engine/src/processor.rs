@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use crossbeam_queue::ArrayQueue;
-use pwe_core::{AudioBuffer, AudioFormat, ChainCommand, Effect, EffectChain, math};
+use pwe_core::{AudioBuffer, AudioFormat, ChainCommand, Effect, EffectChain, LevelMeter};
 use rtrb::Consumer;
 
 use crate::config::MAX_QUANTUM_FRAMES;
@@ -19,6 +19,7 @@ pub struct Processor {
     scratch: Vec<f32>,
     target_samples: usize,
     channels: usize,
+    meter: LevelMeter,
 }
 
 impl Processor {
@@ -32,6 +33,8 @@ impl Processor {
         let channels = channels.max(1);
         let rate_value = rate.load(Ordering::Relaxed).max(48_000);
         let format = AudioFormat::new(rate_value, channels);
+        let mut meter = LevelMeter::new();
+        meter.set_rate(rate_value);
         Self {
             chain: EffectChain::new(crate::config::MAX_EFFECTS, format),
             commands,
@@ -43,6 +46,7 @@ impl Processor {
             scratch: vec![0.0; MAX_QUANTUM_FRAMES * channels],
             target_samples: channels * (rate_value as usize / 32),
             channels,
+            meter,
         }
     }
 
@@ -136,6 +140,7 @@ impl Processor {
         }
         self.format = AudioFormat::new(rate, self.channels);
         self.chain.prepare(self.format);
+        self.meter.set_rate(rate);
         self.target_samples = self.channels * (rate as usize / 32);
         self.shared
             .stats()
@@ -143,20 +148,9 @@ impl Processor {
     }
 
     fn publish_output(&mut self) {
-        let buffer = &self.buffer;
-        let mut peaks = [0.0f32; 2];
-        let mut rms = [0.0f32; 2];
-        for channel in 0..buffer.channels().min(2) {
-            let mut peak = 0.0f32;
-            let mut sum = 0.0f64;
-            for sample in buffer.channel(channel) {
-                peak = peak.max(sample.abs());
-                sum += f64::from(*sample) * f64::from(*sample);
-            }
-            peaks[channel] = math::gain_to_db(peak);
-            let count = buffer.frames().max(1) as f64;
-            rms[channel] = math::gain_to_db((sum / count).sqrt() as f32);
-        }
+        self.meter.process(&self.buffer);
+        let peaks = [self.meter.peak_db(0), self.meter.peak_db(1)];
+        let rms = [self.meter.rms_db(0), self.meter.rms_db(1)];
         self.shared.meters().publish_output(peaks, rms);
     }
 }
@@ -164,6 +158,7 @@ impl Processor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::capture::CaptureState;
     use crate::shared::Shared;
 
     #[test]
@@ -252,6 +247,48 @@ mod tests {
         assert!(commands.push(ChainCommand::Remove(0)).is_ok());
         processor.drain_commands();
         assert_eq!(retired.len(), 1);
+    }
+
+    #[test]
+    fn an_empty_chain_reports_the_same_level_at_both_meters() {
+        use crate::streams::samples_to_bytes;
+
+        let shared = Arc::new(Shared::new());
+        let commands = Arc::new(ArrayQueue::new(8));
+        let retired: Arc<ArrayQueue<Box<dyn Effect>>> = Arc::new(ArrayQueue::new(8));
+        let rate = Arc::new(AtomicU32::new(48_000));
+        let (producer, mut consumer) = rtrb::RingBuffer::new(8192);
+        let mut capture = CaptureState::new(producer, Arc::clone(&shared), Arc::clone(&rate), 2);
+        let mut processor =
+            Processor::new(commands, retired, Arc::clone(&shared), Arc::clone(&rate), 2);
+
+        let frames = 1024;
+        let samples: Vec<f32> = (0..frames)
+            .flat_map(|frame| {
+                let phase = std::f32::consts::TAU * 997.0 * frame as f32 / 48_000.0;
+                [0.5 * phase.sin(), 0.5 * phase.sin()]
+            })
+            .collect();
+        let mut bytes = vec![0u8; samples.len() * 4];
+        assert_eq!(samples_to_bytes(&samples, &mut bytes), samples.len());
+        assert_eq!(capture.submit(&bytes), frames);
+
+        let mut destination = vec![0.0f32; frames * 2];
+        processor.process(&mut consumer, frames, &mut destination);
+
+        let meters = shared.meters().snapshot();
+        assert!(
+            (meters.input_peak_db[0] - meters.output_peak_db[0]).abs() < 1.0,
+            "input {} dB and output {} dB disagree without any effect",
+            meters.input_peak_db[0],
+            meters.output_peak_db[0]
+        );
+        assert!(
+            (meters.input_rms_db[0] - meters.output_rms_db[0]).abs() < 1.0,
+            "input {} dB and output {} dB disagree without any effect",
+            meters.input_rms_db[0],
+            meters.output_rms_db[0]
+        );
     }
 
     fn pwe_dsp_specs() -> Vec<pwe_core::ParamSpec> {
