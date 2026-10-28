@@ -15,6 +15,12 @@ pub struct PresetInfo {
     pub user_file: Option<PathBuf>,
 }
 
+impl PresetInfo {
+    pub fn deletable(&self) -> bool {
+        self.user_file.is_some()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PresetStore {
     user_dir: PathBuf,
@@ -89,8 +95,15 @@ impl PresetStore {
                 let Some(name) = name_from_path(&path) else {
                     continue;
                 };
+                if validate_name(&name).is_err() {
+                    warnings.push(format!(
+                        "{} was skipped: '{name}' is not a valid preset name",
+                        path.display()
+                    ));
+                    continue;
+                }
                 match read_preset(&path) {
-                    Ok(preset) => {
+                    Ok((preset, conversion)) => {
                         if preset.name != name {
                             warnings.push(format!(
                                 "{} declares the name '{}'",
@@ -98,9 +111,12 @@ impl PresetStore {
                                 preset.name
                             ));
                         }
+                        for warning in conversion {
+                            warnings.push(format!("{}: {warning}", path.display()));
+                        }
                         if let Some(existing) = infos.iter_mut().find(|info| info.name == name) {
+                            existing.builtin = false;
                             if is_user {
-                                existing.builtin = false;
                                 existing.user_file = Some(path);
                             }
                         } else {
@@ -120,18 +136,26 @@ impl PresetStore {
     }
 
     pub fn load(&self, name: &str) -> PresetResult<Preset> {
+        self.load_with_warnings(name).map(|(preset, _)| preset)
+    }
+
+    pub fn load_with_warnings(&self, name: &str) -> PresetResult<(Preset, Vec<String>)> {
         validate_name(name)?;
-        let file = self.user_dir.join(format!("{name}.{EXTENSION}"));
-        if file.is_file() {
-            return read_preset(&file);
-        }
-        for directory in &self.system_dirs {
+        let mut failure: Option<PresetError> = None;
+        for directory in std::iter::once(&self.user_dir).chain(self.system_dirs.iter()) {
             let candidate = directory.join(format!("{name}.{EXTENSION}"));
-            if candidate.is_file() {
-                return read_preset(&candidate);
+            if !candidate.is_file() {
+                continue;
+            }
+            match read_preset(&candidate) {
+                Ok(loaded) => return Ok(loaded),
+                Err(error) => failure = Some(error),
             }
         }
-        builtin::find(name).unwrap_or_else(|| Err(PresetError::NotFound(name.to_owned())))
+        if let Some(builtin) = builtin::find(name) {
+            return builtin;
+        }
+        Err(failure.unwrap_or_else(|| PresetError::NotFound(name.to_owned())))
     }
 
     pub fn save(&self, preset: &Preset) -> PresetResult<PathBuf> {
@@ -155,14 +179,18 @@ impl PresetStore {
         }
     }
 
-    pub fn import(&self, source: &Path, rename: Option<&str>) -> PresetResult<Preset> {
-        let mut preset = read_preset(source)?;
+    pub fn import(
+        &self,
+        source: &Path,
+        rename: Option<&str>,
+    ) -> PresetResult<(Preset, Vec<String>)> {
+        let (mut preset, warnings) = read_preset(source)?;
         if let Some(name) = rename {
             validate_name(name)?;
             preset.name = name.to_owned();
         }
         self.save(&preset)?;
-        Ok(preset)
+        Ok((preset, warnings))
     }
 
     pub fn export(&self, name: &str, destination: &Path) -> PresetResult<()> {
@@ -172,7 +200,7 @@ impl PresetStore {
     }
 }
 
-fn read_preset(path: &Path) -> PresetResult<Preset> {
+fn read_preset(path: &Path) -> PresetResult<(Preset, Vec<String>)> {
     let text = fs::read_to_string(path)?;
     let name = name_from_path(path).unwrap_or_else(|| "Imported".to_owned());
     builtin::parse(&text, &name)
@@ -202,85 +230,4 @@ fn config_home() -> PathBuf {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::model::Preset;
-
-    fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("pwe-presets-{name}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    #[test]
-    fn saving_and_loading_round_trips() {
-        let dir = scratch("roundtrip");
-        let store = PresetStore::with_dirs(dir.clone(), Vec::new());
-        let mut preset = Preset::new("My chain");
-        preset.output.bypassed = true;
-        store.save(&preset).unwrap();
-        let loaded = store.load("My chain").unwrap();
-        assert_eq!(loaded, preset);
-        fs::remove_dir_all(&dir).unwrap();
-    }
-
-    #[test]
-    fn builtins_are_available_without_any_files() {
-        let store = PresetStore::with_dirs(scratch("builtin"), Vec::new());
-        let (infos, warnings) = store.list();
-        assert!(warnings.is_empty(), "{warnings:?}");
-        assert!(
-            infos
-                .iter()
-                .any(|info| info.name == "Default" && info.builtin)
-        );
-        assert!(store.load("Default").is_ok());
-    }
-
-    #[test]
-    fn a_user_preset_shadows_a_builtin_and_stays_deletable() {
-        let dir = scratch("shadow");
-        let store = PresetStore::with_dirs(dir.clone(), Vec::new());
-        let mut preset = Preset::new("Default");
-        preset.output.bypassed = true;
-        store.save(&preset).unwrap();
-        let (infos, _) = store.list();
-        let entry = infos.iter().find(|info| info.name == "Default").unwrap();
-        assert!(!entry.builtin);
-        assert!(entry.user_file.is_some());
-        store.delete("Default").unwrap();
-        let restored = store.load("Default").unwrap();
-        assert!(!restored.output.effects.is_empty());
-        assert!(!restored.output.bypassed);
-        fs::remove_dir_all(&dir).unwrap();
-    }
-
-    #[test]
-    fn malformed_files_are_skipped_with_a_warning() {
-        let dir = scratch("broken");
-        fs::write(dir.join("broken.json"), "{ not json").unwrap();
-        let store = PresetStore::with_dirs(dir.clone(), Vec::new());
-        let (infos, warnings) = store.list();
-        assert!(warnings.len() == 1, "{warnings:?}");
-        assert!(!infos.iter().any(|info| info.name == "broken"));
-        fs::remove_dir_all(&dir).unwrap();
-    }
-
-    #[test]
-    fn loading_a_missing_preset_is_reported() {
-        let store = PresetStore::with_dirs(scratch("missing"), Vec::new());
-        assert!(matches!(
-            store.load("Absent"),
-            Err(PresetError::NotFound(_))
-        ));
-    }
-
-    #[test]
-    fn path_traversal_is_refused() {
-        let store = PresetStore::with_dirs(scratch("traversal"), Vec::new());
-        assert!(store.load("../etc/passwd").is_err());
-        assert!(store.save(&Preset::new("../escape")).is_err());
-        assert!(store.delete("a/b").is_err());
-    }
-}
+mod tests;

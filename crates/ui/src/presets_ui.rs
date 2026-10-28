@@ -54,8 +54,10 @@ pub fn populate(ui: &Rc<Ui>) {
         row.set_title(&info.name);
         row.set_subtitle(if info.builtin {
             "Built in"
-        } else {
+        } else if info.deletable() {
             "User preset"
+        } else {
+            "System preset"
         });
         row.set_activatable(true);
         row.set_widget_name(&info.name);
@@ -87,7 +89,7 @@ pub fn wire(ui: &Rc<Ui>, buttons: (gtk::Button, gtk::Button, gtk::Button, gtk::B
                 if !warnings.is_empty() {
                     ui_load.show_banner(&format!(
                         "The preset loaded with warnings: {}",
-                        warnings.join(", ")
+                        summarized(&warnings)
                     ));
                 }
                 ui_load.rebuild_chain();
@@ -114,9 +116,9 @@ pub fn wire(ui: &Rc<Ui>, buttons: (gtk::Button, gtk::Button, gtk::Button, gtk::B
             .store
             .import(&path, None)
         {
-            Ok(preset) => {
+            Ok((preset, warnings)) => {
                 populate(&ui);
-                ui.show_banner(&format!("Imported '{}'", preset.name));
+                ui.show_banner(&imported_banner(&preset.name, &warnings));
             }
             Err(error) => ui.show_banner(&format!("Import failed: {error}")),
         });
@@ -181,7 +183,7 @@ fn prompt_delete(ui: &Rc<Ui>) {
     let (infos, _) = ui.state.borrow().store.list();
     let user_presets: Vec<String> = infos
         .into_iter()
-        .filter(|info| !info.builtin)
+        .filter(|info| info.deletable())
         .map(|info| info.name)
         .collect();
     if user_presets.is_empty() {
@@ -237,4 +239,55 @@ fn prompt_delete(ui: &Rc<Ui>) {
     });
 
     dialog.present(Some(&ui.window));
+}
+
+fn summarized(warnings: &[String]) -> String {
+    const SHOWN: usize = 3;
+    if warnings.len() <= SHOWN {
+        return warnings.join(", ");
+    }
+    format!(
+        "{} and {} more",
+        warnings[..SHOWN].join(", "),
+        warnings.len() - SHOWN
+    )
+}
+
+fn imported_banner(name: &str, warnings: &[String]) -> String {
+    if warnings.is_empty() {
+        format!("Imported '{name}'")
+    } else {
+        format!("Imported '{name}' with warnings: {}", summarized(warnings))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn warnings(count: usize) -> Vec<String> {
+        (0..count).map(|index| format!("warning {index}")).collect()
+    }
+
+    #[test]
+    fn a_short_warning_list_is_shown_in_full() {
+        assert_eq!(summarized(&warnings(2)), "warning 0, warning 1");
+    }
+
+    #[test]
+    fn a_long_warning_list_is_summarized_with_a_count() {
+        assert_eq!(
+            summarized(&warnings(5)),
+            "warning 0, warning 1, warning 2 and 2 more"
+        );
+    }
+
+    #[test]
+    fn a_clean_import_is_not_reported_as_a_warning() {
+        assert_eq!(imported_banner("Podcast", &[]), "Imported 'Podcast'");
+        assert_eq!(
+            imported_banner("Podcast", &warnings(1)),
+            "Imported 'Podcast' with warnings: warning 0"
+        );
+    }
 }

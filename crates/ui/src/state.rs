@@ -95,8 +95,7 @@ impl State {
     }
 
     pub fn load_preset(&mut self, name: &str) -> Result<Vec<String>, PresetError> {
-        let preset = self.store.load(name)?;
-        let mut warnings = Vec::new();
+        let (preset, mut warnings) = self.store.load_with_warnings(name)?;
         for slot in std::mem::take(&mut self.slots) {
             let _ = self.engine.remove_effect(slot.id);
         }
