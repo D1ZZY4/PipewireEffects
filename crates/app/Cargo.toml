@@ -1,25 +1,22 @@
 [package]
 name = "pipewire-effects"
-description = "PipewireEffects: a fast, modern PipeWire audio effects processor with a GTK4 interface."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-repository.workspace = true
+description = "PipeWire audio effects processor"
 default-run = "pipewire-effects"
 
 [[bin]]
 name = "pipewire-effects"
 path = "src/main.rs"
 
+[dependencies]
+pwe-core.workspace = true
+pwe-dsp.workspace = true
+pwe-engine.workspace = true
+pwe-presets.workspace = true
+pwe-ui.workspace = true
+
 [lints]
 workspace = true
-
-[dependencies]
-pipewire-effects-core.workspace = true
-pipewire-effects-dsp.workspace = true
-pipewire-effects-engine.workspace = true
-pipewire-effects-ui.workspace = true
-clap.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
