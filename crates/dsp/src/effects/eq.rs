@@ -1,24 +1,3 @@
-//! Eight-band parametric equaliser.
-//!
-//! Each band is one biquad section whose type, centre frequency, gain and Q are
-//! all parameters. Bands are cascaded in order, so the response is the sum of
-//! the individual responses in decibels — which is exactly how a graphic
-//! equaliser curve is drawn, and how a user expects an EQ to behave.
-//!
-//! Two things are worth knowing about the implementation:
-//!
-//! * **Coefficients are recomputed once per block**, not per sample. Designing
-//!   a biquad involves a `sin`, a `cos` and a `powf`, which is far too much
-//!   work to do 48,000 times a second per band. The filter *state* carries
-//!   across blocks, so a per-block coefficient update is a smooth-sounding
-//!   approximation rather than a discontinuity.
-//! * **Bands that cannot do anything are skipped.** A peaking band at 0 dB is
-//!   the identity, and processing it anyway would only add noise and cost.
-//!
-//! The default layout is eight transparent bands: a low shelf, six peaks spread
-//! across the spectrum, and a high shelf. Adding the effect therefore changes
-//! nothing until a slider moves.
-
 use pipewire_effects_core::{
     AudioBlock, AudioEffect, AudioFormat, EffectCategory, EffectDef, EffectKind, ParamSet,
     ParamSpec, ParamUnit,
@@ -27,43 +6,29 @@ use pipewire_effects_core::{
 use crate::biquad::{BiquadCoefficients, BiquadState};
 use crate::util::db_to_linear;
 
-/// The number of bands every instance has.
 pub const BAND_COUNT: usize = 8;
 
-/// Index of the global pre-amplifier parameter.
 const PARAM_PREAMP: usize = 0;
 
-/// Parameters per band: enabled, type, frequency, gain, Q.
 const PARAMS_PER_BAND: usize = 5;
 
-/// The index of a band's first parameter.
 const fn band_base(band: usize) -> usize {
     PARAM_PREAMP + 1 + band * PARAMS_PER_BAND
 }
 
-/// The filter shapes a band can take.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BandType {
-    /// A bell: `gain` at the centre frequency.
     Peak,
-    /// `gain` below the corner.
     LowShelf,
-    /// `gain` above the corner.
     HighShelf,
-    /// Attenuates below the corner.
     HighPass,
-    /// Attenuates above the corner.
     LowPass,
-    /// Rejects a narrow band.
     Notch,
-    /// Passes a narrow band at unity gain.
     BandPass,
-    /// Flat magnitude, frequency-dependent phase.
     AllPass,
 }
 
 impl BandType {
-    /// The order must match the parameter's option list below.
     const OPTIONS: [BandType; 8] = [
         BandType::Peak,
         BandType::LowShelf,
@@ -75,7 +40,6 @@ impl BandType {
         BandType::AllPass,
     ];
 
-    /// The labels shown in the interface, in the same order as [`BandType::OPTIONS`].
     const LABELS: [&'static str; 8] = [
         "Peak",
         "Low Shelf",
@@ -91,7 +55,6 @@ impl BandType {
         Self::OPTIONS.get(index).copied().unwrap_or(BandType::Peak)
     }
 
-    /// Whether the band's gain parameter has any effect.
     const fn uses_gain(self) -> bool {
         matches!(self, Self::Peak | Self::LowShelf | Self::HighShelf)
     }
@@ -114,23 +77,14 @@ impl BandType {
     }
 }
 
-/// Maps a quality factor onto the shelf slope parameter.
-///
-/// Shelves are designed in terms of a slope, not a Q, and that slope is only
-/// defined up to `1.0`, where the shelf is as steep as a second-order section
-/// can be. A band's shared `q` parameter is therefore compressed into
-/// `0.1..=1.0` rather than passed straight through. Q still has an effect: it
-/// just saturates once the shelf is at maximum steepness.
 fn shelf_slope(q: f32) -> f32 {
     (q * 0.75).clamp(0.1, 1.0)
 }
 
-/// The centre frequency each band starts at, spread across the spectrum.
 const DEFAULT_FREQUENCIES: [f32; BAND_COUNT] = [
     60.0, 150.0, 400.0, 1_000.0, 2_500.0, 5_000.0, 8_000.0, 12_000.0,
 ];
 
-/// The shape each band starts with.
 const DEFAULT_TYPES: [BandType; BAND_COUNT] = [
     BandType::LowShelf,
     BandType::Peak,
@@ -142,31 +96,26 @@ const DEFAULT_TYPES: [BandType; BAND_COUNT] = [
     BandType::HighShelf,
 ];
 
-/// The effect type.
 pub const KIND: EffectKind = EffectKind::new("parametric-eq");
 
-/// Registry entry.
 pub const DEF: EffectDef = EffectDef::new(
     KIND,
     "Parametric Equalizer",
     "Eight bands with per-band shape, frequency, gain and Q.",
     EffectCategory::Equalizer,
     ParametricEqEffect::boxed,
-);
+)
+.with_response(response);
 
-/// An eight-band parametric equaliser.
 #[derive(Debug)]
 pub struct ParametricEqEffect {
     parameters: ParamSet,
-    /// One coefficient set per band, refreshed each block.
     coefficients: [BiquadCoefficients; BAND_COUNT],
-    /// `BAND_COUNT * channels` sections, in band-major order.
     states: Vec<BiquadState>,
     channels: usize,
 }
 
 impl ParametricEqEffect {
-    /// Creates a transparent eight-band equaliser.
     #[must_use]
     pub fn new() -> Self {
         let mut specs = Vec::with_capacity(PARAM_PREAMP + 1 + BAND_COUNT * PARAMS_PER_BAND);
@@ -245,13 +194,11 @@ impl ParametricEqEffect {
         effect
     }
 
-    /// Registry factory.
     #[must_use]
     pub fn boxed() -> Box<dyn AudioEffect> {
         Box::new(Self::new())
     }
 
-    /// Reads one band's settings.
     fn band_settings(&self, band: usize) -> (bool, BandType, f32, f32, f32) {
         let base = band_base(band);
         (
@@ -263,7 +210,6 @@ impl ParametricEqEffect {
         )
     }
 
-    /// Whether any band would currently change the signal.
     #[must_use]
     pub fn is_transparent(&self) -> bool {
         if self.parameters.value_f32(PARAM_PREAMP).abs() > f32::EPSILON {
@@ -274,6 +220,34 @@ impl ParametricEqEffect {
             !enabled || (shape.uses_gain() && gain_db.abs() < 1e-3)
         })
     }
+}
+
+#[must_use]
+pub fn response(parameters: &ParamSet, frequency: f32, sample_rate: f32) -> Option<f32> {
+    let mut total = parameters.value_f32(PARAM_PREAMP);
+
+    for band in 0..BAND_COUNT {
+        let base = band_base(band);
+        if !parameters.value_bool(base) {
+            continue;
+        }
+        let shape = BandType::from_index(parameters.value_enum(base + 1));
+        let gain_db = parameters.value_f32(base + 3);
+        if shape.uses_gain() && gain_db.abs() < 1e-3 {
+            continue;
+        }
+        let coefficients = shape.design(
+            parameters.value_f32(base + 2),
+            sample_rate,
+            parameters.value_f32(base + 4),
+            gain_db,
+        );
+        total += coefficients
+            .gain_db_at(frequency, sample_rate)
+            .clamp(-48.0, 48.0);
+    }
+
+    Some(total)
 }
 
 impl Default for ParametricEqEffect {
@@ -306,9 +280,6 @@ impl AudioEffect for ParametricEqEffect {
     fn process(&mut self, block: &mut AudioBlock<'_>) {
         let channels = block.channels();
         if channels == 0 || channels != self.channels || self.states.len() < BAND_COUNT * channels {
-            // The engine always calls `prepare` before processing; if it has
-            // not, processing would write out of bounds, so pass audio through
-            // instead.
             return;
         }
         let sample_rate = block.format().sample_rate_f32();
@@ -324,8 +295,6 @@ impl AudioEffect for ParametricEqEffect {
                 continue;
             }
             if shape.uses_gain() && gain_db.abs() < 1e-3 {
-                // A shelving or peaking band at 0 dB is exactly the identity.
-                // Skipping it keeps the response bit-accurate and saves work.
                 continue;
             }
 

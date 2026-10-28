@@ -28,6 +28,36 @@ cargo test --workspace
 You need PipeWire 0.3.49+, GTK 4.14+, libadwaita 1.5+ and Rust 1.87+. See the
 README for distribution-specific packages.
 
+## Code layout and style
+
+Three rules, applied without exception.
+
+### 1. No file is longer than 350 lines
+
+When a file approaches the limit, split it. The module system is the tool for
+this: a module is a file plus a directory of the same name.
+
+```text
+editor.rs          the module root: what it is for, and what it re-exports
+editor/controls.rs one concern
+editor/grouping.rs another concern
+```
+
+There is no `mod.rs`. The root file carries the module's name and its
+submodules live in the matching directory.
+
+### 2. No comments
+
+Not `//`, not `///`, not `//!`. Code says what it does through names, types and
+small functions; anything that needs explaining belongs in `README.md`,
+`ARCHITECTURE.md`, or a commit message. If a piece of code seems to need a
+comment, that is a signal the code should be split or renamed instead.
+
+### 3. One concern per module
+
+A module should be describable in a single short phrase. If describing it needs
+the word "and", it is two modules.
+
 ## The rules that are not negotiable
 
 There are three, and a change that breaks one of them will be asked to change
@@ -59,13 +89,15 @@ is worse than one that reports it.
 
 ## Adding an effect
 
-1. Create `crates/dsp/src/effects/your_effect.rs`.
+1. Create `crates/dsp/src/effects/your_effect.rs`, or a directory of the same
+   name if it needs more than one file.
 2. Build a `ParamSet` in `new()`, describing each control with a `ParamSpec`.
-   Give every parameter a stable identifier, a label, a unit and a doc comment:
-   the first becomes part of the preset format and must not change later.
+   Give every parameter a stable identifier, a label and a unit: the identifier
+   becomes part of the preset format and must not change later.
 3. Implement `AudioEffect`. Read parameters once per block; never allocate.
 4. Export a `DEF` constant and add it to `REGISTRY` in `crates/dsp/src/lib.rs`.
-5. Add behavioural tests to `crates/dsp/tests/effects.rs`.
+5. Add behavioural tests to `crates/dsp/tests/`, in a file named for what it
+   tests.
 
 Nothing in `crates/ui` needs to change. If it does, the effect is reaching
 across a boundary it should not know about and the design needs another look.
@@ -77,9 +109,9 @@ where they apply:
 
 - **Unit tests** for logic, next to the code, in a `#[cfg(test)]` module.
 - **Behavioural tests** for anything that processes audio, in
-  `crates/dsp/tests/effects.rs`. Measure the result rather than asserting that
-  the code ran: an equaliser boost must measure the right number of decibels at
-  the right frequency, and a limiter must be shown never to exceed its ceiling.
+  `crates/dsp/tests/`. Measure the result rather than asserting that the code
+  ran: an equaliser boost must measure the right number of decibels at the right
+  frequency, and a limiter must be shown never to exceed its ceiling.
 
 The live tests need a running PipeWire daemon and are ignored by default:
 

@@ -42,7 +42,6 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 directories = "6"
 clap = { version = "4", features = ["derive"] }
-anyhow = "1"
 
 [profile.release]
 lto = "thin"
@@ -55,7 +54,6 @@ debug = true
 strip = "none"
 
 [workspace.lints.rust]
-missing_docs = "warn"
 unsafe_op_in_unsafe_fn = "warn"
 unused_qualifications = "warn"
 

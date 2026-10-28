@@ -1,210 +1,80 @@
-//! The chain view: the ordered list of effects, and the browser for adding one.
+mod add;
+mod row;
 
 use std::rc::Rc;
 
-use adw::prelude::*;
-use gtk::glib;
-use pipewire_effects_core::{ChainModel, EffectCategory, EffectDef, EffectModel};
+use gtk::prelude::*;
+use pipewire_effects_core::ChainModel;
 
 use crate::action::{Dispatch, UiAction};
+pub use add::present as present_add_dialog;
 
-/// Rows the chain group owns, so they can be removed on refresh.
-pub type Rows = Rc<std::cell::RefCell<Vec<gtk::Widget>>>;
-
-/// Fills a group with the rows for the current chain.
-///
-/// `rows` is the tracking list for the rows this function adds, so the caller
-/// can clear them out before the next refresh. Removing and re-adding a handful
-/// of rows is far simpler than diffing, and happens only when the user edits
-/// the chain.
-pub fn fill_group(
-    group: &adw::PreferencesGroup,
-    model: &ChainModel,
-    registry: &'static [EffectDef],
-    dispatch: &Dispatch,
-    rows: &Rows,
-) {
-    let total = model.len();
-    if total == 0 {
-        let empty = adw::ActionRow::builder()
-            .title("No effects yet")
-            .subtitle("Use “Add effect” below to build a chain.")
-            .build();
-        empty.add_css_class("dim-label");
-        group.add(&empty);
-        rows.borrow_mut().push(empty.upcast());
-    }
-
-    for (index, entry) in model.entries.iter().enumerate() {
-        let row = build_row(index, entry, total, dispatch);
-        group.add(&row);
-        rows.borrow_mut().push(row.upcast());
-    }
-
-    let add = adw::ActionRow::builder()
-        .title("Add effect")
-        .subtitle("Choose from the effects this build provides.")
-        .activatable(true)
+pub fn new_list(dispatch: &Dispatch) -> gtk::ListBox {
+    let list = gtk::ListBox::builder()
+        .selection_mode(gtk::SelectionMode::Single)
+        .activate_on_single_click(true)
         .build();
-    add.add_prefix(&gtk::Image::from_icon_name("list-add-symbolic"));
-    {
-        let dispatch = Rc::clone(dispatch);
-        add.connect_activated(move |row| {
-            let Some(window) = row
-                .root()
-                .and_then(|root| root.downcast::<gtk::Window>().ok())
-            else {
-                return;
-            };
-            present_add_dialog(&window, registry, &dispatch);
-        });
-    }
-    group.add(&add);
-    rows.borrow_mut().push(add.upcast());
-}
+    list.add_css_class("boxed-list");
+    list.set_valign(gtk::Align::Start);
 
-/// Builds one row of the chain.
-fn build_row(
-    index: usize,
-    entry: &EffectModel,
-    total: usize,
-    dispatch: &Dispatch,
-) -> adw::ActionRow {
-    let row = adw::ActionRow::builder()
-        .title(&entry.label)
-        .subtitle(summary_of(entry))
-        .activatable(true)
-        .build();
-
-    let toggle = gtk::Switch::builder()
-        .active(entry.enabled)
-        .valign(gtk::Align::Center)
-        .tooltip_text("Process audio through this effect")
-        .build();
-    {
-        let dispatch = Rc::clone(dispatch);
-        toggle.connect_state_set(move |_, state| {
-            dispatch(UiAction::SetEnabled(index, state));
-            glib::Propagation::Proceed
-        });
-    }
-    row.add_prefix(&toggle);
-
-    {
-        let dispatch = Rc::clone(dispatch);
-        row.connect_activated(move |_| dispatch(UiAction::Select(index)));
-    }
-
-    let earlier = icon_button("go-up-symbolic", "Move earlier in the chain");
-    earlier.set_sensitive(index > 0);
-    {
-        let dispatch = Rc::clone(dispatch);
-        earlier.connect_clicked(move |_| dispatch(UiAction::MoveUp(index)));
-    }
-
-    let later = icon_button("go-down-symbolic", "Move later in the chain");
-    later.set_sensitive(index + 1 < total);
-    {
-        let dispatch = Rc::clone(dispatch);
-        later.connect_clicked(move |_| dispatch(UiAction::MoveDown(index)));
-    }
-
-    let remove = icon_button("user-trash-symbolic", "Remove this effect");
-    {
-        let dispatch = Rc::clone(dispatch);
-        remove.connect_clicked(move |_| dispatch(UiAction::Remove(index)));
-    }
-
-    row.add_suffix(&earlier);
-    row.add_suffix(&later);
-    row.add_suffix(&remove);
-    row
-}
-
-/// A one-line description of an effect's current settings.
-fn summary_of(entry: &EffectModel) -> String {
-    let summary = entry.summary();
-    if summary.is_empty() {
-        String::from("No settings")
-    } else {
-        summary
-    }
-}
-
-/// Shows the effect browser.
-///
-/// The dialog is an `AdwAlertDialog` with a page of grouped rows as its extra
-/// child, which avoids writing a custom dialog subclass for what is really just
-/// a list.
-fn present_add_dialog(parent: &gtk::Window, registry: &'static [EffectDef], dispatch: &Dispatch) {
-    let dialog = adw::AlertDialog::new(
-        Some("Add effect"),
-        Some("The new effect is appended to the end of the chain."),
-    );
-    dialog.add_response("close", "Cancel");
-    dialog.set_close_response("close");
-    dialog.set_content_width(460);
-    dialog.set_content_height(560);
-
-    let page = adw::PreferencesPage::new();
-    for category in EffectCategory::ALL {
-        let group = adw::PreferencesGroup::builder()
-            .title(category.label())
-            .build();
-        for definition in registry
-            .iter()
-            .filter(|definition| definition.category == category)
-        {
-            group.add(&build_catalogue_row(definition, &dialog, dispatch));
-        }
-        if group.first_child().is_some() {
-            page.add(&group);
-        }
-    }
-
-    let scroller = gtk::ScrolledWindow::builder()
-        .hscrollbar_policy(gtk::PolicyType::Never)
-        .child(&page)
-        .build();
-    dialog.set_extra_child(Some(&scroller));
-    dialog.present(Some(parent));
-}
-
-/// One row in the effect browser.
-fn build_catalogue_row(
-    definition: &EffectDef,
-    dialog: &adw::AlertDialog,
-    dispatch: &Dispatch,
-) -> adw::ActionRow {
-    let row = adw::ActionRow::builder()
-        .title(definition.label)
-        .subtitle(definition.summary)
-        .activatable(true)
-        .build();
-
-    let kind = definition.kind.as_str().to_owned();
     let dispatch = Rc::clone(dispatch);
-    // A weak reference, so the dialog does not keep itself alive through the
-    // closure stored on one of its own children.
-    let weak_dialog = dialog.downgrade();
-    row.connect_activated(move |_| {
-        dispatch(UiAction::Add(kind.clone()));
-        if let Some(dialog) = weak_dialog.upgrade() {
-            dialog.close();
+    list.connect_row_selected(move |_, selected| {
+        let Some(row) = selected else {
+            return;
+        };
+        #[allow(clippy::cast_sign_loss)]
+        let index = row.index().max(0) as usize;
+        if row.is_activatable() {
+            dispatch(UiAction::Select(index));
         }
     });
 
-    row
+    list
 }
 
-/// A flat, frameless button with an icon.
-pub fn icon_button(icon: &str, tooltip: &str) -> gtk::Button {
-    let button = gtk::Button::builder()
-        .icon_name(icon)
-        .tooltip_text(tooltip)
-        .has_frame(false)
-        .valign(gtk::Align::Center)
-        .build();
-    button.add_css_class("flat");
-    button
+pub fn fill_list(list: &gtk::ListBox, model: &ChainModel, dispatch: &Dispatch) {
+    while let Some(child) = list.first_child() {
+        list.remove(&child);
+    }
+
+    if model.is_empty() {
+        list.append(&empty_row());
+        return;
+    }
+
+    for (index, entry) in model.entries.iter().enumerate() {
+        list.append(&row::build_row(index, entry, model.len(), dispatch));
+    }
+}
+
+fn empty_row() -> gtk::ListBoxRow {
+    let row = gtk::ListBoxRow::new();
+    row.set_activatable(false);
+    row.set_selectable(false);
+
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    content.set_margin_top(20);
+    content.set_margin_bottom(20);
+    content.set_margin_start(10);
+    content.set_margin_end(10);
+    content.set_halign(gtk::Align::Center);
+
+    let icon = gtk::Image::from_icon_name("audio-x-generic-symbolic");
+    icon.set_pixel_size(40);
+    icon.add_css_class("dim-label");
+
+    let title = gtk::Label::new(Some("No effects"));
+    title.add_css_class("heading");
+
+    let hint = gtk::Label::new(Some("Add one to start shaping the sound"));
+    hint.add_css_class("dim-label");
+    hint.set_wrap(true);
+    hint.set_max_width_chars(24);
+    hint.set_justify(gtk::Justification::Center);
+
+    content.append(&icon);
+    content.append(&title);
+    content.append(&hint);
+    row.set_child(Some(&content));
+    row
 }

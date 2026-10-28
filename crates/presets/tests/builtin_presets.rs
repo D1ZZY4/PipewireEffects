@@ -1,13 +1,3 @@
-//! Integrity checks for the presets that ship with the application.
-//!
-//! A built-in preset is a promise: it names effects and parameters that must
-//! exist in the build it ships with. Nothing about that is checked by the type
-//! system, because preset files are data, so it is checked here instead.
-//!
-//! This test is the reason `pipewire-effects-presets` takes a dev-dependency on
-//! the DSP crate: the dependency exists only so that the preset files can be
-//! validated against the real registry, and it never reaches a release binary.
-
 use std::collections::BTreeSet;
 
 use pipewire_effects_core::find_def;
@@ -70,8 +60,6 @@ fn every_builtin_preset_only_sets_parameters_that_exist() {
             let definition = find_def(registry, &entry.kind)
                 .unwrap_or_else(|| panic!("preset `{}` uses an unknown effect", preset.name));
 
-            // The registry's factory produces an instance carrying the real
-            // parameter specs, which is what we validate against.
             let probe = definition.instantiate();
             let parameters = probe.parameters();
 
@@ -124,9 +112,6 @@ fn builtin_preset_values_are_in_range_for_their_parameters() {
 
 #[test]
 fn builtin_presets_apply_cleanly_to_a_controller() {
-    // The strongest check available without audio: load every built-in preset
-    // through the same path the interface uses, and require that nothing is
-    // skipped or dropped.
     let controller = pipewire_effects_core::ChainController::new(pipewire_effects_dsp::registry());
 
     for preset in PresetStore::builtin().unwrap() {
