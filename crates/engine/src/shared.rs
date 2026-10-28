@@ -200,6 +200,7 @@ pub struct Snapshot {
     pub sink_description: String,
     pub chain: Vec<(&'static str, EffectSlot)>,
     pub bypassed: bool,
+    pub automatic: bool,
     pub warnings: Vec<String>,
 }
 
@@ -215,6 +216,7 @@ impl Default for Snapshot {
             sink_description: String::new(),
             chain: Vec::new(),
             bypassed: false,
+            automatic: true,
             warnings: Vec::new(),
         }
     }

@@ -138,7 +138,7 @@ pub fn list_devices() -> EngineResult<Vec<DeviceInfo>> {
         .register();
 
     let mut result = Vec::new();
-    if crate::runtime::roundtrip(&main_loop, &core).is_ok() {
+    if crate::connection::roundtrip(&main_loop, &core).is_ok() {
         result = devices.borrow().clone();
     }
     let _ = listener;

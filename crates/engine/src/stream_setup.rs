@@ -8,9 +8,10 @@ use pw::spa::pod::Pod;
 use pw::stream::{StreamFlags, StreamListener, StreamRc};
 use pwe_core::{ChainCommand, Effect};
 
+use crate::capture::CaptureState;
 use crate::config::{EngineConfig, GROUP_NAME, MAX_QUANTUM_FRAMES};
 use crate::error::{EngineError, EngineResult};
-use crate::processor::{CaptureState, Processor};
+use crate::processor::Processor;
 use crate::processors::{PlaybackState, StreamCapture};
 use crate::shared::{EngineState, Shared};
 use crate::streams::{audio_format_pod, parse_rate, stream_properties};

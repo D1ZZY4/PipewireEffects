@@ -1,4 +1,3 @@
-use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::Receiver;
@@ -12,33 +11,13 @@ use pwe_core::{ChainCommand, Effect};
 
 use crate::command::{EffectSlot, EngineCommand};
 use crate::config::{EngineConfig, PROCESS_TIMEOUT_MS};
+use crate::connection::{roundtrip, settle};
+use crate::defaults::{self, Watch};
 use crate::device::{self, DeviceInfo};
 use crate::error::{EngineError, EngineResult};
 use crate::shared::{EngineState, Shared};
 use crate::stream_setup::{self, StreamSetup, Streams};
-
-pub fn roundtrip(
-    main_loop: &pw::main_loop::MainLoopRc,
-    core: &pw::core::CoreRc,
-) -> EngineResult<()> {
-    let done = Rc::new(Cell::new(false));
-    let flag = Rc::clone(&done);
-    let loop_clone = main_loop.clone();
-    let pending = core.sync(0)?;
-    let _listener = core
-        .add_listener_local()
-        .done(move |id, sequence| {
-            if id == pw::core::PW_ID_CORE && sequence == pending {
-                flag.set(true);
-                loop_clone.quit();
-            }
-        })
-        .register();
-    while !done.get() {
-        main_loop.run();
-    }
-    Ok(())
-}
+use crate::target;
 
 pub struct Runtime {
     main_loop: pw::main_loop::MainLoopRc,
@@ -54,6 +33,7 @@ pub struct Runtime {
     registry_listener: Option<RegistryListener>,
     mirror: Vec<EffectSlot>,
     target: String,
+    system_default: Rc<Watch>,
 }
 
 impl Runtime {
@@ -72,9 +52,26 @@ impl Runtime {
         let devices: Arc<Mutex<Vec<DeviceInfo>>> = Arc::new(Mutex::new(Vec::new()));
         let collected = Arc::clone(&devices);
         let shared_for_listener = Arc::clone(&shared);
+        let removed = Arc::clone(&devices);
+        let shared_for_removal = Arc::clone(&shared);
+        let system_default = defaults::watch();
+        let watched = Rc::clone(&system_default);
+        let registry_for_metadata = registry.clone();
+        let own_nodes = [
+            config.sink_node_name.clone(),
+            stream_setup::PLAYBACK_NODE.to_owned(),
+        ];
         let registry_listener = registry
             .add_listener_local()
             .global(move |object| {
+                if defaults::want_metadata(object) {
+                    watched.bind(
+                        &registry_for_metadata,
+                        object,
+                        [own_nodes[0].as_str(), own_nodes[1].as_str()],
+                    );
+                    return;
+                }
                 if object.type_ != pw::types::ObjectType::Node {
                     return;
                 }
@@ -90,6 +87,16 @@ impl Runtime {
                     known.push(info);
                     shared_for_listener
                         .update_snapshot(|snapshot| snapshot.devices = known.clone());
+                }
+            })
+            .global_remove(move |id| {
+                if let Ok(mut known) = removed.lock() {
+                    let before = known.len();
+                    known.retain(|device| device.id != id);
+                    if known.len() != before {
+                        shared_for_removal
+                            .update_snapshot(|snapshot| snapshot.devices = known.clone());
+                    }
                 }
             })
             .register();
@@ -108,6 +115,7 @@ impl Runtime {
             registry_listener: Some(registry_listener),
             mirror: Vec::new(),
             target: String::new(),
+            system_default,
         };
         roundtrip(&runtime.main_loop, &runtime.core)?;
         runtime.report_devices();
@@ -127,6 +135,7 @@ impl Runtime {
             }
             self.drain_retired();
             self.refresh_snapshot();
+            self.follow_system_default();
             self.main_loop
                 .loop_()
                 .iterate(pw::loop_::Timeout::Finite(Duration::from_millis(
@@ -146,7 +155,7 @@ impl Runtime {
             streams.capture_listener.unregister();
         }
         self.registry_listener.take();
-        self.settle();
+        settle(&self.main_loop, 4, 10);
         self.drain_retired();
         self.shared.set_state(EngineState::Stopped);
         self.shared.update_snapshot(|snapshot| {
@@ -155,21 +164,13 @@ impl Runtime {
         });
     }
 
-    fn settle(&self) {
-        for _ in 0..4 {
-            self.main_loop
-                .loop_()
-                .iterate(pw::loop_::Timeout::Finite(Duration::from_millis(10)));
-        }
-    }
-
     fn rebuild_streams(&mut self) -> EngineResult<()> {
         if let Some(streams) = self.streams.take() {
             let _ = streams.playback.disconnect();
             let _ = streams.capture.disconnect();
             streams.playback_listener.unregister();
             streams.capture_listener.unregister();
-            self.settle();
+            settle(&self.main_loop, 4, 10);
         }
         let setup = StreamSetup {
             core: self.core.clone(),
@@ -271,30 +272,43 @@ impl Runtime {
     }
 
     fn resolve_target(&mut self) {
-        let sink_name = self.config.sink_node_name.clone();
         let devices = self
             .devices
             .lock()
             .map_or_else(|_| Vec::new(), |known| known.clone());
-        match device::resolve(&devices, &self.config.target, &sink_name) {
-            Some(device) => self.target = device.name.clone(),
-            None => {
-                if !self.config.target.is_empty() && self.config.target != "default" {
-                    self.shared
-                        .add_warning(format!("no output device matches '{}'", self.config.target));
+        let system_default = self.system_default.current();
+        self.target = target::resolve(
+            &self.shared,
+            &devices,
+            &self.config,
+            system_default.as_deref(),
+        );
+    }
+
+    fn follow_system_default(&mut self) {
+        if !self.config.target.is_empty() && self.config.target != crate::config::AUTO_TARGET {
+            return;
+        }
+        let Some(wanted) = self.system_default.current() else {
+            return;
+        };
+        let devices = self
+            .devices
+            .lock()
+            .map_or_else(|_| Vec::new(), |known| known.clone());
+        match device::resolve(&devices, &wanted, &self.config.sink_node_name) {
+            Some(device) if device.name != self.target => {
+                self.target = device.name.clone();
+                if let Err(error) = self.rebuild_streams() {
+                    self.report(error);
                 }
-                self.target = String::new();
             }
+            _ => {}
         }
     }
 
     fn report_devices(&self) {
-        let devices = self
-            .devices
-            .lock()
-            .map_or_else(|_| Vec::new(), |known| known.clone());
-        self.shared
-            .update_snapshot(move |snapshot| snapshot.devices = devices);
+        target::report(&self.shared, &self.devices);
     }
 
     fn report(&self, error: EngineError) {
@@ -320,6 +334,8 @@ impl Runtime {
                 target.clone()
             };
             snapshot.bypassed = config.bypassed;
+            snapshot.automatic =
+                config.target.is_empty() || config.target == crate::config::AUTO_TARGET;
             snapshot.sink_node_name = config.sink_node_name.clone();
             snapshot.sink_node_id = node_id;
             snapshot.sink_description = config.sink_description.clone();

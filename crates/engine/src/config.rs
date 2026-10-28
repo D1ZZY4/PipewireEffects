@@ -1,6 +1,7 @@
 pub const SINK_NODE_NAME: &str = "pipewire-effects-sink";
 pub const SINK_NODE_DESCRIPTION: &str = "PipeWire Effects Sink";
 pub const GROUP_NAME: &str = "pipewire-effects";
+pub const AUTO_TARGET: &str = "default";
 pub const MAX_EFFECTS: usize = 16;
 pub const MAX_QUANTUM_FRAMES: usize = 8_192;
 pub const RING_SECONDS: f32 = 0.5;
@@ -19,7 +20,7 @@ pub struct EngineConfig {
 impl Default for EngineConfig {
     fn default() -> Self {
         Self {
-            target: String::new(),
+            target: AUTO_TARGET.to_owned(),
             sink_node_name: SINK_NODE_NAME.to_owned(),
             sink_description: SINK_NODE_DESCRIPTION.to_owned(),
             channels: 2,
