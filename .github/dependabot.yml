@@ -1,0 +1,38 @@
+# Keeps the things that go stale on their own up to date.
+#
+# The workflow pins its actions to a commit SHA rather than a tag, because a tag
+# can be moved and a moved tag in a third-party action runs whatever code the
+# new tag points at. Pinning removes that risk, and this config is what stops
+# the pins from becoming stale security holes.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: ci
+    labels:
+      - dependencies
+
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build
+    labels:
+      - dependencies
+    # The GTK, libadwaita and PipeWire bindings pin a minimum *system* library
+    # version through their feature flags. A major bump there raises what the
+    # project requires of the machine it is built on, so it should be a
+    # deliberate change rather than an automatic one.
+    ignore:
+      - dependency-name: gtk4
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: libadwaita
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: pipewire
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
