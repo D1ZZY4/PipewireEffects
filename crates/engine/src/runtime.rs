@@ -85,7 +85,7 @@ impl Runtime {
                     return;
                 };
                 if let Ok(mut known) = collected.lock()
-                    && !known.iter().any(|existing| existing.name == info.name)
+                    && !known.iter().any(|existing| existing.id == info.id)
                 {
                     known.push(info);
                     shared_for_listener
@@ -306,6 +306,11 @@ impl Runtime {
         let config = self.config.clone();
         let target = self.target.clone();
         let live = self.streams.is_some();
+        let node_id = self
+            .streams
+            .as_ref()
+            .map_or(0, |streams| streams.capture.node_id())
+            .min(u32::MAX - 1);
         self.shared.update_snapshot(move |snapshot| {
             snapshot.sample_rate = rate;
             snapshot.channels = config.channels;
@@ -316,6 +321,7 @@ impl Runtime {
             };
             snapshot.bypassed = config.bypassed;
             snapshot.sink_node_name = config.sink_node_name.clone();
+            snapshot.sink_node_id = node_id;
             snapshot.sink_description = config.sink_description.clone();
             if !live {
                 snapshot.sample_rate = 0;

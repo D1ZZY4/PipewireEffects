@@ -79,21 +79,26 @@ fn audio_is_processed_by_the_chain_and_measured_at_the_output() {
     sleep(Duration::from_millis(200));
 
     let sink_deadline = Instant::now() + Duration::from_secs(5);
-    let mut sink_registered = false;
+    let mut sink_target = String::new();
     while Instant::now() < sink_deadline {
         let snapshot = engine.shared().snapshot();
-        if snapshot
-            .devices
-            .iter()
-            .any(|device| device.name == "pipewire-effects-sink")
+        if snapshot.sink_node_id != 0
+            && let Some(device) = snapshot
+                .devices
+                .iter()
+                .find(|device| device.id == snapshot.sink_node_id)
         {
-            sink_registered = true;
+            sink_target = if device.serial != 0 {
+                device.serial.to_string()
+            } else {
+                device.name.clone()
+            };
             break;
         }
         sleep(Duration::from_millis(50));
     }
     assert!(
-        sink_registered,
+        !sink_target.is_empty(),
         "the virtual sink never appeared, so a client cannot be routed into it"
     );
 
@@ -108,7 +113,7 @@ fn audio_is_processed_by_the_chain_and_measured_at_the_output() {
     while attempts < 3 && loudest_input <= -30.0 {
         attempts += 1;
         match Command::new("pw-cat")
-            .args(["--playback", "--target", "pipewire-effects-sink"])
+            .args(["--playback", "--target", sink_target.as_str()])
             .arg(&path)
             .spawn()
         {

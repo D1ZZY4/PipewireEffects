@@ -14,6 +14,7 @@ pub const VIRTUAL_SINK: &str = "Audio/Sink/Virtual";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeviceInfo {
     pub id: u32,
+    pub serial: u64,
     pub name: String,
     pub description: String,
     pub media_class: String,
@@ -45,8 +46,13 @@ impl DeviceInfo {
             .get("priority.session")
             .and_then(|value| value.parse().ok())
             .unwrap_or(0);
+        let serial = props
+            .get("object.serial")
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(0);
         Some(Self {
             id,
+            serial,
             name,
             description,
             media_class: media_class.to_owned(),
@@ -165,6 +171,7 @@ mod tests {
     fn the_default_sink_prefers_hardware_with_the_highest_priority() {
         let devices = vec![
             DeviceInfo {
+                serial: 0,
                 id: 1,
                 name: "virtual".into(),
                 description: "Virtual".into(),
@@ -173,6 +180,7 @@ mod tests {
                 priority: 900,
             },
             DeviceInfo {
+                serial: 0,
                 id: 2,
                 name: "usb".into(),
                 description: "USB".into(),
@@ -181,6 +189,7 @@ mod tests {
                 priority: 500,
             },
             DeviceInfo {
+                serial: 0,
                 id: 3,
                 name: "hdmi".into(),
                 description: "HDMI".into(),
@@ -198,6 +207,7 @@ mod tests {
     #[test]
     fn a_named_target_is_resolved_exactly() {
         let devices = vec![DeviceInfo {
+            serial: 0,
             id: 1,
             name: "usb".into(),
             description: "USB".into(),
@@ -215,6 +225,7 @@ mod tests {
     #[test]
     fn sources_and_sinks_are_separated() {
         let sink = DeviceInfo {
+            serial: 0,
             id: 1,
             name: "a".into(),
             description: "a".into(),
@@ -223,6 +234,7 @@ mod tests {
             priority: 0,
         };
         let source = DeviceInfo {
+            serial: 0,
             id: 2,
             name: "b".into(),
             description: "b".into(),
