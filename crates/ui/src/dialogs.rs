@@ -154,7 +154,8 @@ where
             row.set_activatable(true);
             row.set_widget_name(descriptor.id);
             let icon = gtk::Image::from_icon_name(format::category_icon(descriptor.id));
-            icon.add_css_class("dim-label");
+            icon.set_pixel_size(18);
+            icon.add_css_class("accent");
             row.add_prefix(&icon);
             let chevron = gtk::Image::from_icon_name("go-next-symbolic");
             chevron.add_css_class("dim-label");

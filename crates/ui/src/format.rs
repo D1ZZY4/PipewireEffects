@@ -10,11 +10,11 @@ pub fn effect_summary(kind: &str) -> &'static str {
 
 pub fn category_icon(kind: &str) -> &'static str {
     match pwe_dsp::find(kind).map(|descriptor| descriptor.category) {
-        Some(pwe_dsp::EffectCategory::Dynamics) => "media-playback-start-symbolic",
-        Some(pwe_dsp::EffectCategory::Equalisation) => "audio-volume-high-symbolic",
+        Some(pwe_dsp::EffectCategory::Dynamics) => "audio-volume-high-symbolic",
+        Some(pwe_dsp::EffectCategory::Equalisation) => "view-list-symbolic",
         Some(pwe_dsp::EffectCategory::Tone) => "emblem-music-symbolic",
         Some(pwe_dsp::EffectCategory::Time) => "document-open-recent-symbolic",
-        Some(pwe_dsp::EffectCategory::Analysis) => "audio-speakers-symbolic",
+        Some(pwe_dsp::EffectCategory::Analysis) => "utilities-system-monitor-symbolic",
         None => "application-x-addon-symbolic",
     }
 }

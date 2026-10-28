@@ -19,7 +19,8 @@ pub fn row(ui: &Rc<Ui>, id: EffectSlot, kind: &'static str, enabled: bool) -> gt
 
     let icon = gtk::Image::from_icon_name(format::category_icon(kind));
     icon.set_valign(gtk::Align::Center);
-    icon.add_css_class("dim-label");
+    icon.set_pixel_size(18);
+    icon.add_css_class("accent");
 
     let text = gtk::Box::new(gtk::Orientation::Vertical, 1);
     text.set_hexpand(true);
