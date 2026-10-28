@@ -12,6 +12,7 @@ impl LevelDisplay {
     pub fn new(title: &str) -> (gtk::Box, Self) {
         let container = gtk::Box::new(gtk::Orientation::Vertical, 4);
         container.add_css_class("meter-block");
+        container.add_css_class("card");
 
         let header = gtk::Box::new(gtk::Orientation::Horizontal, 6);
         let name = gtk::Label::new(Some(title));

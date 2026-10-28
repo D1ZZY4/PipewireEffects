@@ -21,7 +21,7 @@ pub struct Ui {
     pub chain_list: gtk::ListBox,
     pub editor_host: gtk::Box,
     pub preset_list: gtk::ListBox,
-    pub bypass: gtk::Switch,
+    pub bypass: gtk::ToggleButton,
     pub banner: adw::Banner,
     pub meter_in: LevelDisplay,
     pub meter_out: LevelDisplay,
@@ -40,15 +40,21 @@ impl Ui {
             .build();
 
         let header = adw::HeaderBar::new();
-        let bypass = gtk::Switch::new();
-        bypass.set_valign(gtk::Align::Center);
-        bypass.set_tooltip_text(Some("Bypass the whole effect chain"));
-        let bypass_box = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-        let bypass_label = gtk::Label::new(Some("Bypass"));
-        bypass_label.add_css_class("caption");
-        bypass_box.append(&bypass_label);
-        bypass_box.append(&bypass);
-        header.pack_start(&bypass_box);
+        let bypass = gtk::ToggleButton::new();
+        bypass.set_icon_name("media-playback-pause-symbolic");
+        bypass.set_tooltip_text(Some("Bypass every effect without removing it"));
+        bypass.add_css_class("flat");
+        header.pack_start(&bypass);
+
+        let menu = gtk::gio::Menu::new();
+        menu.append(Some("About PipeWire Effects"), Some("app.about"));
+        menu.append(Some("Quit"), Some("app.quit"));
+        let menu_button = gtk::MenuButton::builder()
+            .icon_name("open-menu-symbolic")
+            .menu_model(&menu)
+            .tooltip_text("Main menu")
+            .build();
+        header.pack_end(&menu_button);
 
         let banner = adw::Banner::new("");
         banner.set_revealed(false);
@@ -74,6 +80,12 @@ impl Ui {
         status_label.add_css_class("dim-label");
         status_label.set_ellipsize(gtk::pango::EllipsizeMode::End);
 
+        let chain_heading = gtk::Label::new(Some("Chain"));
+        chain_heading.set_xalign(0.0);
+        chain_heading.add_css_class("heading");
+        chain_heading.set_margin_start(4);
+        chain_heading.set_margin_top(4);
+
         let sidebar = gtk::Box::new(gtk::Orientation::Vertical, 8);
         sidebar.set_size_request(320, -1);
         sidebar.set_margin_top(10);
@@ -81,6 +93,7 @@ impl Ui {
         sidebar.set_margin_start(10);
         sidebar.set_margin_end(10);
         sidebar.append(&input_box);
+        sidebar.append(&chain_heading);
         sidebar.append(&status_label);
         sidebar.append(&chain_scroll);
         sidebar.append(&add_button);
@@ -191,8 +204,8 @@ impl Ui {
         });
 
         let ui = Rc::clone(self);
-        self.bypass.connect_active_notify(move |switch| {
-            let wanted = switch.is_active();
+        self.bypass.connect_toggled(move |button| {
+            let wanted = button.is_active();
             if ui.state.borrow().bypassed == wanted {
                 return;
             }
@@ -296,6 +309,9 @@ impl Ui {
             .update(meters.input_peak_db, meters.input_rms_db);
         self.meter_out
             .update(meters.output_peak_db, meters.output_rms_db);
+        if self.bypass.is_active() != snapshot.bypassed {
+            self.bypass.set_active(snapshot.bypassed);
+        }
         let status = format::status_text(&snapshot, state);
         self.status_label.set_label(&status);
         self.settings_view.update(&snapshot, &stats, state);

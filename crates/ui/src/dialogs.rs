@@ -3,6 +3,8 @@ use std::rc::Rc;
 use adw::prelude::*;
 use gtk::{gio, glib};
 
+use crate::format;
+
 pub fn text_prompt<F>(
     parent: &impl IsA<gtk::Widget>,
     title: &str,
@@ -15,7 +17,7 @@ pub fn text_prompt<F>(
 {
     let dialog = adw::Dialog::builder()
         .title(title)
-        .content_width(360)
+        .content_width(380)
         .build();
     let toolbar = adw::ToolbarView::new();
     toolbar.add_top_bar(&adw::HeaderBar::new());
@@ -28,32 +30,28 @@ pub fn text_prompt<F>(
     let label = gtk::Label::new(Some(body));
     label.set_xalign(0.0);
     label.set_wrap(true);
+    label.add_css_class("dim-label");
     let entry = gtk::Entry::new();
     entry.set_text(initial);
     entry.set_activates_default(true);
+    entry.add_css_class("suggested-action");
     content.append(&label);
     content.append(&entry);
     toolbar.set_content(Some(&content));
     dialog.set_child(Some(&toolbar));
 
+    let bar = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    bar.set_margin_top(6);
+    bar.set_margin_bottom(6);
+    bar.set_halign(gtk::Align::Center);
     let accept_button = gtk::Button::with_label(accept);
     accept_button.add_css_class("suggested-action");
-    toolbar.add_bottom_bar(&{
-        let bar = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-        bar.set_margin_top(6);
-        bar.set_margin_bottom(6);
-        bar.set_margin_start(6);
-        bar.set_margin_end(6);
-        bar.set_halign(gtk::Align::Center);
-        bar.append(&accept_button);
-        let cancel = gtk::Button::with_label("Cancel");
-        bar.append(&cancel);
-        let dialog_clone = dialog.clone();
-        cancel.connect_clicked(move |_| {
-            dialog_clone.close();
-        });
-        bar
-    });
+    accept_button.add_css_class("pill");
+    let cancel = gtk::Button::with_label("Cancel");
+    cancel.add_css_class("pill");
+    bar.append(&cancel);
+    bar.append(&accept_button);
+    toolbar.add_bottom_bar(&bar);
 
     let dialog_clone = dialog.clone();
     let on_accept = Rc::new(on_accept);
@@ -61,6 +59,11 @@ pub fn text_prompt<F>(
         let value = entry.text().to_string();
         dialog_clone.close();
         on_accept(value);
+    });
+
+    let dialog_clone = dialog.clone();
+    cancel.connect_clicked(move |_| {
+        dialog_clone.close();
     });
 
     dialog.present(Some(parent));
@@ -91,114 +94,121 @@ pub fn confirm<F>(
     dialog.present(Some(widget));
 }
 
+struct Section {
+    container: gtk::Box,
+    rows: Vec<adw::ActionRow>,
+}
+
 pub fn choose_effect<F>(parent: &impl IsA<gtk::Widget>, on_pick: F)
 where
     F: Fn(&'static str) + 'static,
 {
     let dialog = adw::Dialog::builder()
         .title("Add effect")
-        .content_width(380)
-        .content_height(520)
+        .content_width(420)
+        .content_height(560)
         .build();
     let toolbar = adw::ToolbarView::new();
     toolbar.add_top_bar(&adw::HeaderBar::new());
 
-    let container = gtk::Box::new(gtk::Orientation::Vertical, 6);
     let search = gtk::SearchEntry::new();
     search.set_placeholder_text(Some("Search effects"));
+    search.set_margin_top(6);
+    search.set_margin_bottom(6);
     search.set_margin_start(12);
     search.set_margin_end(12);
-    search.set_margin_top(6);
-    container.append(&search);
+    search.add_css_class("pill");
 
-    let list = gtk::ListBox::new();
-    list.set_selection_mode(gtk::SelectionMode::Single);
-    list.add_css_class("boxed-list");
-
+    let on_pick = Rc::new(on_pick);
+    let dialog_clone = dialog.clone();
+    let mut sections: Vec<Section> = Vec::new();
     let mut categories: Vec<&'static str> = Vec::new();
     for descriptor in pwe_dsp::EFFECTS {
-        let label = descriptor.category.label();
-        if !categories.contains(&label) {
-            categories.push(label);
+        if !categories.contains(&descriptor.category.label()) {
+            categories.push(descriptor.category.label());
         }
     }
+
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 18);
+    content.set_margin_top(6);
+    content.set_margin_bottom(18);
+    content.set_margin_start(12);
+    content.set_margin_end(12);
     for category in categories {
+        let container = gtk::Box::new(gtk::Orientation::Vertical, 6);
         let heading = gtk::Label::new(Some(category));
         heading.set_xalign(0.0);
         heading.add_css_class("heading");
-        heading.set_margin_top(8);
-        heading.set_margin_start(14);
-        container.append(&heading);
+        heading.set_margin_start(6);
+        let list = gtk::ListBox::new();
+        list.set_selection_mode(gtk::SelectionMode::None);
+        list.add_css_class("boxed-list");
+        let mut rows = Vec::new();
         for descriptor in pwe_dsp::EFFECTS
             .iter()
-            .filter(|d| d.category.label() == category)
+            .filter(|descriptor| descriptor.category.label() == category)
         {
-            let row = gtk::ListBoxRow::new();
-            let row_box = gtk::Box::new(gtk::Orientation::Vertical, 2);
-            row_box.set_margin_top(8);
-            row_box.set_margin_bottom(8);
-            row_box.set_margin_start(12);
-            row_box.set_margin_end(12);
-            let title = gtk::Label::new(Some(descriptor.label));
-            title.set_xalign(0.0);
-            let subtitle = gtk::Label::new(Some(descriptor.summary));
-            subtitle.set_xalign(0.0);
-            subtitle.set_wrap(true);
-            subtitle.add_css_class("caption");
-            subtitle.add_css_class("dim-label");
-            row_box.append(&title);
-            row_box.append(&subtitle);
-            row.set_child(Some(&row_box));
-            row.set_widget_name(descriptor.id);
+            let row = adw::ActionRow::new();
+            row.set_title(descriptor.label);
+            row.set_subtitle(descriptor.summary);
             row.set_activatable(true);
+            row.set_widget_name(descriptor.id);
+            let icon = gtk::Image::from_icon_name(format::category_icon(descriptor.id));
+            icon.add_css_class("dim-label");
+            row.add_prefix(&icon);
+            let chevron = gtk::Image::from_icon_name("go-next-symbolic");
+            chevron.add_css_class("dim-label");
+            row.add_suffix(&chevron);
             list.append(&row);
+            rows.push(row);
         }
+        let pick = Rc::clone(&on_pick);
+        let dialog_clone = dialog_clone.clone();
+        list.connect_row_activated(move |_, row| {
+            let name = row.widget_name();
+            if let Some(descriptor) = pwe_dsp::EFFECTS.iter().find(|d| d.id == name) {
+                pick(descriptor.id);
+                dialog_clone.close();
+            }
+        });
+        container.append(&heading);
+        container.append(&list);
+        content.append(&container);
+        sections.push(Section { container, rows });
     }
 
     let scrolled = gtk::ScrolledWindow::new();
     scrolled.set_vexpand(true);
-    scrolled.set_child(Some(&list));
-    container.append(&scrolled);
-    toolbar.set_content(Some(&container));
+    scrolled.set_child(Some(&content));
+
+    let layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    layout.append(&search);
+    layout.append(&scrolled);
+    toolbar.set_content(Some(&layout));
     dialog.set_child(Some(&toolbar));
 
-    let on_pick = Rc::new(on_pick);
-    let dialog_clone = dialog.clone();
-    list.connect_row_activated(move |_, row| {
-        let name = row.widget_name();
-        if let Some(id) = pwe_dsp::EFFECTS
-            .iter()
-            .find(|descriptor| descriptor.id == name)
-        {
-            on_pick(id.id);
-            dialog_clone.close();
-        }
-    });
-
-    let list_clone = list.clone();
     search.connect_search_changed(move |entry| {
         let needle = entry.text().to_lowercase();
-        let mut child = list_clone.first_child();
-        while let Some(widget) = child {
-            let next = widget.next_sibling();
-            if let Some(row) = widget.downcast_ref::<gtk::ListBoxRow>() {
+        for section in &sections {
+            let mut visible = 0;
+            for row in &section.rows {
                 let name = row.widget_name();
+                let title = row.title().to_lowercase();
+                let summary = row.subtitle().unwrap_or_default().to_lowercase();
                 let matches = needle.is_empty()
                     || name.to_lowercase().contains(&needle)
-                    || effect_text(&name).to_lowercase().contains(&needle);
+                    || title.contains(&needle)
+                    || summary.contains(&needle);
                 row.set_visible(matches);
+                if matches {
+                    visible += 1;
+                }
             }
-            child = next;
+            section.container.set_visible(visible > 0);
         }
     });
 
     dialog.present(Some(parent));
-}
-
-fn effect_text(id: &str) -> String {
-    pwe_dsp::find(id).map_or_else(String::new, |descriptor| {
-        format!("{} {}", descriptor.label, descriptor.summary)
-    })
 }
 
 pub fn choose_file<F>(

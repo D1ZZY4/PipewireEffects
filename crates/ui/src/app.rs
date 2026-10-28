@@ -10,11 +10,11 @@ use crate::window::Ui;
 pub const APPLICATION_ID: &str = "io.github.D1ZZY4.PipewireEffects";
 
 const STYLE: &str = "
-.meter-block { padding: 4px 2px; }
+.meter-block { padding: 10px 12px; }
 .meter { border-radius: 3px; }
 .level-bar.meter trough { min-height: 6px; border-radius: 3px; }
-.response-frame { border-radius: 8px; }
-.response { background: alpha(currentColor, 0.03); border-radius: 8px; }
+.response-frame { border-radius: 12px; }
+.response { background: alpha(currentColor, 0.04); border-radius: 12px; }
 .numeric { font-feature-settings: \"tnum\"; }
 ";
 
@@ -22,7 +22,10 @@ pub fn run() -> std::process::ExitCode {
     let application = adw::Application::builder()
         .application_id(APPLICATION_ID)
         .build();
-    application.connect_startup(|_| install_style());
+    application.connect_startup(|application| {
+        install_style();
+        install_actions(application);
+    });
     let holder: Rc<RefCell<Option<Rc<Ui>>>> = Rc::new(RefCell::new(None));
 
     let active = Rc::clone(&holder);
@@ -104,6 +107,7 @@ fn schedule_smoke_test(ui: &Rc<Ui>) {
             rate,
             failures.len()
         );
+        ui.state.borrow_mut().engine.shutdown();
         if failures.is_empty() {
             std::process::exit(0);
         }
@@ -122,6 +126,29 @@ fn install_style() {
             gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
         );
     }
+}
+
+fn install_actions(application: &adw::Application) {
+    let quit = gtk::gio::SimpleAction::new("quit", None);
+    let app = application.clone();
+    quit.connect_activate(move |_, _| app.quit());
+    application.add_action(&quit);
+    application.set_accels_for_action("app.quit", &["<primary>q"]);
+
+    let about = gtk::gio::SimpleAction::new("about", None);
+    let app = application.clone();
+    about.connect_activate(move |_, _| {
+        let dialog = adw::AboutDialog::builder()
+            .application_name("PipeWire Effects")
+            .application_icon(APPLICATION_ID)
+            .developer_name("PipeWire Effects contributors")
+            .version(env!("CARGO_PKG_VERSION"))
+            .license_type(gtk::License::Gpl30)
+            .website("https://github.com/D1ZZY4/PipewireEffects")
+            .build();
+        dialog.present(app.active_window().as_ref());
+    });
+    application.add_action(&about);
 }
 
 fn show_fatal(application: &adw::Application, message: &str) {

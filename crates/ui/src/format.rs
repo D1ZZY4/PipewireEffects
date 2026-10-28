@@ -8,6 +8,17 @@ pub fn effect_summary(kind: &str) -> &'static str {
     pwe_dsp::find(kind).map_or("", |descriptor| descriptor.summary)
 }
 
+pub fn category_icon(kind: &str) -> &'static str {
+    match pwe_dsp::find(kind).map(|descriptor| descriptor.category) {
+        Some(pwe_dsp::EffectCategory::Dynamics) => "media-playback-start-symbolic",
+        Some(pwe_dsp::EffectCategory::Equalisation) => "audio-volume-high-symbolic",
+        Some(pwe_dsp::EffectCategory::Tone) => "emblem-music-symbolic",
+        Some(pwe_dsp::EffectCategory::Time) => "document-open-recent-symbolic",
+        Some(pwe_dsp::EffectCategory::Analysis) => "audio-speakers-symbolic",
+        None => "application-x-addon-symbolic",
+    }
+}
+
 pub fn db_text(db: f32) -> String {
     if db <= -120.0 {
         "-inf dB".to_owned()
@@ -23,7 +34,9 @@ pub fn normalized_db(db: f32) -> f64 {
 pub fn status_text(snapshot: &Snapshot, state: pwe_engine::EngineState) -> String {
     match state {
         pwe_engine::EngineState::Running => {
-            if snapshot.sample_rate == 0 {
+            if snapshot.bypassed {
+                "Bypassed".to_owned()
+            } else if snapshot.sample_rate == 0 {
                 "Waiting for the graph".to_owned()
             } else {
                 format!(
