@@ -16,7 +16,7 @@ pwe-core  ◄── pwe-dsp  ◄── pwe-engine ◄── pwe-ui ◄── pip
 | `pwe-core` | Audio buffers, parameter specifications, the effect contract, the chain, meters, realtime-safe helpers | PipeWire, GTK, files |
 | `pwe-dsp` | The thirteen effects, the biquad designs and the effect registry | Threads, devices, presets |
 | `pwe-presets` | The preset schema, name validation and the preset directory | Which effects exist |
-| `pwe-engine` | PipeWire streams, the virtual sink, the realtime processor, counters | GTK, presets |
+| `pwe-engine` | PipeWire streams, the virtual sink, the destination device, the realtime processor, counters | GTK, presets |
 | `pwe-ui` | GTK4/libadwaita widgets, the chain model, the engine bridge | DSP internals |
 | `pipewire-effects` | Process entry point | Everything else |
 
@@ -69,6 +69,23 @@ documented in section 6.
 The playback stream is clocked by the hardware. The capture stream is clocked by
 whatever is feeding the virtual sink. Running the chain on the hardware clock
 gives the effects an even cadence.
+
+### Choosing the destination
+
+The engine binds the session manager's `default` metadata object and reads
+`default.audio.sink`. It does this before it creates its own sink, so the value
+it sees is a real hardware device rather than its own node, and it ignores any
+value that names one of its two internal nodes. A destination chosen by hand in
+the *Devices* page wins over the metadata; `default` in that control means
+"follow the system default" again. When the metadata changes while the engine
+runs, the two streams are rebuilt for the new device.
+
+If neither an explicit choice nor the metadata names a usable sink, the engine
+falls back to the highest `priority.session` among the discovered sinks that are
+not itself and are not virtual.
+
+`crates/engine/src/defaults.rs` owns the metadata watch, `crates/engine/src/target.rs`
+owns the resolution policy, and both are covered without an audio server.
 
 ## 3. Realtime rules
 
@@ -161,14 +178,22 @@ click a repeated sample produces at a buffer boundary.
 ## 7. The interface
 
 `adw::ApplicationWindow` → `adw::ToolbarView` → `adw::ViewStack`, with an
-`adw::ViewSwitcher` in the header as the top-level navigation.
+`adw::ViewSwitcher` in the header as the top-level navigation. The three pages
+also have `Ctrl`+`1`, `Ctrl`+`2` and `Ctrl`+`3` accelerators, registered as
+window actions.
 
-- **Effects**: a fixed-width chain column (input meter, engine status, the effect
-  rows, *Add effect*) beside the editor for the selected effect.
+- **Effects**: an `adw::OverlaySplitView`. The start side is a fixed-width chain
+  column (input meter, engine status, the effect rows, *Add effect*); the end
+  side is the editor for the selected effect. Below 860 px the split view
+  collapses and a header toggle reveals the chain over the editor.
 - **Presets**: the preset library, with load, save, delete, import and export.
 - **Devices**: engine status, the virtual sink name with a copy button, the
   output device chooser, statistics and diagnostics.
-- **Chain rows**: an enable switch, move up/down and remove.
+- **Chain rows**: the effect's symbolic icon, its name and summary, and an enable
+  switch; move up/down and remove are behind a menu button that appears on hover
+  or secondary click. The labels are ellipsized so that the column width does not
+  depend on the length of an effect summary. The column also carries the input
+  meter and one line of engine status.
 - **Editor**: a `adw::PreferencesPage` generated from the selected effect's
   parameter specifications. Booleans become `adw::SwitchRow`, choices become
   `adw::ComboRow`, floats become a labelled `gtk::Scale` that maps through the
@@ -179,10 +204,22 @@ click a repeated sample produces at a buffer boundary.
 - **Dialogs**: effect picker with search, and the name, confirm and file dialogs
   used by the preset library.
 - **Meters**: `gtk::LevelBar` for peak with an RMS offset marker, plus a numeric
-  readout.
+  readout. Both meters run through `LevelMeter`, so the two readouts are
+  comparable when the chain is empty.
 
 The window polls the engine every 50 ms. Nothing blocks: the snapshot is a short
 mutex acquisition on a plain data structure.
+
+### Icons
+
+`data/io.github.D1ZZY4.PipewireEffects.gresource.xml` compiles the application
+icon into the binary; `crates/ui/build.rs` runs `glib-compile-resources` and the
+result is registered at startup, so the About dialog and the header bar find the
+icon whether or not `data/icons` was installed. `crate::format` is the single
+list of icon names, one per effect plus the chrome, and `format::missing_icons`
+checks them against the live icon theme at startup and in a test. Every name is
+part of the Adwaita theme: a name that only exists in an unrelated theme would be
+drawn with a foreign glyph.
 
 ## 8. Presets
 
@@ -238,7 +275,9 @@ without a system preset directory.
 
 ## 10. Verification
 
-- `cargo test --workspace`: 203 tests, no display and no audio device required.
+- `cargo test --workspace`: 211 tests, no audio device needed.
+  Two of them need a display and skip themselves without one: the bundled icon
+  lookup and the icon-theme check.
 - Filter designs are checked against their analytic magnitude response, `Q` and
   gain sweeps, and a pole-stability sweep.
 - Effects are checked against measured levels: 20 dB of gain, −6 dB of gain,
@@ -247,11 +286,15 @@ without a system preset directory.
   under abusive settings.
 - The ring buffer, command queue and trimming policy are exercised with a real
   `rtrb` producer and consumer.
+- The two meters are checked against each other: an empty chain must report the
+  same input and output level for the same block.
 - Presets are round-tripped through JSON, hostile names are rejected, malformed
   files are skipped.
 - Reference presets are converted against the keys and labels the reference
   actually writes, and the warnings that report what was dropped are covered,
   including that they reach the caller through the store.
+- The metadata document that carries the default sink is parsed against the
+  spellings the session manager writes.
 - `crates/engine/tests/live_pipewire.rs` runs the real engine against the running
   daemon. The processing test opens its own virtual sink under a
   process-specific name so that unrelated applications cannot be routed into it,
@@ -261,6 +304,11 @@ without a system preset directory.
 - `PIPEWIRE_EFFECTS_SMOKE_TEST=1` builds the real window, adds an effect, loads
   the *Default* preset and exits with a status. It requires a display and a
   running PipeWire.
+- `PIPEWIRE_EFFECTS_UI_STATE=<state>` drives the real window into one state after
+  it is mapped, so a screenshot can be taken of a specific screen. The states are
+  `chain`, `editor`, `presets`, `devices`, `picker`, `picker-tone`, `about`,
+  `save`, `banner`, `bypass` and `narrow`. This is the harness the interface
+  review in section 12 used; it is not part of the product.
 
 ## 11. Performance
 
@@ -275,3 +323,40 @@ without a system preset directory.
   through a −20 dB gain stage was measured at −20.00 dB at the input and
   −40.00 dB at the output, with 16 384 frames captured and processed, 4 096
   underrun samples from the initial fill, and no overruns or trims.
+
+## 12. Interface review
+
+The interface was reviewed by running the release binary under a separate X
+server (`Xvfb`, the X11 backend) and capturing the window with ImageMagick's
+`import` for each harness state listed in section 10, in both the dark and the
+light appearance. What the review changed:
+
+- The bundled application icon: the About dialog and the header bar showed the
+  missing-image glyph, and the icon-theme resource path had to be the theme
+  directory rather than its parent.
+- The destination chooser: the automatic entry was too long for the row and the
+  row did not say which device had been resolved.
+- The chain column: the longest summary stretched the column and pushed the
+  editor into wrapping *Release* in the middle of the word. The split view and
+  the ellipsized labels fixed that.
+- The tone and analysis effect icons: both names were absent from Adwaita.
+- A window narrower than 860 px: the sidebar now collapses.
+- The chain sidebar: a summary line ("N effects · M active") and a coloured
+  status dot were removed. The count is evident from the rows themselves, and the
+  dot did not say whether it meant engine state or bypass; the engine status is
+  now one plain sentence ("48000 Hz · 2 channels", "Bypassed"), and the enable
+  switches are the only indicator on a row.
+- The effect identity: an earlier pass drew each effect as a tinted, boxed
+  category chip. That read as decoration rather than information, so the chip was
+  replaced with the effect's plain symbolic icon, drawn in the theme's own
+  foreground colour with no background, matching the rest of the desktop.
+- The row menu: move and remove were always present and competed with the switch;
+  the menu button is now revealed on pointer hover and on a secondary click,
+  so the switch is the only control at rest.
+
+The narrow window and the light appearance were captured after each fix. The
+live meters were captured with the session's real audio routed through the
+virtual sink, which is what exposed the two meters disagreeing.
+
+No PipeWire daemon was restarted, no device configuration was written, and no
+system setting was changed for the review.

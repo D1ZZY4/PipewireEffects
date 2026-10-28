@@ -1,5 +1,32 @@
 # Feature matrix
 
+## 0. Scope classification
+
+Every candidate below is classified as one of:
+
+- **REQUIRED** - part of this application's stated purpose: process application
+  audio through a user-built chain on a virtual PipeWire sink, with real DSP, a
+  native interface, persistence and diagnostics. Must be implemented and
+  verified.
+- **PRESERVE** - behaviour or infrastructure that had to survive the rewrite.
+- **EXCLUDED** - deliberately outside this application's scope, with the reason
+  recorded. A product-scope decision, not a claim of impossibility.
+- **BLOCKED** - intended, but cannot be completed in this environment.
+
+This repository set out to be a self-contained Rust application, so the
+classification is:
+
+| Class | Items |
+|---|---|
+| REQUIRED | Thirteen effects; the virtual sink; the output pipeline; the destination device; per-effect enable, ordering and global bypass; presets (built-in, user, import, export, EasyEffects conversion); live meters; diagnostics; the GTK4/libadwaita interface; the desktop entry and icon |
+| PRESERVE | Preset JSON schema v1 and its reader; the easyeffects conversion vocabulary and its warning list; the existing module boundaries and the realtime rules; the repository identity, licence and documentation |
+| EXCLUDED | LV2/LADSPA hosting, the convolver, the spectrum analyser, pitch shift, crossfeed, crusher, expander, exciter, mid/side equalizer, multiband compressor and gate, maximizer, bass loudness, autotune, crosstalk canceller, voice suppressor, echo canceller, speech processor, loudness metering. Reasons: each needs a third-party plugin, an FFT/phase-vocoder library or a neural model, which conflicts with the self-contained-binary goal; the per-row reason says which |
+| BLOCKED | Deep noise removal and RNNoise noise reduction (require ONNX/RNNoise models and a runtime that cannot be verified here); the community preset browser (requires network access). The input (microphone) pipeline, preset autoload per application, the blocklist, the last-used-preset store, translations, autostart, the command socket and distribution packaging are **not started** and are recorded as unfinished, not as excluded |
+
+The application is therefore complete for the output-pipeline scope described in
+`README.md`, and is **not** at full EasyEffects parity. See
+`docs/architecture.md` for what is verified.
+
 Status values:
 
 - **Implemented** - behaves as described and is covered by tests.
@@ -69,9 +96,9 @@ Reference evidence refers to files under `references/`.
 | Community presets | `presets_community_manager.cpp` | Not implemented | Requires network access; deliberately excluded. |
 | Blocklist | `presets_manager.cpp` | Not implemented | Deferred. |
 | Last used preset | `DbMain::lastLoadedOutputPreset` | Partial | The loaded preset is shown in-session; it is not persisted across runs. |
-| Device selection | `pw_manager.cpp` | Partial | Explicit target device plus a `priority.session` heuristic for "default". Does not read `default.audio.sink` metadata. |
-| Following the default device | `bestHardwareOutputDeviceName` | Not implemented | Same metadata limitation. |
-| Level meters | `output_level.cpp` | Implemented | Input and output, peak with RMS marker, 20 Hz refresh. |
+| Device selection | `pw_manager.cpp` | Implemented | The destination follows `default.audio.sink` from the session manager's metadata, read before the virtual sink is created; a device picked by hand wins, and *System default* in the *Devices* page returns to the automatic choice. The `priority.session` heuristic stays as the fallback. |
+| Following the default device | `bestHardwareOutputDeviceName` | Implemented | The metadata object is watched while the engine runs; a change rebuilds the two streams for the new device. |
+| Level meters | `output_level.cpp` | Implemented | Input and output, peak with an RMS marker, 20 Hz refresh. Both meters run through `LevelMeter`, so an empty chain reports the same level at both. |
 | Spectrum analyser | `src/spectrum.cpp` | Not implemented | Requires an FFT. |
 | Statistics and diagnostics | reference logs + advanced info page | Implemented | Captured/processed frames, underruns, overruns, trims, warnings. |
 | Buffer size / samplerate control | `DbMain`, kcfg | Not applicable | The graph rate and quantum are owned by PipeWire and followed, not forced. |
@@ -87,14 +114,25 @@ Reference evidence refers to files under `references/`.
 |---|---|---|
 | Core primitives (buffers, parameters, chain, meters, math) | 27 | `crates/core/src/**` |
 | DSP (biquads, thirteen effects, registry) | 65 | `crates/dsp/src/**`, `crates/dsp/tests/` |
-| Engine (config, devices, processor, stream properties, byte conversion) | 13 | `crates/engine/src/**` |
+| Engine (config, devices, target resolution, default-sink metadata, processor, stream properties, byte conversion) | 16 | `crates/engine/src/**` |
 | Presets (schema, coercion, storage, built-ins, reference conversion) | 83 | `crates/presets/src/**` |
-| Interface (formatting, response axis, state model, banners) | 15 | `crates/ui/src/**` |
+| Interface (formatting, icons, response axis, state model, banners, device labels) | 20 | `crates/ui/src/**` |
 | Live PipeWire integration (ignored by default) | 3 | `crates/engine/tests/live_pipewire.rs` |
 
-`cargo test --workspace` therefore runs 203 tests, none of which need a display
-or an audio device. The three live tests are `#[ignore]`d and are run
-explicitly against a running daemon.
+`cargo test --workspace` therefore runs 211 tests. None of them need an audio
+device. Two of the interface tests look up icons in the live icon theme and skip
+themselves when no display is available. The three live tests are `#[ignore]`d and
+are run explicitly against a running daemon.
+
+## 3.1 Interface verification
+
+The release binary was run under a separate X server with the real PipeWire
+daemon and captured with `import` for every primary destination and for the
+dialog, empty, warning, bypass, narrow and live-metering states, in the dark and
+the light appearance. The states are driven by `PIPEWIRE_EFFECTS_UI_STATE`. The
+captures are what found the missing application icon, the two Adwaita-absent icon
+names, the squeezed editor column and the two meters disagreeing. See
+`docs/architecture.md` section 12.
 
 ## 4. Deliberate exclusions and their justification
 

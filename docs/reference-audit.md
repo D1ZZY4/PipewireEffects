@@ -199,5 +199,5 @@ The reference directory was not modified at any point.
 | 30-band equalizer with per-band type/Q and channel splitting | A 10-band octave equalizer with a shared bandwidth and output gain. Reduction recorded in the matrix. |
 | EBU R128 loudness (libebur128) | RMS-based auto gain. The measurement is not R128 and is labelled as such. |
 | KConfig settings | Plain JSON presets plus runtime-only engine settings. |
-| Metadata-driven default device | `priority.session` heuristic, documented as a limitation. |
+| Metadata-driven default device | `default.audio.sink` is read before the sink is created and watched while the engine runs; `priority.session` remains the fallback |
 | The local socket server and the command line options | Not implemented; the interface is the only control surface in this increment. |

@@ -41,7 +41,8 @@ Around them:
 - Live input and output meters (peak with an RMS marker).
 - Honest counters: captured and processed frames, underruns, overruns and drift
   trims, plus a diagnostics list.
-- An output device chooser.
+- Processed audio follows the system default output device, and follows it when
+  it changes; you can also pin a specific device.
 
 ## Requirements
 
@@ -187,11 +188,12 @@ drift between them is corrected.
 cargo test --workspace
 ```
 
-203 tests, none of which need a display or an audio device. They cover biquad
-designs against their analytic magnitude response, the effects against measured
-signal levels and numerical bounds, the ring buffer and trimming policy with a
-real producer and consumer, preset parsing, coercion and path-traversal
-rejection.
+211 tests, none of which need an audio device or a display; the two icon lookups
+skip themselves when no display is available. They cover biquad designs against
+their analytic magnitude response, the effects against measured signal levels and
+numerical bounds, the ring buffer and trimming policy with a real producer and
+consumer, the two meters against each other, preset parsing, coercion and
+path-traversal rejection.
 
 Three live tests run the real engine against the running daemon, feed a tone
 into a virtual sink with `pw-cat`, and check the level leaving the chain. The
@@ -235,9 +237,12 @@ Working, and honest about the gaps:
 - The limiter has no lookahead, so its instantaneous attack trades some
   transient distortion for a guaranteed ceiling.
 - Auto gain is RMS-based, not EBU R128.
-- The output device is chosen from `priority.session`; the
-  `default.audio.sink` metadata is not read, so "follow the system default" is a
-  heuristic.
+- The underlying transport is two `pw_stream`s joined by a ring buffer rather
+  than one `pw_filter` node per effect, because `pipewire-rs` 0.10 exposes no
+  `pw_filter` binding. The cost is the buffer and its drift correction.
+- The destination follows the system default sink as it was when the app started
+  and whenever it changes afterwards. A device you pick by hand is not persisted
+  across restarts.
 - The plugin-based, neural and spectral effects of EasyEffects are not
   implemented. `docs/feature-matrix.md` lists every one with its status.
 
