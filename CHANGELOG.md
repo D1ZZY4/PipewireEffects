@@ -11,8 +11,67 @@ keeps working in the next.
 
 ## [Unreleased]
 
+### Added
+
+- Seven more effects: an expander, a maximizer, a bit and sample-rate crusher, an
+  exciter, a headphone crossfeed, a cross-talk canceller and a mid/side
+  equalizer. Each has its own symbolic icon, its own parameter set and its own
+  tests, and each maps a matching EasyEffects preset block. The cross-talk
+  canceller is a port of the reference's own native algorithm; the others are
+  native Rust designs against the reference's parameter sets and are marked
+  *Partial* in `docs/feature-matrix.md`, which records what differs.
+- The effect registry now checks itself: identifiers and labels must be unique,
+  every effect must publish parameters and build, and every parameter identifier
+  must be unique within an effect.
+- `ParamUnit::Microseconds`, for the cross-talk canceller's delay.
+- The slider rows carry an accessible label and value, so an assistive
+  technology announces a parameter with its unit and its current value.
+- The application icon was redrawn as a hand-written vector: the same mark as
+  before - a gradient ring around five level bars - rebuilt with a thicker ring,
+  a full-bleed rounded tile and soft background washes, so it stays legible down
+  to 32 px, follows the shell's corner mask and matches the usual GNOME look.
+- The input (microphone) pipeline. It captures from the chosen input device,
+  runs a second effect chain and publishes the result as the virtual
+  `pipewire-effects-source`, which applications can record from. The Effects page
+  gained an *Output* / *Input* switch, the preset format gained an `input`
+  section, and the EasyEffects importer converts both sections. The pipeline is
+  opt-in and starts only when *Process microphone input* is switched on.
+- A settings file, `$XDG_CONFIG_HOME/pipewire-effects/settings.json`, which
+  remembers the destination device of each pipeline, the global bypass, the
+  loaded preset, whether microphone processing runs, and whether the application
+  autostarts. It is written atomically and a damaged file falls back to the
+  defaults with a message.
+- A command line: `--help`, `--version`, `--preset NAME`, `--device NAME`,
+  `--no-window`, `--list-presets` and `--list-devices`. `--no-window` starts the
+  processing without a window and opens the interface on the next launch.
+- An *Start on login* switch that writes and removes
+  `$XDG_CONFIG_HOME/autostart/io.github.D1ZZY4.PipewireEffects.desktop`.
+- A *Reconnect* button on the Devices page, shown when the engine has failed.
+- `make install`, a `PKGBUILD` and a Flatpak manifest.
+- Internationalization. Every user-facing string is translated through gettext,
+  with a catalog in `po/` (`POTFILES.in`, `LINGUAS` and a generated
+  `pipewire-effects.pot`) and `scripts/update-po.sh` to keep it current. Effect
+  labels, parameter labels, groups and choice labels are translated where they
+  are read, so a new effect needs no interface change. `make install` compiles
+  the catalogs into `$(PREFIX)/share/locale`. No translation ships yet, so an
+  installed build shows English until one is added.
+- `scripts/capture-ui.sh`, which renders every interface state on an isolated
+  headless GNOME session and writes one PNG per state, and `scripts/update-po.sh`.
+  See `scripts/README.md`.
+
+### Changed
+
+- The input and output meters sit side by side below the chain header instead of
+  one above the chain and one above the editor, and both expand to the width of
+  the column.
+- The level history trace is not drawn while the meter is silent.
+
 ### Fixed
 
+- The screenshot harness no longer races the first frame of a dialog. Capturing a
+  state that opens a dialog (the About window, the effect picker) occasionally
+  found no render node and produced no PNG; the capture now retries until the
+  render tree is ready.
 - The destination device now follows the system default sink. The engine reads
   `default.audio.sink` from the session manager's metadata before it creates its
   own sink, and re-resolves the destination when that value changes while it
@@ -90,6 +149,16 @@ keeps working in the next.
 
 ### Changed
 
+- The interface-review harness renders a state through the window's own render
+  tree (`PIPEWIRE_EFFECTS_UI_CAPTURE`) and writes it to a PNG, so a capture can
+  be taken on a Wayland session, where GNOME refuses its screenshot interface to
+  other clients. The `narrow` state sets the window size before the window is
+  mapped instead of after it, so it now actually exercises the narrow layout.
+- The engine retries by itself. When a stream fails, the streams are rebuilt
+  with an increasing backoff instead of leaving the pipeline failed until the
+  application is restarted.
+- The Devices page follows the pipeline that is being edited, and reports which
+  one the counters and the destination belong to.
 - The effect chain and the editor are laid out with `adw::OverlaySplitView`, and
   the pages are reachable with the `Ctrl`+`1`, `Ctrl`+`2` and `Ctrl`+`3`
   accelerators.

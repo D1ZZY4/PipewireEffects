@@ -181,11 +181,25 @@ in `docs/feature-matrix.md`:
 EasyEffects is GPL-3.0-or-later. This project is also GPL-3.0-or-later
 (`LICENSE`, `Cargo.toml`), so the licences are compatible.
 
-**No EasyEffects source, resource or asset was copied.** The Rust implementation
-was written from scratch against the behavioural findings above. The biquad
-formulas come from Robert Bristow-Johnson's Audio EQ Cookbook, which is a public
-specification; the reverb topology follows the published Freeverb design. Both
-are credited in `CREDITS.md`.
+**One effect is a port, and it is recorded as one.** The cross-talk canceller
+(`src/crosstalk_canceller.{cpp,hpp}`) is one of the few effects EasyEffects
+implements itself rather than wrapping a third-party plugin. It was written by
+Antti S. Lankila for EasyEffects, and `crates/dsp/src/effects/crosstalk.rs`
+reproduces its structure: the 200–500 µs delay line, the six correction biquads
+that shape the contralateral head-transfer function, the decay applied to the
+reciprocal path, and the phantom-centre mode. That is a derivative work, which
+the shared GPL-3.0-or-later licence permits, and it is credited in `CREDITS.md`.
+
+Everything else was written from scratch against the behavioural findings above.
+The biquad formulas come from Robert Bristow-Johnson's Audio EQ Cookbook, which
+is a public specification; the reverb topology follows the published Freeverb
+design. Both are credited in `CREDITS.md`.
+
+The effects whose reference implementation is a third-party LV2 plugin (the
+exciter, the maximizer, the mid/side equalizer, the crusher and the expander)
+are native Rust designs against the reference's parameter sets, not translations
+of the plugin's signal flow. `docs/feature-matrix.md` marks each of them as
+*Partial* and says what differs.
 
 The reference directory was not modified at any point.
 

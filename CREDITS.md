@@ -13,9 +13,13 @@ understand how a PipeWire effects processor should behave: presenting itself to
 the system as an ordinary audio device, letting the user own the effect order,
 and exposing real meters rather than decorative ones.
 
-No source code, resource or asset was copied. This is an independent Rust
+No source code, resource or asset was copied, with one documented exception: the
+cross-talk canceller in `crates/dsp/src/effects/crosstalk.rs` is a port of
+EasyEffects' own native implementation of that effect, by Antti S. Lankila, and
+carries its delay-line layout, correction-filter constants and phantom-centre
+mode. Both projects are GPL-3.0-or-later. Everything else is an independent Rust
 implementation; the debt is one of ideas. `docs/reference-audit.md` records
-exactly which files were consulted.
+exactly which files were consulted and what was taken from them.
 
 ## Standing on
 

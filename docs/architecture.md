@@ -9,16 +9,18 @@ is not a plan.
 pwe-core  ◄── pwe-dsp  ◄── pwe-engine ◄── pwe-ui ◄── pipewire-effects
     ▲                          ▲            ▲
     └────────── pwe-presets ───┴────────────┘
+pwe-core  ◄── pwe-settings ────────────────►┘
 ```
 
 | Crate | Owns | Does not know about |
 |---|---|---|
-| `pwe-core` | Audio buffers, parameter specifications, the effect contract, the chain, meters, realtime-safe helpers | PipeWire, GTK, files |
-| `pwe-dsp` | The thirteen effects, the biquad designs and the effect registry | Threads, devices, presets |
+| `pwe-core` | Audio buffers, parameter specifications, the effect contract, the chain, meters, realtime-safe helpers, the pipeline kinds | PipeWire, GTK, files |
+| `pwe-dsp` | The twenty effects, the biquad designs and the effect registry | Threads, devices, presets |
 | `pwe-presets` | The preset schema, name validation and the preset directory | Which effects exist |
-| `pwe-engine` | PipeWire streams, the virtual sink, the destination device, the realtime processor, counters | GTK, presets |
+| `pwe-settings` | The settings document, its atomic store and the autostart entry | The engine, the interface, the effects |
+| `pwe-engine` | PipeWire streams, the virtual sink and source, the destination device, the realtime processor, counters | GTK, presets, settings |
 | `pwe-ui` | GTK4/libadwaita widgets, the chain model, the engine bridge | DSP internals |
-| `pipewire-effects` | Process entry point | Everything else |
+| `pipewire-effects` | Process entry point and the command line | Everything else |
 
 Dependencies point one way. `pwe-dsp` depends only on `pwe-core`, which is what
 makes every filter testable against its analytic frequency response without an
@@ -33,56 +35,64 @@ specifications it finds.
 
 ## 2. The audio path
 
+Two independent pipelines, both `pwe-engine` instances, each owning its own
+connection, ring buffer, chain, counters and meters.
+
 ```text
-  application ──► virtual sink (capture stream) ──► ring buffer ──► processor ──► playback stream ──► device
-                  media.class = Audio/Sink          SPSC, f32        chain + meters     target.object
+  application ──► virtual sink (capture stream) ──► ring ──► processor ──► playback stream ──► device
+                  media.class = Audio/Sink          SPSC     chain+meters    target.object
 ```
 
-Two `pw_stream`s are used, joined into the same PipeWire node group
-(`node.group` and `node.link-group` are both `pipewire-effects`):
+```text
+  device ──► capture stream ──► ring ──► processor ──► virtual source (playback stream)
+             Stream/Input/Audio   SPSC   chain+meters   media.class = Audio/Source
+             target.object                                  applications record from it
+```
 
-- **Capture** (`pipewire-effects-sink`): direction `Input`, `media.class =
-  Audio/Sink`, `node.virtual = true`, **not** auto-connected. Applications route
-  into it, so it behaves like a sink without PipeWire trying to find a source for
-  it.
-- **Playback** (`pipewire-effects-output`): direction `Output`,
-  `media.class = Stream/Output/Audio`, auto-connected with `target.object` (and
-  `node.target`) set to the chosen sink node name.
+The output pipeline is the one described in `README.md`: applications route into
+`pipewire-effects-sink` and the processed audio is played on the chosen device.
+The input pipeline reads the chosen capture device and publishes
+`pipewire-effects-source`, so an application can record the processed
+microphone. Each pipeline sets `node.group` and `node.link-group` to
+`pipewire-effects`, and each only auto-connects the stream that is bound to a
+real device: the virtual node is never auto-connected, so PipeWire does not try
+to find a counterpart for it.
 
-Both streams set `state.restore-props = false` and `state.restore-target =
+Both pipelines set `state.restore-props = false` and `state.restore-target =
 false`. A session manager remembers stream volumes and link targets by name, and
-the virtual sink keeps a stable name, so a volume left behind by an earlier
-session would silently scale everything entering the chain. These two nodes are
-internal, they must pass audio at unity gain, and the device the playback stream
-is linked to is chosen by this application, not restored from metadata.
+the virtual nodes keep stable names, so a volume left behind by an earlier
+session would silently scale everything entering the chain. These nodes are
+internal, they must pass audio at unity gain, and the device each stream is
+linked to is chosen by this application, not restored from metadata.
 
-A ring buffer between them absorbs scheduling jitter. The alternative - one
-`pw_filter` node per effect, linked with `link-factory`, exactly as the reference
-implementation does it - would remove the buffer and the drift correction, but
-`pipewire-rs` 0.10 has no `pw_filter` binding. Hand-writing that binding would
-concentrate unsafe code in the realtime callback, which is the least testable
-place in the program. The two-stream design uses only the safe API. The cost is
-documented in section 6.
+A ring buffer between the two streams of each pipeline absorbs scheduling
+jitter. The alternative - one `pw_filter` node per effect, linked with
+`link-factory`, exactly as the reference implementation does it - would remove
+the buffer and the drift correction, but `pipewire-rs` 0.10 has no `pw_filter`
+binding. Hand-writing that binding would concentrate unsafe code in the realtime
+callback, which is the least testable place in the program. The two-stream design
+uses only the safe API. The cost is documented in section 6.
 
-### Why the DSP runs on the playback side
+### Why the DSP runs on the downstream side
 
-The playback stream is clocked by the hardware. The capture stream is clocked by
-whatever is feeding the virtual sink. Running the chain on the hardware clock
-gives the effects an even cadence.
+The downstream stream of each pipeline is clocked by the hardware or by
+whichever node drives the graph. The upstream stream is clocked by whatever is
+feeding it. Running the chain on the downstream side gives the effects an even
+cadence.
 
 ### Choosing the destination
 
-The engine binds the session manager's `default` metadata object and reads
-`default.audio.sink`. It does this before it creates its own sink, so the value
-it sees is a real hardware device rather than its own node, and it ignores any
-value that names one of its two internal nodes. A destination chosen by hand in
-the *Devices* page wins over the metadata; `default` in that control means
-"follow the system default" again. When the metadata changes while the engine
-runs, the two streams are rebuilt for the new device.
-
-If neither an explicit choice nor the metadata names a usable sink, the engine
-falls back to the highest `priority.session` among the discovered sinks that are
-not itself and are not virtual.
+Each pipeline binds the session manager's `default` metadata object and reads
+its own key - `default.audio.sink` for the output pipeline and
+`default.audio.source` for the input pipeline. It does this before it creates
+its own node, so the value it sees is a real device rather than its own, and it
+ignores any value that names one of its two internal nodes. A device chosen by
+hand in the *Devices* page wins over the metadata and is persisted;
+`default` in that control means "follow the system default" again. When the
+metadata changes while the engine runs, the two streams are rebuilt for the new
+device. If neither an explicit choice nor the metadata names a usable device, the
+engine falls back to the highest `priority.session` among the discovered devices
+of the right direction that are not itself and are not virtual.
 
 `crates/engine/src/defaults.rs` owns the metadata watch, `crates/engine/src/target.rs`
 owns the resolution policy, and both are covered without an audio server.
@@ -133,14 +143,20 @@ authoritative list of slots, their parameter sets and their enable flags.
 
 | Thread | Runs | Touches |
 |---|---|---|
-| GTK main | Widgets, actions, a 50 ms refresh tick | Engine snapshot, meters, statistics |
-| `pipewire-effects` | PipeWire main loop, `Loop::iterate` with a 20 ms timeout, command dispatch, effect disposal | Streams, device list, retired effects |
-| PipeWire realtime | Capture submit, processor | Ring buffer, chain, meters |
+| GTK main | Widgets, actions, a 50 ms refresh tick | The active engine's snapshot, meters, statistics |
+| `pipewire-effects-output` | PipeWire main loop for the output pipeline, `Loop::iterate` with a 20 ms timeout, command dispatch, effect disposal | Streams, device list, retired effects |
+| `pipewire-effects-input` | The same for the input pipeline, started only when microphone processing is on | Streams, device list, retired effects |
+| PipeWire realtime | Upstream submit and downstream processor, per pipeline | Ring buffers, chains, meters |
 
 The interface never calls a PipeWire API. It sends `EngineCommand` values over a
 `std::sync::mpsc` channel and reads an `Arc<Shared>` snapshot: atomics for
 meters, counters and state, a mutex for the device list and diagnostics. The
 mutex is never taken by the audio thread.
+
+A failed stream does not leave the pipeline dead. The engine loop notices the
+`Failed` state, waits an increasing backoff and rebuilds its two streams; the
+Devices page also offers a manual *Reconnect*, which restarts the engine thread
+and re-applies the chain from the parameters the interface still holds.
 
 ## 5. Drift and buffer policy
 
@@ -183,12 +199,16 @@ also have `Ctrl`+`1`, `Ctrl`+`2` and `Ctrl`+`3` accelerators, registered as
 window actions.
 
 - **Effects**: an `adw::OverlaySplitView`. The start side is a fixed-width chain
-  column (input meter, engine status, the effect rows, *Add effect*); the end
-  side is the editor for the selected effect. Below 860 px the split view
-  collapses and a header toggle reveals the chain over the editor.
+  column (a pipeline switch, input meter, engine status, the effect rows, *Add
+  effect*); the end side is the editor for the selected effect. Below 860 px the
+  split view collapses and a header toggle reveals the chain over the editor. The
+  switch chooses between the **Output** and **Input** chains; the sidebar and the
+  editor always show the chain that is selected, and the meters follow it.
 - **Presets**: the preset library, with load, save, delete, import and export.
-- **Devices**: engine status, the virtual sink name with a copy button, the
-  output device chooser, statistics and diagnostics.
+- **Devices**: the engine status for the selected pipeline, its node name with a
+  copy button, its destination chooser, a *Microphone* switch, a *Start on login*
+  switch, statistics and diagnostics, and a *Reconnect* button that appears when
+  the engine has failed.
 - **Chain rows**: the effect's symbolic icon, its name and summary, and an enable
   switch; move up/down and remove are behind a menu button that appears on hover
   or secondary click. The labels are ellipsized so that the column width does not
@@ -208,7 +228,33 @@ window actions.
   comparable when the chain is empty.
 
 The window polls the engine every 50 ms. Nothing blocks: the snapshot is a short
-mutex acquisition on a plain data structure.
+mutex acquisition on a plain data structure. The poll also compares a small
+signature of the active chain - its pipeline, its length, whether it runs and its
+highest slot - and rebuilds the rows when it changes, so a change made anywhere
+else is picked up without a manual refresh.
+
+### Internationalization
+
+Every user-facing string is translated through gettext. `pwe_core::i18n` owns the
+whole mechanism: it calls `setlocale`, binds the `pipewire-effects` domain to the
+catalog directory (`/usr/share/locale`, or `PIPEWIRE_EFFECTS_LOCALEDIR`), and
+exposes `t`, `tn` and `tr`. `tr` substitutes `{0}`, `{1}` placeholders in the
+translated template, so a translator can reorder them.
+
+The audio thread must not allocate, so `t` builds the lookup key in a fixed stack
+buffer and returns the message identifier whenever `gettext` hands the buffer
+back untranslated; only a real translation, which lives in the loaded catalog,
+is borrowed. The catalog is loaded once, at startup, by `bind`.
+
+Effect labels, parameter labels, parameter groups and choice labels stay plain
+English where they are declared, in `pwe-dsp`, and are translated where they are
+read, in `crates/ui`. An effect author therefore never calls gettext, and the
+registry's uniqueness checks still compare identifiers rather than translations.
+
+The catalog lives in `po/`: `POTFILES.in` lists the sources, `LINGUAS` the
+shipped languages, and `scripts/update-po.sh` regenerates the template. `make
+install` compiles the `.po` files with `msgfmt`. No translation ships yet, so an
+installed build shows English. `docs/feature-matrix.md` records the status.
 
 ### Icons
 
@@ -217,9 +263,14 @@ icon into the binary; `crates/ui/build.rs` runs `glib-compile-resources` and the
 result is registered at startup, so the About dialog and the header bar find the
 icon whether or not `data/icons` was installed. `crate::format` is the single
 list of icon names, one per effect plus the chrome, and `format::missing_icons`
-checks them against the live icon theme at startup and in a test. Every name is
-part of the Adwaita theme: a name that only exists in an unrelated theme would be
-drawn with a foreign glyph.
+checks them against the live icon theme at startup and in a test. Every palette
+name is part of the Adwaita theme: a name that only exists in an unrelated theme
+would be drawn with a foreign glyph.
+
+The application icon was redrawn as a hand-written vector - a gradient ring
+around five pill-shaped level bars over soft background washes on a full-bleed
+rounded tile - so it stays legible from 32 px up and follows the shell's corner
+mask.
 
 ## 8. Presets
 
@@ -263,7 +314,43 @@ Decisions and reasons:
 Built-in presets are compiled in, so a fresh installation has a usable set
 without a system preset directory.
 
-## 9. Error handling
+## 9. Settings, the command line and packaging
+
+`pwe-settings` owns one document, `$XDG_CONFIG_HOME/pipewire-effects/settings.json`:
+
+```json
+{
+  "output": { "device": "default", "bypassed": false },
+  "input":  { "device": "default", "bypassed": false },
+  "preset": "Default",
+  "process_input": false,
+  "autostart": false
+}
+```
+
+It is written atomically through a temporary file, and a damaged document falls
+back to the defaults with a message instead of stopping the application. The
+document is what makes the device choice and the loaded preset survive a restart;
+previously both were lost.
+
+`pwe-settings` also owns the autostart entry. *Start on login* writes
+`$XDG_CONFIG_HOME/autostart/io.github.D1ZZY4.PipewireEffects.desktop` with
+`Exec=pipewire-effects --no-window`, so the processing starts at sign-in without
+a window; launching the application again activates the running instance and
+opens its interface.
+
+The binary parses its own flags before GTK sees them: `--help`, `--version`,
+`--preset NAME`, `--device NAME`, `--no-window`, `--list-presets` and
+`--list-devices`. `crates/app/src/cli.rs` owns the parsing and is covered by
+tests; the parsing is deliberately hand-written rather than pulling in an
+argument-parsing dependency for seven flags.
+
+`make install` installs the binary, the desktop entry, both icon sets and the
+built-in preset below `$(PREFIX)`. `packaging/` carries a `PKGBUILD` and a
+Flatpak manifest. The `make install` tree was inspected; no package was built or
+installed into the system here.
+
+## 10. Error handling
 
 - `CoreError`, `PresetError` and `EngineError` are explicit enums with `Display`
   and `Error` implementations. No error is discarded silently.
@@ -273,11 +360,14 @@ without a system preset directory.
   and the destination is marked unavailable in the settings page.
 - Preset problems carry the offending name or file path.
 
-## 10. Verification
+## 11. Verification
 
-- `cargo test --workspace`: 211 tests, no audio device needed.
+- `cargo test --workspace`: 311 tests, no audio device needed.
   Two of them need a display and skip themselves without one: the bundled icon
   lookup and the icon-theme check.
+- The registry checks itself: effect identifiers and labels are unique, every
+  effect publishes parameters and builds, and every parameter identifier is
+  unique within its effect.
 - Filter designs are checked against their analytic magnitude response, `Q` and
   gain sweeps, and a pole-stability sweep.
 - Effects are checked against measured levels: 20 dB of gain, −6 dB of gain,
@@ -299,18 +389,39 @@ without a system preset directory.
   daemon. The processing test opens its own virtual sink under a
   process-specific name so that unrelated applications cannot be routed into it,
   feeds a −20 dB tone with `pw-cat` into that sink and asserts both the level the
-  tone reaches the chain at and the level reduction of a −20 dB gain stage.
-  Three tests, `#[ignore]`d so they do not run by default.
+  tone reaches the chain at and the level reduction of a −20 dB gain stage. The
+  input test starts the microphone pipeline and records from
+  `pipewire-effects-source` with `pw-cat --record`, then asserts that the
+  virtual source exists and that the recording drove the input chain. Four tests,
+  `#[ignore]`d so they do not run by default.
+- The command line is parsed without a dependency and covered by tests: the flags
+  in both spellings, the rejection of an unknown option, and that the help text
+  lists every option.
+- The settings document round-trips through its file, a missing file loads
+  without a warning, and a corrupt file falls back to the defaults with one.
 - `PIPEWIRE_EFFECTS_SMOKE_TEST=1` builds the real window, adds an effect, loads
   the *Default* preset and exits with a status. It requires a display and a
   running PipeWire.
 - `PIPEWIRE_EFFECTS_UI_STATE=<state>` drives the real window into one state after
   it is mapped, so a screenshot can be taken of a specific screen. The states are
-  `chain`, `editor`, `presets`, `devices`, `picker`, `picker-tone`, `about`,
-  `save`, `banner`, `bypass` and `narrow`. This is the harness the interface
-  review in section 12 used; it is not part of the product.
+  `chain`, `editor`, `equalizer`, `presets`, `devices`, `input`, `picker`,
+  `picker-tone`, `about`, `save`, `banner`, `bypass`, `narrow` and
+  `effect:<kind>`, which loads the built-in preset, adds the named effect if it
+  is absent and selects it. This is the harness the interface review in section 13
+  used; it is not part of the product.
+- `scripts/capture-ui.sh` runs the harness over an isolated headless GNOME
+  session and writes one PNG per state; `scripts/README.md` documents it. It
+  starts its own D-Bus session and its own `XDG_CONFIG_HOME`, so it never touches
+  the settings, presets or autostart entry of the person running it, and points
+  only `PIPEWIRE_RUNTIME_DIR` at the live daemon.
+- `scripts/update-po.sh` regenerates `po/pipewire-effects.pot` and merges the
+  translation catalogs. See the internationalization subsection of section 7.
+- `PIPEWIRE_EFFECTS_UI_CAPTURE=<path>` renders the active window through its own
+  render tree and writes the result to that PNG. It exists because GNOME refuses
+  `org.gnome.Shell.Screenshot` to every client except the shell itself, so a
+  compositor screenshot is not available to a test on a Wayland session.
 
-## 11. Performance
+## 12. Performance
 
 - The audio path performs two interleaving copies per block (SPA bytes → planar
   `f32` → SPA bytes) and no allocation.
@@ -324,12 +435,14 @@ without a system preset directory.
   −40.00 dB at the output, with 16 384 frames captured and processed, 4 096
   underrun samples from the initial fill, and no overruns or trims.
 
-## 12. Interface review
+## 13. Interface review
 
-The interface was reviewed by running the release binary under a separate X
-server (`Xvfb`, the X11 backend) and capturing the window with ImageMagick's
-`import` for each harness state listed in section 10, in both the dark and the
-light appearance. What the review changed:
+The first pass reviewed the interface by running the release binary under a
+separate X server (`Xvfb`, the X11 backend) and capturing the window with
+ImageMagick's `import` for each harness state listed in section 11, in both the
+dark and the light appearance. A later pass repeated the review on Wayland,
+which is the platform this application targets; see the end of this section.
+What the first pass changed:
 
 - The bundled application icon: the About dialog and the header bar showed the
   missing-image glyph, and the icon-theme resource path had to be the theme
@@ -358,5 +471,69 @@ The narrow window and the light appearance were captured after each fix. The
 live meters were captured with the session's real audio routed through the
 virtual sink, which is what exposed the two meters disagreeing.
 
+A later pass added seven effects and re-ran the review for the states they touch
+(`PIPEWIRE_EFFECTS_UI_STATE=effect:<kind>`, which loads the built-in preset,
+adds the effect if it is absent and selects it). What it changed:
+
+- The two meters were on opposite sides of the split view — the input below the
+  chain header, the output above the editor — so a chain of four or more rows
+  pushed them apart and they could not be read together. Both now sit in one
+  horizontal row under the header, above whichever page is showing, and both
+  expand to fill it.
+- `gtk::LevelBar` drew a faint level trace for a silent meter. The history trace
+  is skipped while every stored value is at the floor.
+- The parameter sliders carried no accessible name or value, so a screen reader
+  announced only "slider". Each slider now publishes
+  `gtk::accessible::Property::Label` and `ValueText`, and the value text is
+  refreshed on every change, with the unit and the current value.
+- The window did not set an icon name at all, and the header bar fell back to
+  the missing-image glyph on a machine without `data/icons` installed; the
+  bundled icon is now registered under the theme directory itself.
+- New effects were checked for a distinct icon, a distinct label, a parameter
+  list that builds and a preset mapping, and the registry now asserts all four.
+
 No PipeWire daemon was restarted, no device configuration was written, and no
-system setting was changed for the review.
+system setting was changed for the review. The light appearance was captured
+with a private `GSETTINGS_BACKEND=memory` and `ADW_DISABLE_PORTAL=1`, so the
+development machine's own colour scheme was not touched.
+
+The review was repeated on Wayland, which is the platform this application
+targets. `gnome-shell --headless --wayland --virtual-monitor` was started in a
+private D-Bus session, the release binary ran against it with
+`GDK_BACKEND=wayland`, and each state was captured with
+`PIPEWIRE_EFFECTS_UI_CAPTURE`. The shell's own screenshot interface answers
+`AccessDenied` to a client, so the window renders itself; the file is the
+window's own render tree at its allocated size, not a compositor capture of the
+screen. `ADW_DEBUG_COLOR_SCHEME` selected the appearance.
+
+What that pass changed:
+
+- The `narrow` harness state set the window size after the window had been
+  mapped, which GTK4 ignores, so no narrow capture had ever exercised the
+  collapsed layout. The size is now set before the window is mapped and the
+  state is captured at 720x620, where the sidebar is collapsed and the header
+  toggle appears.
+- The About dialog is a separate toplevel, so capturing the main window found no
+  render node. The capture now follows the application's active window.
+- The application icon was redrawn against a reference mark: a thicker gradient
+  ring, five pill-shaped level bars and two soft background washes on a
+  full-bleed rounded tile. It was checked rendered at 32, 64, 128 and 512 px and
+  in the About dialog in both appearances.
+
+Every destination above was captured in the light appearance, and the chain, the
+equalizer editor, the effect picker, the About dialog and the cross-talk
+canceller editor were also captured in the dark appearance. The seven effects
+added by the previous pass were each captured in their own editor state. No
+clipping, overlap, truncation or missing glyph was found in those captures.
+
+A further pass covered the two pipelines. It captured the Effects page with the
+pipeline switch on *Output* and on *Input*, the Devices page, the presets page
+and the About dialog, in the light appearance and on the headless Wayland
+session described above. The input capture showed the real microphone running
+through the input chain, both meters reading −36.8 dB, which is what confirmed
+that the second pipeline is fed by the capture stream and not merely drawn. The
+Devices capture, taken from a settings file that had microphone processing
+enabled, showed the switch already on, which is what confirmed that the settings
+document is read and applied at startup. The interface at 720x620 was captured
+again after the sidebar gained the pipeline switch and still collapses without
+clipping.

@@ -18,14 +18,14 @@ classification is:
 
 | Class | Items |
 |---|---|
-| REQUIRED | Thirteen effects; the virtual sink; the output pipeline; the destination device; per-effect enable, ordering and global bypass; presets (built-in, user, import, export, EasyEffects conversion); live meters; diagnostics; the GTK4/libadwaita interface; the desktop entry and icon |
+| REQUIRED | Twenty effects; the virtual sink and the virtual source; the output and the input pipeline; the destination device; per-effect enable, ordering and global bypass; presets (built-in, user, import, export, EasyEffects conversion); live meters; diagnostics; persistence of the device, the preset and the bypass; the GTK4/libadwaita interface; the desktop entry and icon |
 | PRESERVE | Preset JSON schema v1 and its reader; the easyeffects conversion vocabulary and its warning list; the existing module boundaries and the realtime rules; the repository identity, licence and documentation |
-| EXCLUDED | LV2/LADSPA hosting, the convolver, the spectrum analyser, pitch shift, crossfeed, crusher, expander, exciter, mid/side equalizer, multiband compressor and gate, maximizer, bass loudness, autotune, crosstalk canceller, voice suppressor, echo canceller, speech processor, loudness metering. Reasons: each needs a third-party plugin, an FFT/phase-vocoder library or a neural model, which conflicts with the self-contained-binary goal; the per-row reason says which |
-| BLOCKED | Deep noise removal and RNNoise noise reduction (require ONNX/RNNoise models and a runtime that cannot be verified here); the community preset browser (requires network access). The input (microphone) pipeline, preset autoload per application, the blocklist, the last-used-preset store, translations, autostart, the command socket and distribution packaging are **not started** and are recorded as unfinished, not as excluded |
+| EXCLUDED | LV2/LADSPA hosting, the convolver, the spectrum analyser, pitch shift, autotune, bass loudness, the multiband compressor and gate, the loudness processor, the voice suppressor, the echo canceller, the speech processor, deep noise removal and RNNoise. Reasons: each needs a third-party plugin, an FFT or phase-vocoder library, or a neural model and a runtime that cannot be verified here; the per-row reason says which |
+| BLOCKED | Deep noise removal and RNNoise noise reduction (require ONNX/RNNoise models and a runtime that cannot be verified here); the community preset browser (requires network access). Preset autoload per application and the blocklist are **not started** and are recorded as unfinished, not as excluded |
 
-The application is therefore complete for the output-pipeline scope described in
-`README.md`, and is **not** at full EasyEffects parity. See
-`docs/architecture.md` for what is verified.
+The application is therefore complete for the two pipelines it implements -
+output and input, on a virtual sink and a virtual source - and is **not** at full
+EasyEffects parity. See `docs/architecture.md` for what is verified.
 
 Status values:
 
@@ -57,18 +57,11 @@ Reference evidence refers to files under `references/`.
 | Autotune | `src/autotune.cpp` | Pitch correction (x42 plugin) | - | Not implemented | Requires a pitch-detection and pitch-shifting engine; a native implementation would be a project of its own. |
 | Bass loudness | `src/bass_loudness.cpp` | MDA plugin wrapper | - | Not implemented | Third-party plugin. |
 | Convolver | `src/convolver.cpp` | FFT convolution with IRS files | - | Not implemented | Needs an FFT dependency, impulse-response management and a file browser. |
-| Crossfeed | `src/crossfeed.cpp` | bs2b-based headphone crossfeed | - | Not implemented | Would need either libbs2b or a reimplementation; deferred. |
-| Crosstalk canceller | `src/crosstalk_canceller.cpp` | Stereo crosstalk cancellation | - | Not implemented | Deferred. |
-| Crusher | `src/crusher.cpp` | Bit crusher | - | Not implemented | Cheap to add; not part of this increment. |
 | Deep noise remover | `src/deepfilternet.cpp` | DeepFilterNet model | - | Not implemented | Requires an ONNX runtime and model downloads. |
 | Echo canceller | `src/echo_canceller.cpp` | WebRTC AEC | - | Not implemented | Requires webrtc-audio-processing. |
-| Exciter | `src/exciter.cpp` | Harmonic exciter | - | Not implemented | Overlaps with the bass enhancer and crystalizer. |
-| Expander | `src/expander.cpp` | Downward expander | - | Not implemented | Shares the detector machinery with the gate; not part of this increment. |
-| Mid/side equalizer | `src/midside_equalizer.cpp` | Equalisation in mid/side | - | Not implemented | Deferred. |
 | Voice suppressor | `src/voice_suppressor.cpp` | Voice removal | - | Not implemented | Requires a vocal-detection model. |
 | Level meter (as an effect) | `src/level_meter.cpp` | Per-plugin metering | `crates/core/src/meter.rs` | Partial | Global input and output meters (peak + RMS) instead of a per-effect meter node. |
 | Loudness | `src/loudness.cpp` | EBU R128 metering | - | Not implemented | Would require libebur128 or an independent R128 implementation. |
-| Maximizer | `src/maximizer.cpp` | ZamAudio maximizer | - | Not implemented | Third-party plugin. |
 | Multiband compressor | `src/multiband_compressor.cpp` | Per-band compression | - | Not implemented | Deferred; the crossover infrastructure would be shared with the crystalizer. |
 | Multiband gate | `src/multiband_gate.cpp` | Per-band gating | - | Not implemented | Deferred. |
 | Pitch shift | `src/pitch.cpp` | SoundTouch pitch shifting | - | Not implemented | Requires a phase vocoder or SoundTouch. |
@@ -81,9 +74,9 @@ Reference evidence refers to files under `references/`.
 | Feature | Reference evidence | Status | Notes |
 |---|---|---|---|
 | Output pipeline | `src/stream_output_effects.cpp`, `pw_node_manager.cpp` | Implemented | Capture stream acting as `Audio/Sink`, ring buffer, chain, playback stream. |
-| Input (microphone) pipeline | `src/stream_input_effects.cpp` | Not implemented | The preset schema has an `output` section only. Documented limitation. |
+| Input (microphone) pipeline | `src/stream_input_effects.cpp` | Implemented | Capture stream reading the chosen input device, ring buffer, a second chain, and a playback stream publishing `pipewire-effects-source` as an `Audio/Source`. Opt-in: the engine starts only when *Process microphone input* is on. Covered by a live test that records from the virtual source with `pw-cat` and asserts the chain ran. |
 | Virtual sink | `load_virtual_devices` | Implemented | `pipewire-effects-sink`, `node.virtual`, not auto-connected. Both internal streams opt out of the session manager's restore hooks (`state.restore-props`, `state.restore-target`), so a volume or link target left behind by an earlier session cannot attenuate or retarget the processing path. |
-| Virtual source | `load_virtual_devices` | Not implemented | Requires the input pipeline. |
+| Virtual source | `load_virtual_devices` | Implemented | `pipewire-effects-source`, an `Audio/Source` with `node.virtual`, published by the input pipeline. Applications pick it as their recording device. |
 | Effect ordering | `effectsorder.md`, `src/effects_base.cpp` | Implemented | Move up/down in the sidebar; the order is mirrored to the audio thread. |
 | Per-effect enable | `PluginBase::bypass` | Implemented | `ChainCommand::SetEnabled`; a disabled slot is skipped without being destroyed. |
 | Global bypass | `StreamOutputEffects::set_bypass` | Implemented | Header switch. |
@@ -95,44 +88,57 @@ Reference evidence refers to files under `references/`.
 | Preset autoload per application | `presets_autoload_manager.cpp` | Not implemented | Deferred. |
 | Community presets | `presets_community_manager.cpp` | Not implemented | Requires network access; deliberately excluded. |
 | Blocklist | `presets_manager.cpp` | Not implemented | Deferred. |
-| Last used preset | `DbMain::lastLoadedOutputPreset` | Partial | The loaded preset is shown in-session; it is not persisted across runs. |
-| Device selection | `pw_manager.cpp` | Implemented | The destination follows `default.audio.sink` from the session manager's metadata, read before the virtual sink is created; a device picked by hand wins, and *System default* in the *Devices* page returns to the automatic choice. The `priority.session` heuristic stays as the fallback. |
+| Last used preset | `DbMain::lastLoadedOutputPreset` | Implemented | The loaded preset is written to the settings file and restored on the next start. |
+| Device selection | `pw_manager.cpp` | Implemented | Each pipeline follows its own metadata key (`default.audio.sink`, `default.audio.source`), read before the virtual node is created; a device picked by hand wins, is persisted, and *System default* returns to the automatic choice. The `priority.session` heuristic stays as the fallback. |
 | Following the default device | `bestHardwareOutputDeviceName` | Implemented | The metadata object is watched while the engine runs; a change rebuilds the two streams for the new device. |
-| Level meters | `output_level.cpp` | Implemented | Input and output, peak with an RMS marker, 20 Hz refresh. Both meters run through `LevelMeter`, so an empty chain reports the same level at both. |
+| Level meters | `output_level.cpp` | Implemented | Input and output, peak with an RMS marker, 20 Hz refresh, for whichever pipeline is being edited. Both meters run through `LevelMeter`, so an empty chain reports the same level at both. |
 | Spectrum analyser | `src/spectrum.cpp` | Not implemented | Requires an FFT. |
-| Statistics and diagnostics | reference logs + advanced info page | Implemented | Captured/processed frames, underruns, overruns, trims, warnings. |
+| Statistics and diagnostics | reference logs + advanced info page | Implemented | Captured/processed frames, underruns, overruns, trims, warnings, per pipeline. |
 | Buffer size / samplerate control | `DbMain`, kcfg | Not applicable | The graph rate and quantum are owned by PipeWire and followed, not forced. |
-| Translations | `po/` (30+ languages) | Not implemented | English only. |
-| Autostart / tray | `src/autostart.cpp` | Not implemented | Deferred. |
-| Command line interface | `src/command_line_parser.cpp` | Not implemented | The binary starts the GUI; no flags. |
+| Settings persistence | `DbMain`, `db_manager.cpp` | Implemented | `$XDG_CONFIG_HOME/pipewire-effects/settings.json`, written atomically; a damaged file falls back to the defaults with a message. |
+| Stream failure recovery | reference reconnect logic | Implemented | A failed stream is rebuilt with an increasing backoff, and the Devices page offers a manual *Reconnect*. |
+| Translations | `po/` (30+ languages) | Implemented | gettext with a `po/` catalog (`po/POTFILES.in`, `po/LINGUAS`, `po/pipewire-effects.pot`) and `scripts/update-po.sh`. Every user-facing string is wrapped with `pwe_core::i18n::t`/`tr`/`tn`; effect labels, parameter labels, groups and choice labels are translated when read. No translation is shipped yet, so an installed build shows English until a `po/<lang>.po` is added. |
+| Autostart / tray | `src/autostart.cpp` | Partial | *Start on login* writes the XDG autostart entry; there is no tray icon. |
+| Command line interface | `src/command_line_parser.cpp` | Implemented | `--help`, `--version`, `--preset`, `--device`, `--no-window`, `--list-presets`, `--list-devices`. |
 | Desktop file and icon | `src/contents/*.desktop.in`, icons | Implemented | `data/`. |
-| Flatpak / distribution packaging | `util/flatpak`, `PKGBUILD` | Not implemented | Out of scope for this increment. |
+| Flatpak / distribution packaging | `util/flatpak`, `PKGBUILD` | Partial | `make install`, a `PKGBUILD` and a Flatpak manifest exist and the `make install` tree was inspected; no package was built or installed into the system here. |
 
 ## 3. Test coverage in this repository
 
 | Area | Count | Location |
 |---|---|---|
-| Core primitives (buffers, parameters, chain, meters, math) | 27 | `crates/core/src/**` |
-| DSP (biquads, thirteen effects, registry) | 65 | `crates/dsp/src/**`, `crates/dsp/tests/` |
-| Engine (config, devices, target resolution, default-sink metadata, processor, stream properties, byte conversion) | 16 | `crates/engine/src/**` |
-| Presets (schema, coercion, storage, built-ins, reference conversion) | 83 | `crates/presets/src/**` |
+| Core primitives (buffers, parameters, chain, meters, math, pipeline kinds, gettext lookup) | 36 | `crates/core/src/**` |
+| DSP (biquads, twenty effects, registry) | 111 | `crates/dsp/src/**`, `crates/dsp/tests/` |
+| Engine (config, devices, target resolution, metadata, processor, stream properties, byte conversion, registry filtering) | 29 | `crates/engine/src/**` |
+| Presets (schema, coercion, storage, built-ins, reference conversion for both sections) | 101 | `crates/presets/src/**` |
+| Settings (model, atomic store, autostart entry) | 10 | `crates/settings/src/**` |
 | Interface (formatting, icons, response axis, state model, banners, device labels) | 20 | `crates/ui/src/**` |
-| Live PipeWire integration (ignored by default) | 3 | `crates/engine/tests/live_pipewire.rs` |
+| Command line (parsing, help, exported presets) | 4 | `crates/app/src/cli.rs` |
+| Live PipeWire integration (ignored by default) | 4 | `crates/engine/tests/live_pipewire.rs` |
 
-`cargo test --workspace` therefore runs 211 tests. None of them need an audio
+`cargo test --workspace` therefore runs 311 tests. None of them need an audio
 device. Two of the interface tests look up icons in the live icon theme and skip
-themselves when no display is available. The three live tests are `#[ignore]`d and
+themselves when no display is available. The four live tests are `#[ignore]`d and
 are run explicitly against a running daemon.
 
 ## 3.1 Interface verification
 
-The release binary was run under a separate X server with the real PipeWire
-daemon and captured with `import` for every primary destination and for the
-dialog, empty, warning, bypass, narrow and live-metering states, in the dark and
-the light appearance. The states are driven by `PIPEWIRE_EFFECTS_UI_STATE`. The
-captures are what found the missing application icon, the two Adwaita-absent icon
-names, the squeezed editor column and the two meters disagreeing. See
-`docs/architecture.md` section 12.
+The release binary ran in a headless GNOME Wayland session
+(`gnome-shell --headless --wayland --virtual-monitor`, in a private D-Bus
+session, with `GDK_BACKEND=wayland`) and every primary destination and the
+dialog, empty, warning, bypass and narrow states were captured through
+`PIPEWIRE_EFFECTS_UI_CAPTURE`, which renders the window's own render tree. GNOME
+refuses `org.gnome.Shell.Screenshot` to other clients, so a compositor capture
+was not available; the app renders itself instead. `ADW_DEBUG_COLOR_SCHEME`
+selected the light and the dark appearance. The states are driven by
+`PIPEWIRE_EFFECTS_UI_STATE`.
+
+The captures are what found the missing application icon, the two
+Adwaita-absent icon names, the squeezed editor column and the two meters
+disagreeing. The Wayland pass found that the `narrow` state never resized the
+window (GTK4 ignores a size set after mapping) and that the About dialog is a
+separate toplevel, and verified the icon redraw, checked at 32, 64, 128 and
+512 px and in the About dialog. See `docs/architecture.md` section 12.
 
 ## 4. Deliberate exclusions and their justification
 
@@ -143,9 +149,6 @@ names, the squeezed editor column and the two meters disagreeing. See
   an inference runtime, which cannot be verified in this environment.
 - **No FFT.** Convolution and spectrum display are the only features that need
   one; both are out of this increment rather than faked.
-- **No input pipeline.** Adding it would require a second processor, a second
-  ring buffer and a virtual source; the current structures are symmetric but the
-  work is not done, so it is reported as missing rather than stubbed.
 
 ## 5. Reference preset conversion
 
@@ -168,6 +171,13 @@ reference setting has no equivalent here.
 | `autogain` | `target`, `silence-threshold` | `target`, `silence_threshold` | `maximum-history`, `reference`, `force-silence`; the reference measures EBU R128 and this auto gain is RMS based |
 | `delay` | `time-l`, `time-r`, `mode-l`, `mode-r`, `wet-l`/`wet-r` | `delay_left`, `delay_right`, `mix` | `dry-*`, `sample-*`, `meters-*`, `centimeters-*`, `temperature-*`, `invert-phase-*`; a non-time mode keeps the reference default delay (0 ms) and is reported, and so is a left/right wet pair that differs, because one mix cannot carry both. |
 | `reverb` | `predelay`, `decay-time`, `hf-damp`, `amount`, `dry` | `pre_delay`, `room_size` (`decay-time` × 40), `damping` (`hf-damp` ÷ 200), `wet`, `dry` | `room-size`, `diffusion`, `bass-cut`, `treble-cut` |
+| `expander` | `threshold`, `ratio`, `knee`, `attack`, `release`, `makeup`, `wet`, `sidechain.mode` | `threshold`, `ratio`, `knee` (width, positive), `attack`, `release`, `makeup`, `mix`, `detector` | `dry`, `mode`, `stereo-split`, the sidechain mix controls, the `Low-Pass` and `SMA` sidechain modes, and the upward mode, which the expander here does not implement |
+| `maximizer` | `threshold`, `release` | `threshold`, `release` | `input-gain`, `output-gain`; the reference writes only these two, and the maximiser here adds no lookahead |
+| `crusher` | `mode`, `bit-reduction`, `morph`, `anti-aliasing`, `sample-reduction`, `lfo-active`, `lfo-range`, `lfo-rate`, `dc` | `mode`, `bits`, `mix` (`morph` × 100), `anti_aliasing` (`anti-aliasing` × 100), `samples`, `lfo_active`, `lfo_depth`, `lfo_rate`, `dc` | `input-gain`, `output-gain`; unknown modes are reported |
+| `exciter` | `amount`, `harmonics`, `scope`, `ceil`, `blend`, `ceil-active` | `amount`, `harmonics`, `scope`, `ceil`, `blend`, `ceil_active` | `input-gain`, `output-gain`, and `listen`, which the reference keeps out of the preset |
+| `crossfeed` | `fcut`, `feed` | `cutoff`, `feed` | `input-gain`, `output-gain` |
+| `crosstalk_canceller` | `delay-us`, `decay-db`, `phantom-center-only` | `delay`, `decay`, `phantom_center` | `input-gain`, `output-gain` |
+| `midside_equalizer` | `mid.bandN.{frequency,gain,q,type}`, `side.bandN.{…}`, `output-gain` | `mid_bandN_gain`, `side_bandN_gain`, shared `bandwidth`, `output_gain` | `input-gain`, `num-bands`, `mode`, `decramp`, `split-channels`, `balance`, `pitch-mid`, `pitch-side`; per-band `mode`, `slope` and `width`, and bands that are muted, non-soloed or not bell or shelf |
 | any other instance | - | - | the whole instance is named in the warning list |
 
 Two of these conversions are rescalings rather than transfers and are recorded

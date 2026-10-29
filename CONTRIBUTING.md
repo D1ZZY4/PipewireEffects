@@ -105,6 +105,46 @@ pipeline that quietly glitches is worse than one that reports it.
 Nothing in `crates/ui` needs to change. If it does, the effect is reaching
 across a boundary it should not know about and the design needs another look.
 
+## Translations
+
+Every user-facing string goes through gettext. The catalog lives in `po/`, and
+`po/POTFILES.in` lists the files that carry translatable strings.
+
+- Wrap a message with `pwe_core::i18n::t`, or with `pwe_core::i18n::tr` when it
+  has placeholders. The placeholder form is numbered, not positional:
+  `tr("no {0} device matches '{1}'", &[noun, name])`. A translator can move
+  `{0}` and `{1}` within the sentence.
+- Use `pwe_core::i18n::tn` when a count changes the wording.
+- The English text is the message identifier, so do not change it once it has
+  shipped without updating the catalog.
+- Effect labels, parameter labels, parameter groups and choice labels are
+  declared as plain English in the DSP crate and translated when they are read,
+  so an effect author does not call gettext.
+
+Regenerate the template after adding or changing a string:
+
+```sh
+scripts/update-po.sh
+```
+
+That runs `xgettext` over `po/POTFILES.in` and merges every `po/*.po` against
+the new template. `xgettext` prints warnings about Rust lifetime syntax; they are
+harmless and the extraction is still complete.
+
+`po/LINGUAS` lists the shipped languages, one code per line. Add a language with
+`msginit`:
+
+```sh
+msginit --input=po/pipewire-effects.pot --locale=de --output=po/de.po
+```
+
+Then add `de` to `po/LINGUAS`. `make install` compiles every `po/<lang>.po` with
+`msgfmt` into `$(PREFIX)/share/locale/<lang>/LC_MESSAGES/pipewire-effects.mo`.
+
+The application reads its catalogs from `/usr/share/locale`. During development,
+or for a prefix other than `/usr`, point `PIPEWIRE_EFFECTS_LOCALEDIR` at the
+directory that holds the `LC_MESSAGES` trees.
+
 ## Tests
 
 Every change needs tests that would fail without it. Two kinds are expected
