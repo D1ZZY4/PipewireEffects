@@ -78,10 +78,6 @@ impl AudioBuffer {
         Ok(())
     }
 
-    pub fn set_frames(&mut self, frames: usize) -> CoreResult<()> {
-        self.configure(self.channels, frames)
-    }
-
     pub const fn channels(&self) -> usize {
         self.channels
     }

@@ -16,7 +16,6 @@ pub struct Chain {
     engine: Option<EngineHandle>,
     pub slots: Vec<Slot>,
     pub selected: Option<EffectSlot>,
-    pub loaded_preset: Option<String>,
     pub bypassed: bool,
     next_slot: u64,
 }
@@ -27,7 +26,6 @@ impl Chain {
             engine,
             slots: Vec::new(),
             selected: None,
-            loaded_preset: None,
             bypassed: false,
             next_slot: 1,
         }

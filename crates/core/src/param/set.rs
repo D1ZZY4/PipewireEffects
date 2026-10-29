@@ -149,18 +149,6 @@ impl ParamHandle {
     pub fn get_f32(&self) -> f32 {
         f32::from_bits(self.store.values[self.position].load(Ordering::Relaxed))
     }
-
-    pub fn get_bool(&self) -> bool {
-        self.get_f32() >= 0.5
-    }
-
-    pub fn get_choice(&self) -> usize {
-        self.get_f32().max(0.0) as usize
-    }
-
-    pub fn get_usize(&self) -> usize {
-        self.get_f32().max(0.0) as usize
-    }
 }
 
 #[cfg(test)]

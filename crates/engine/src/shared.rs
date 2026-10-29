@@ -58,10 +58,8 @@ pub struct Stats {
     underrun_samples: AtomicU64,
     overrun_samples: AtomicU64,
     trim_events: AtomicU64,
-    limited_blocks: AtomicU64,
     buffer_frames: AtomicU64,
     ring_occupancy: AtomicU64,
-    latency_frames: AtomicU64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -71,10 +69,8 @@ pub struct StatsSnapshot {
     pub underrun_samples: u64,
     pub overrun_samples: u64,
     pub trim_events: u64,
-    pub limited_blocks: u64,
     pub buffer_frames: u64,
     pub ring_occupancy: u64,
-    pub latency_frames: u64,
 }
 
 impl Stats {
@@ -83,10 +79,8 @@ impl Stats {
     counter!(underrun_samples);
     counter!(overrun_samples);
     counter!(trim_events);
-    counter!(limited_blocks);
     counter!(buffer_frames);
     counter!(ring_occupancy);
-    counter!(latency_frames);
 
     pub fn add_captured(&self, frames: u64) {
         self.captured_frames.fetch_add(frames, Ordering::Relaxed);
@@ -108,20 +102,12 @@ impl Stats {
         self.trim_events.fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn record_limited(&self) {
-        self.limited_blocks.fetch_add(1, Ordering::Relaxed);
-    }
-
     pub fn set_buffer_frames(&self, frames: u64) {
         self.buffer_frames.store(frames, Ordering::Relaxed);
     }
 
     pub fn set_ring_occupancy(&self, samples: u64) {
         self.ring_occupancy.store(samples, Ordering::Relaxed);
-    }
-
-    pub fn set_latency_frames(&self, frames: u64) {
-        self.latency_frames.store(frames, Ordering::Relaxed);
     }
 
     pub fn snapshot(&self) -> StatsSnapshot {
@@ -131,10 +117,8 @@ impl Stats {
             underrun_samples: self.underrun_samples(),
             overrun_samples: self.overrun_samples(),
             trim_events: self.trim_events(),
-            limited_blocks: self.limited_blocks(),
             buffer_frames: self.buffer_frames(),
             ring_occupancy: self.ring_occupancy(),
-            latency_frames: self.latency_frames(),
         }
     }
 }

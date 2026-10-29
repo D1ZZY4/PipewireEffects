@@ -18,7 +18,6 @@ pub struct EngineHandle {
     config: EngineConfig,
     commands: Sender<EngineCommand>,
     shared: Arc<Shared>,
-    retired: Arc<ArrayQueue<Box<dyn Effect>>>,
     thread: Option<JoinHandle<()>>,
 }
 
@@ -35,13 +34,10 @@ impl EngineHandle {
                 return Err(error);
             }
         };
-        let retired: Arc<ArrayQueue<Box<dyn Effect>>> =
-            Arc::new(ArrayQueue::new(RETIRE_QUEUE_CAPACITY));
         Ok(Self {
             config,
             commands: sender,
             shared,
-            retired,
             thread: Some(thread),
         })
     }
@@ -56,10 +52,6 @@ impl EngineHandle {
 
     pub fn max_effects(&self) -> usize {
         MAX_EFFECTS
-    }
-
-    pub fn awaiting_recycling(&self) -> usize {
-        self.retired.len()
     }
 
     pub fn started(&self) -> bool {
@@ -96,10 +88,6 @@ impl EngineHandle {
 
     pub fn set_target_device(&self, target: impl Into<String>) -> EngineResult<()> {
         self.send(EngineCommand::SetTargetDevice(target.into()))
-    }
-
-    pub fn refresh_devices(&self) -> EngineResult<()> {
-        self.send(EngineCommand::RefreshDevices)
     }
 
     pub fn restart(&mut self) -> EngineResult<()> {

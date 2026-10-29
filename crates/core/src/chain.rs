@@ -54,13 +54,6 @@ impl EffectChain {
         self.slots.get(index).map(|slot| slot.enabled)
     }
 
-    pub fn latency_frames(&self) -> u32 {
-        self.slots
-            .iter()
-            .map(|slot| slot.effect.latency_frames())
-            .sum()
-    }
-
     pub fn push(&mut self, mut effect: Box<dyn Effect>) -> CoreResult<()> {
         if self.slots.len() >= self.capacity {
             return Err(CoreError::ChainFull {
@@ -248,6 +241,5 @@ mod tests {
         chain.push(effect("a", 1.0)).unwrap();
         assert!(chain.push(effect("b", 1.0)).is_err());
         assert_eq!(chain.capacity(), 1);
-        assert!(chain.latency_frames() == 0);
     }
 }

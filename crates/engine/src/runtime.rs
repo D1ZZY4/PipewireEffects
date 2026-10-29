@@ -222,15 +222,6 @@ impl Runtime {
                     }
                 }
             }
-            EngineCommand::ResetChain => {
-                for index in (0..self.mirror.len()).rev() {
-                    let _ = self.commands.push(ChainCommand::Remove(index));
-                }
-                self.mirror.clear();
-            }
-            EngineCommand::RefreshDevices => {
-                self.report_devices();
-            }
             EngineCommand::Stop => {}
         }
     }

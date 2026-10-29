@@ -72,25 +72,6 @@ impl Smoothed {
     pub fn current(&self) -> f32 {
         self.current
     }
-
-    pub fn is_settled(&self) -> bool {
-        (self.target - self.current).abs() < 1.0e-7
-    }
-}
-
-pub fn interpolate(table: &[f32], index: f32) -> f32 {
-    if table.is_empty() {
-        return 0.0;
-    }
-    if table.len() == 1 {
-        return table[0];
-    }
-    let position = index.clamp(0.0, (table.len() - 1) as f32);
-    let base = position.floor();
-    let lower = base as usize;
-    let upper = (lower + 1).min(table.len() - 1);
-    let fraction = position - base;
-    table[lower] * (1.0 - fraction) + table[upper] * fraction
 }
 
 pub fn one_pole_alpha(ms: f32, rate: u32) -> f32 {
@@ -126,13 +107,5 @@ mod tests {
             smoothed.advance();
         }
         assert!((smoothed.current() - 1.0).abs() < 1.0e-3);
-    }
-
-    #[test]
-    fn interpolate_matches_endpoints() {
-        let table = [0.0, 10.0, 20.0];
-        assert!((interpolate(&table, 0.0) - 0.0).abs() < 1.0e-6);
-        assert!((interpolate(&table, 2.0) - 20.0).abs() < 1.0e-6);
-        assert!((interpolate(&table, 1.5) - 15.0).abs() < 1.0e-6);
     }
 }

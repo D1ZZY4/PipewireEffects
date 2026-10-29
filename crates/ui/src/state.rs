@@ -143,12 +143,6 @@ impl State {
             })
     }
 
-    pub fn awaiting_recycling(&self) -> usize {
-        self.chain(self.active)
-            .engine()
-            .map_or(0, EngineHandle::awaiting_recycling)
-    }
-
     pub fn set_target_device(&mut self, target: String) {
         let active = self.active;
         self.chain(active).set_target_device(target.clone());
@@ -218,7 +212,6 @@ impl State {
             }
             let chain = self.chain_mut(kind);
             chain.apply(&section, &mut warnings);
-            chain.loaded_preset = Some(name.to_owned());
         }
         self.settings.preset = name.to_owned();
         self.persist();

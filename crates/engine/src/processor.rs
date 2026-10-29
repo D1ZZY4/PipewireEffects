@@ -159,9 +159,6 @@ impl Processor {
         self.chain.prepare(self.format);
         self.meter.set_rate(rate);
         self.target_samples = self.channels * (rate as usize / 32);
-        self.shared
-            .stats()
-            .set_latency_frames((self.target_samples / self.channels) as u64);
     }
 
     fn publish_output(&mut self) {

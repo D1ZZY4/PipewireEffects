@@ -21,8 +21,6 @@ pub enum EngineCommand {
         slot: EffectSlot,
         enabled: bool,
     },
-    ResetChain,
-    RefreshDevices,
     Stop,
 }
 
@@ -45,8 +43,6 @@ impl EngineCommand {
             Self::SetEffectEnabled { slot, enabled } => {
                 format!("slot {} enabled {enabled}", slot.0)
             }
-            Self::ResetChain => "reset the chain".to_owned(),
-            Self::RefreshDevices => "refresh the device list".to_owned(),
             Self::Stop => "stop the engine".to_owned(),
         }
     }

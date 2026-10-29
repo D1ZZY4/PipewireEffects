@@ -43,10 +43,6 @@ impl ParamValue {
         self.as_f32().to_bits()
     }
 
-    pub fn from_bits(bits: u32) -> Self {
-        Self::Float(f32::from_bits(bits))
-    }
-
     pub fn validate(self, spec: &ParamSpec) -> CoreResult<Self> {
         match spec.kind {
             ParamKind::Float { .. } => {
@@ -97,11 +93,5 @@ mod tests {
             .range(0.0, 2.0, 0.0)
             .build();
         assert!(ParamValue::Float(f32::NAN).validate(&spec).is_err());
-    }
-
-    #[test]
-    fn bits_round_trip() {
-        let value = ParamValue::Float(-12.5);
-        assert_eq!(ParamValue::from_bits(value.to_bits()), value);
     }
 }

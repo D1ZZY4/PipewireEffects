@@ -8,8 +8,4 @@ pub trait Effect: Send {
     fn reset(&mut self);
 
     fn process(&mut self, buffer: &mut AudioBuffer);
-
-    fn latency_frames(&self) -> u32 {
-        0
-    }
 }
