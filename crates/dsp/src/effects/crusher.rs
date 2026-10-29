@@ -170,10 +170,10 @@ impl Effect for Crusher {
             }
             for index in frame..end {
                 for channel in 0..channels {
-                    let dry = self.held[channel];
-                    let crushed = quantise(dry + offset, levels, logarithmic_mode);
+                    let original = buffer.channel(channel)[index];
+                    let crushed = quantise(self.held[channel] + offset, levels, logarithmic_mode);
                     buffer.channel_mut(channel)[index] =
-                        math::sanitize(dry * (1.0 - mix) + crushed * mix);
+                        math::sanitize(original * (1.0 - mix) + crushed * mix);
                 }
             }
             self.phase += lfo_step * factor as f32;
@@ -241,7 +241,7 @@ mod tests {
 
     #[test]
     fn a_zero_mix_keeps_the_original_signal() {
-        let mut crusher = effect(&[("bits", 1.0), ("mix", 0.0), ("anti_aliasing", 0.0)]);
+        let mut crusher = effect(&[("bits", 1.0), ("mix", 0.0), ("anti_aliasing", 100.0)]);
         let mut buffer = ramp(1024);
         let source: Vec<f32> = buffer.channel(0).to_vec();
         crusher.process(&mut buffer);
