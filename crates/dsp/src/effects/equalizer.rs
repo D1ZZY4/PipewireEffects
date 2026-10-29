@@ -1,3 +1,4 @@
+use pwe_core::i18n::mark;
 use pwe_core::{AudioBuffer, AudioFormat, Effect, ParamSet, ParamSpec, ParamUnit, math};
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
@@ -24,7 +25,16 @@ const BAND_IDS: [&str; BAND_COUNT] = [
 ];
 
 const BAND_LABELS: [&str; BAND_COUNT] = [
-    "31 Hz", "62 Hz", "125 Hz", "250 Hz", "500 Hz", "1 kHz", "2 kHz", "4 kHz", "8 kHz", "16 kHz",
+    mark("31 Hz"),
+    mark("62 Hz"),
+    mark("125 Hz"),
+    mark("250 Hz"),
+    mark("500 Hz"),
+    mark("1 kHz"),
+    mark("2 kHz"),
+    mark("4 kHz"),
+    mark("8 kHz"),
+    mark("16 kHz"),
 ];
 
 pub fn specs() -> Vec<ParamSpec> {

@@ -77,6 +77,10 @@ pub fn tr(msgid: &'static str, arguments: &[&str]) -> String {
     text
 }
 
+pub const fn mark(msgid: &'static str) -> &'static str {
+    msgid
+}
+
 fn key(bytes: &[u8]) -> Option<[u8; KEY_CAPACITY]> {
     if bytes.len() >= KEY_CAPACITY || bytes.contains(&0) {
         return None;
@@ -138,5 +142,10 @@ mod tests {
     fn the_domain_and_the_directory_override_are_stable() {
         assert_eq!(DOMAIN, "pipewire-effects");
         assert!(!default_directory().as_os_str().is_empty());
+    }
+
+    #[test]
+    fn the_extraction_marker_is_the_identity() {
+        assert_eq!(mark("Chain"), "Chain");
     }
 }

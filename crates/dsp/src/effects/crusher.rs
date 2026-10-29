@@ -1,13 +1,15 @@
+use pwe_core::i18n::mark;
 use pwe_core::{AudioBuffer, AudioFormat, Effect, ParamSet, ParamSpec, ParamUnit, math};
 
 use crate::effects::util::MAX_CHANNELS;
 use crate::knob::Knob;
 
 const MAX_FACTOR: u32 = 250;
+const MODES: [&str; 2] = [mark("Linear"), mark("Logarithmic")];
 
 pub fn specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::choice("mode", "Mode", &["Linear", "Logarithmic"], 0).group("Crusher"),
+        ParamSpec::choice("mode", "Mode", &MODES, 0).group("Crusher"),
         ParamSpec::float("bits", "Bit depth", ParamUnit::None)
             .range(1.0, 16.0, 4.0)
             .step(1.0)

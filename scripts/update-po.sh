@@ -23,6 +23,11 @@ xgettext \
     --keyword=t:1 \
     --keyword=tr:1 \
     --keyword=tn:1,2 \
+    --keyword=mark:1 \
+    --keyword=float:2 \
+    --keyword=boolean:2 \
+    --keyword=choice:2 \
+    --keyword=group:1 \
     --add-comments=TRANSLATORS \
     --package-name="PipeWire Effects" \
     --package-version="$version" \

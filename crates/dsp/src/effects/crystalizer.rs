@@ -1,3 +1,4 @@
+use pwe_core::i18n::mark;
 use pwe_core::{AudioBuffer, AudioFormat, Effect, ParamSet, ParamSpec, ParamUnit, math};
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
@@ -7,6 +8,12 @@ use crate::knob::Knob;
 const BANDS: usize = 4;
 const CROSSOVERS: [f32; 3] = [200.0, 2_000.0, 8_000.0];
 const BAND_IDS: [&str; BANDS] = ["band1", "band2", "band3", "band4"];
+const BAND_LABELS: [&str; BANDS] = [
+    mark("Below 200 Hz"),
+    mark("200 Hz to 2 kHz"),
+    mark("2 kHz to 8 kHz"),
+    mark("Above 8 kHz"),
+];
 
 pub fn specs() -> Vec<ParamSpec> {
     let mut specs = vec![
@@ -21,8 +28,8 @@ pub fn specs() -> Vec<ParamSpec> {
             .group("Output")
             .build(),
     ];
-    for id in BAND_IDS {
-        specs.push(ParamSpec::boolean(id, id, true).group("Bands"));
+    for (id, label) in BAND_IDS.into_iter().zip(BAND_LABELS) {
+        specs.push(ParamSpec::boolean(id, label, true).group("Bands"));
     }
     specs
 }

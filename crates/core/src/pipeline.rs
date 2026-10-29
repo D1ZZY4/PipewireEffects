@@ -16,15 +16,15 @@ impl PipelineKind {
 
     pub fn label(self) -> &'static str {
         crate::i18n::t(match self {
-            Self::Output => "Output",
-            Self::Input => "Input",
+            Self::Output => crate::i18n::mark("Output"),
+            Self::Input => crate::i18n::mark("Input"),
         })
     }
 
     pub fn noun(self) -> &'static str {
         crate::i18n::t(match self {
-            Self::Output => "output",
-            Self::Input => "input",
+            Self::Output => crate::i18n::mark("output"),
+            Self::Input => crate::i18n::mark("input"),
         })
     }
 

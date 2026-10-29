@@ -1,5 +1,7 @@
 use std::f32::consts::TAU;
 
+use pwe_core::i18n::mark;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilterKind {
     LowPass,
@@ -25,14 +27,14 @@ impl FilterKind {
     ];
 
     pub const LABELS: [&'static str; 8] = [
-        "Low pass",
-        "High pass",
-        "Band pass",
-        "Notch",
-        "All pass",
-        "Peak",
-        "Low shelf",
-        "High shelf",
+        mark("Low pass"),
+        mark("High pass"),
+        mark("Band pass"),
+        mark("Notch"),
+        mark("All pass"),
+        mark("Peak"),
+        mark("Low shelf"),
+        mark("High shelf"),
     ];
 
     pub fn from_index(index: usize) -> FilterKind {
