@@ -1,0 +1,37 @@
+app-id: io.github.D1ZZY4.PipewireEffects
+runtime: org.gnome.Platform
+runtime-version: '49'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: pipewire-effects
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --socket=pulseaudio
+  - --filesystem=xdg-config/pipewire-effects:create
+  - --filesystem=xdg-config/autostart:create
+  - --talk-name=org.freedesktop.portal.Desktop
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/pipewire-effects/cargo
+modules:
+  - name: pipewire-effects
+    buildsystem: simple
+    build-commands:
+      - cargo build --release --locked --offline
+      - install -Dm755 target/release/pipewire-effects /app/bin/pipewire-effects
+      - install -Dm644 data/io.github.D1ZZY4.PipewireEffects.desktop
+        /app/share/applications/io.github.D1ZZY4.PipewireEffects.desktop
+      - install -Dm644 data/icons/hicolor/scalable/apps/io.github.D1ZZY4.PipewireEffects.svg
+        /app/share/icons/hicolor/scalable/apps/io.github.D1ZZY4.PipewireEffects.svg
+      - install -d /app/share/icons/hicolor/symbolic/apps
+      - install -m644 data/icons/hicolor/symbolic/apps/*.svg
+        /app/share/icons/hicolor/symbolic/apps/
+      - install -Dm644 data/presets/default.json /app/share/pipewire-effects/presets/Default.json
+      - install -Dm644 LICENSE /app/share/licenses/io.github.D1ZZY4.PipewireEffects/LICENSE
+    sources:
+      - type: dir
+        path: .

@@ -1,0 +1,36 @@
+pkgname=pipewire-effects
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="PipeWire audio effects processor with a GTK4 and libadwaita interface"
+arch=('x86_64' 'aarch64')
+url="https://github.com/D1ZZY4/PipewireEffects"
+license=('GPL-3.0-or-later')
+depends=('pipewire' 'gtk4' 'libadwaita')
+makedepends=('cargo' 'rust')
+provides=('pipewire-effects')
+conflicts=('pipewire-effects-git')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+prepare() {
+    cd "$pkgname-$pkgver"
+    cargo fetch --locked
+}
+
+build() {
+    cd "$pkgname-$pkgver"
+    cargo build --release --locked --frozen
+}
+
+check() {
+    cd "$pkgname-$pkgver"
+    cargo test --workspace --locked --frozen
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    make install DESTDIR="$pkgdir" PREFIX=/usr
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+    install -Dm644 CHANGELOG.md "$pkgdir/usr/share/doc/$pkgname/CHANGELOG.md"
+}
