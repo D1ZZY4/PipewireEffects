@@ -1,3 +1,4 @@
+use pwe_core::i18n::mark;
 use pwe_core::{AudioBuffer, AudioFormat, Effect, ParamSet, ParamSpec, ParamUnit, math};
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
@@ -5,7 +6,7 @@ use crate::effects::dynamics::{ballistics, soft_knee_reduction_db};
 use crate::effects::util::MAX_CHANNELS;
 use crate::knob::Knob;
 
-const MODES: [&str; 2] = ["Split", "Wideband"];
+const MODES: [&str; 2] = [mark("Split"), mark("Wideband")];
 
 pub fn specs() -> Vec<ParamSpec> {
     vec![
@@ -50,12 +51,12 @@ pub struct DeEsser {
     attack_coefficient: f32,
     release_coefficient: f32,
     rate: u32,
-    dirty: bool,
+    applied: [f32; 3],
 }
 
 impl DeEsser {
     pub fn new(params: ParamSet) -> Self {
-        let mut effect = Self {
+        Self {
             frequency: Knob::new(&params, "frequency", 6_000.0),
             threshold: Knob::new(&params, "threshold", -20.0),
             ratio: Knob::new(&params, "ratio", 4.0),
@@ -67,26 +68,33 @@ impl DeEsser {
             attack_coefficient: 0.0,
             release_coefficient: 0.0,
             rate: 48_000,
-            dirty: true,
-        };
-        effect.refresh();
-        effect
+            applied: [f32::NAN; 3],
+        }
     }
 
-    fn refresh(&mut self) {
+    fn signature(&self) -> [f32; 3] {
+        [
+            self.frequency.value(),
+            self.attack.value(),
+            self.release.value(),
+        ]
+    }
+
+    fn refresh(&mut self, signature: [f32; 3]) {
         let coefficients = Coefficients::design(
             FilterKind::BandPass,
             self.rate as f32,
-            self.frequency.value(),
+            signature[0],
             1.5,
             0.0,
         );
         for biquad in &mut self.band_pass {
             biquad.set_coefficients(coefficients);
         }
-        let (attack, release) = ballistics(self.attack.value(), self.release.value(), self.rate);
+        let (attack, release) = ballistics(signature[1], signature[2], self.rate);
         self.attack_coefficient = attack;
         self.release_coefficient = release;
+        self.applied = signature;
     }
 }
 
@@ -97,7 +105,7 @@ impl Effect for DeEsser {
 
     fn prepare(&mut self, format: AudioFormat) {
         self.rate = format.rate();
-        self.dirty = true;
+        self.applied = [f32::NAN; 3];
         self.reset();
     }
 
@@ -109,9 +117,9 @@ impl Effect for DeEsser {
     }
 
     fn process(&mut self, buffer: &mut AudioBuffer) {
-        if self.dirty {
-            self.dirty = false;
-            self.refresh();
+        let signature = self.signature();
+        if signature != self.applied {
+            self.refresh(signature);
         }
         let threshold = self.threshold.value();
         let ratio = self.ratio.value();
@@ -221,5 +229,34 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn changing_the_detector_frequency_takes_effect_while_processing() {
+        let params = ParamSet::new(specs());
+        params.set_f32("threshold", -30.0).unwrap();
+        params.set_f32("ratio", 8.0).unwrap();
+        let mut effect = DeEsser::new(params.clone());
+        effect.prepare(AudioFormat::new(48_000, 2));
+        for _ in 0..256 {
+            let mut buffer = tone(6_000.0, 0.7, 1024);
+            effect.process(&mut buffer);
+        }
+        let mut reduced = tone(6_000.0, 0.7, 1024);
+        effect.process(&mut reduced);
+        assert!(reduced.peak() < 0.55, "peak {}", reduced.peak());
+
+        params.set_f32("frequency", 2_000.0).unwrap();
+        for _ in 0..256 {
+            let mut buffer = tone(6_000.0, 0.7, 1024);
+            effect.process(&mut buffer);
+        }
+        let mut restored = tone(6_000.0, 0.7, 1024);
+        effect.process(&mut restored);
+        assert!(
+            restored.peak() > 0.65,
+            "moving the detector away left the tone reduced: {}",
+            restored.peak()
+        );
     }
 }
