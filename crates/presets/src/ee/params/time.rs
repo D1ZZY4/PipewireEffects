@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use pwe_core::i18n::tr;
 use serde_json::{Map, Value};
 
 use crate::model::PresetValue;
@@ -81,8 +82,9 @@ fn delay_time(
     match text(parameters, mode_key) {
         "" | "Time" => number(parameters, time_key, DEFAULT_DELAY_MS),
         other => {
-            warnings.push(format!(
-                "delay: the '{other}' mode for '{mode_key}' has no equivalent here"
+            warnings.push(tr(
+                "delay: the '{0}' mode for '{1}' has no equivalent here",
+                &[other, mode_key],
             ));
             DEFAULT_DELAY_MS
         }

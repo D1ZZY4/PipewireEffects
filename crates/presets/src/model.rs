@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
-use pwe_core::{ParamKind, ParamSpec, ParamValue};
+use pwe_core::i18n::tr;
+use pwe_core::{ParamKind, ParamSpec, ParamValue, PipelineKind};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{PresetError, PresetResult};
@@ -50,9 +51,9 @@ impl PresetValue {
                     if number.is_finite() {
                         ParamValue::Float(*number as f32)
                     } else {
-                        return Err(PresetError::InvalidValue(format!(
-                            "parameter '{}' is not a finite number",
-                            spec.id
+                        return Err(PresetError::InvalidValue(tr(
+                            "parameter '{0}' is not a finite number",
+                            &[spec.id],
                         )));
                     }
                 }
@@ -117,6 +118,8 @@ pub struct Preset {
     pub schema_version: u32,
     pub name: String,
     pub output: Pipeline,
+    #[serde(default)]
+    pub input: Pipeline,
 }
 
 impl Preset {
@@ -125,6 +128,21 @@ impl Preset {
             schema_version: SCHEMA_VERSION,
             name: name.into(),
             output: Pipeline::default(),
+            input: Pipeline::default(),
+        }
+    }
+
+    pub fn pipeline(&self, kind: PipelineKind) -> &Pipeline {
+        match kind {
+            PipelineKind::Output => &self.output,
+            PipelineKind::Input => &self.input,
+        }
+    }
+
+    pub fn pipeline_mut(&mut self, kind: PipelineKind) -> &mut Pipeline {
+        match kind {
+            PipelineKind::Output => &mut self.output,
+            PipelineKind::Input => &mut self.input,
         }
     }
 
@@ -209,6 +227,14 @@ mod tests {
         let text = serde_json::to_string(&preset).unwrap();
         let parsed: Preset = serde_json::from_str(&text).unwrap();
         assert_eq!(parsed, preset);
+    }
+
+    #[test]
+    fn an_older_document_without_an_input_section_still_loads() {
+        let text = "{\"schema_version\":1,\"name\":\"Old\",\"output\":{\"effects\":[]}}";
+        let preset: Preset = serde_json::from_str(text).expect("should parse");
+        assert!(preset.input.effects.is_empty());
+        assert!(preset.pipeline(PipelineKind::Output).effects.is_empty());
     }
 
     #[test]

@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use pwe_core::i18n::{t, tr};
 use serde_json::{Map, Value};
 
 use crate::model::PresetValue;
@@ -33,7 +34,37 @@ const DEESSER_KEYS: &[&str] = &["bypass", "f1-freq", "threshold", "ratio", "mode
 
 const AUTOGAIN_KEYS: &[&str] = &["bypass", "target", "silence-threshold"];
 
+const EXPANDER_KEYS: &[&str] = &[
+    "bypass",
+    "dry",
+    "wet",
+    "mode",
+    "attack",
+    "release",
+    "threshold",
+    "ratio",
+    "knee",
+    "makeup",
+];
+
 const DETECTOR_KEYS: &[&str] = &["mode"];
+
+const MAXIMIZER_KEYS: &[&str] = &["bypass", "threshold", "release"];
+
+pub(super) fn maximizer(
+    parameters: &Map<String, Value>,
+    warnings: &mut Vec<String>,
+) -> BTreeMap<String, PresetValue> {
+    skipped(parameters, MAXIMIZER_KEYS, "maximizer", warnings);
+    let mut params = BTreeMap::new();
+    put(
+        &mut params,
+        "threshold",
+        number(parameters, "threshold", 0.0),
+    );
+    put(&mut params, "release", number(parameters, "release", 25.0));
+    params
+}
 
 pub(super) fn compressor(
     parameters: &Map<String, Value>,
@@ -91,6 +122,33 @@ pub(super) fn gate(
     params
 }
 
+pub(super) fn expander(
+    parameters: &Map<String, Value>,
+    warnings: &mut Vec<String>,
+) -> BTreeMap<String, PresetValue> {
+    skipped(parameters, EXPANDER_KEYS, "expander", warnings);
+    skipped_sidechain(parameters, "expander", warnings);
+    let mut params = BTreeMap::new();
+    put(
+        &mut params,
+        "threshold",
+        number(parameters, "threshold", -12.0),
+    );
+    put(&mut params, "ratio", number(parameters, "ratio", 4.0));
+    put(&mut params, "knee", knee(parameters));
+    put(&mut params, "attack", number(parameters, "attack", 20.0));
+    put(&mut params, "release", number(parameters, "release", 100.0));
+    put(&mut params, "makeup", number(parameters, "makeup", 0.0));
+    put(&mut params, "mix", mix_percent(parameters, "wet", 0.0));
+    put(
+        &mut params,
+        "detector",
+        expander_detector(parameters, warnings),
+    );
+    expander_mode(parameters, warnings);
+    params
+}
+
 pub(super) fn deesser(
     parameters: &Map<String, Value>,
     warnings: &mut Vec<String>,
@@ -134,7 +192,7 @@ fn knee(parameters: &Map<String, Value>) -> f64 {
 fn range(parameters: &Map<String, Value>, warnings: &mut Vec<String>) -> f64 {
     let reduction = number(parameters, "reduction", -24.0);
     if reduction > 0.0 {
-        warnings.push("gate: the reverse mode has no equivalent here".to_owned());
+        warnings.push(t("gate: the reverse mode has no equivalent here").to_owned());
         0.0
     } else {
         -reduction
@@ -146,8 +204,9 @@ fn mode(parameters: &Map<String, Value>, warnings: &mut Vec<String>) -> f64 {
         "" | "Wide" | "Wideband" => 1.0,
         "Split" => 0.0,
         other => {
-            warnings.push(format!(
-                "deesser: the mode '{other}' is unknown and was mapped to wideband"
+            warnings.push(tr(
+                "deesser: the mode '{0}' is unknown and was mapped to wideband",
+                &[other],
             ));
             1.0
         }
@@ -163,11 +222,44 @@ fn detector(parameters: &Map<String, Value>, warnings: &mut Vec<String>) -> f64 
         None | Some("Peak") => 0.0,
         Some("RMS") => 1.0,
         Some(other) => {
-            warnings.push(format!(
-                "compressor: the sidechain mode '{other}' has no equivalent here and was mapped to peak"
+            warnings.push(tr(
+                "compressor: the sidechain mode '{0}' has no equivalent here and was mapped to peak",
+                &[other],
             ));
             0.0
         }
+    }
+}
+
+fn expander_detector(parameters: &Map<String, Value>, warnings: &mut Vec<String>) -> f64 {
+    let mode = parameters
+        .get("sidechain")
+        .and_then(|sidechain| sidechain.get("mode"))
+        .and_then(Value::as_str);
+    match mode {
+        None | Some("Peak") => 0.0,
+        Some("RMS") => 1.0,
+        Some(other) => {
+            warnings.push(tr(
+                "expander: the sidechain mode '{0}' has no equivalent here and was mapped to peak",
+                &[other],
+            ));
+            0.0
+        }
+    }
+}
+
+fn expander_mode(parameters: &Map<String, Value>, warnings: &mut Vec<String>) {
+    match super::text(parameters, "mode") {
+        "" | "Downward" => {}
+        "Upward" => warnings.push(
+            t("expander: the upward mode has no equivalent here and the downward curve was loaded")
+                .to_owned(),
+        ),
+        other => warnings.push(tr(
+            "expander: the mode '{0}' is unknown and the downward curve was loaded",
+            &[other],
+        )),
     }
 }
 
@@ -181,9 +273,9 @@ fn skipped_sidechain(parameters: &Map<String, Value>, effect: &str, warnings: &m
         .filter(|key| !DETECTOR_KEYS.contains(key))
         .collect();
     if !unhandled.is_empty() {
-        warnings.push(format!(
-            "{effect}: sidechain.{} was left at its default",
-            unhandled.join(", sidechain.")
+        warnings.push(tr(
+            "{0}: sidechain.{1} was left at its default",
+            &[effect, &unhandled.join(", sidechain.")],
         ));
     }
 }

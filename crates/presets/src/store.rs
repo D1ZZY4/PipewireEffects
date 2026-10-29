@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use pwe_core::i18n::tr;
+
 use crate::builtin;
 use crate::error::{PresetError, PresetResult};
 use crate::model::{Preset, validate_name};
@@ -83,7 +85,10 @@ impl PresetStore {
                 Ok(entries) => entries,
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
                 Err(error) => {
-                    warnings.push(format!("{} is unreadable: {error}", directory.display()));
+                    warnings.push(tr(
+                        "{0} is unreadable: {1}",
+                        &[&directory.display().to_string(), &error.to_string()],
+                    ));
                     continue;
                 }
             };
@@ -96,19 +101,18 @@ impl PresetStore {
                     continue;
                 };
                 if validate_name(&name).is_err() {
-                    warnings.push(format!(
-                        "{} was skipped: '{name}' is not a valid preset name",
-                        path.display()
+                    warnings.push(tr(
+                        "{0} was skipped: '{1}' is not a valid preset name",
+                        &[&path.display().to_string(), &name],
                     ));
                     continue;
                 }
                 match read_preset(&path) {
                     Ok((preset, conversion)) => {
                         if preset.name != name {
-                            warnings.push(format!(
-                                "{} declares the name '{}'",
-                                path.display(),
-                                preset.name
+                            warnings.push(tr(
+                                "{0} declares the name '{1}'",
+                                &[&path.display().to_string(), &preset.name],
                             ));
                         }
                         for warning in conversion {
@@ -127,7 +131,10 @@ impl PresetStore {
                             });
                         }
                     }
-                    Err(error) => warnings.push(format!("{} was skipped: {error}", path.display())),
+                    Err(error) => warnings.push(tr(
+                        "{0} was skipped: {1}",
+                        &[&path.display().to_string(), &error.to_string()],
+                    )),
                 }
             }
         }

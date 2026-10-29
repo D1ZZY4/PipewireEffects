@@ -5,7 +5,7 @@ use super::{DEFAULT_BANDWIDTH, Folding, fold, gain_id};
 fn fold_value(value: Value) -> (Folding, Vec<String>) {
     let parameters = value.as_object().cloned().unwrap_or_default();
     let mut warnings = Vec::new();
-    let folding = fold(&parameters, &mut warnings);
+    let folding = fold(&parameters, "equalizer", &mut warnings);
     (folding, warnings)
 }
 

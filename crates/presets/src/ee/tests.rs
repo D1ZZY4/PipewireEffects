@@ -72,10 +72,24 @@ fn params_of(preset: &Preset, kind: &str) -> BTreeMap<String, PresetValue> {
 #[test]
 fn supported_effects_are_mapped_in_order() {
     let (preset, warnings) = sample();
-    assert_eq!(preset.output.effects.len(), 2);
+    assert_eq!(preset.output.effects.len(), 3);
     assert_eq!(preset.output.effects[0].kind, "filter");
     assert_eq!(preset.output.effects[1].kind, "equalizer");
-    assert!(warnings.iter().any(|warning| warning.contains("maximizer")));
+    assert_eq!(preset.output.effects[2].kind, "maximizer");
+    assert!(
+        warnings
+            .iter()
+            .all(|warning| !warning.contains("maximizer")),
+        "{warnings:?}"
+    );
+}
+
+#[test]
+fn the_maximizer_threshold_is_transferred() {
+    let (preset, _) = sample();
+    let params = params_of(&preset, "maximizer");
+    assert!((float(&params, "threshold") + 2.5).abs() < 1.0e-6);
+    assert!((float(&params, "release") - 25.0).abs() < 1.0e-6);
 }
 
 #[test]
@@ -120,7 +134,7 @@ fn a_bypassed_effect_stays_disabled() {
 #[test]
 fn a_document_without_mappable_effects_is_rejected() {
     let value: Value = serde_json::from_str(
-        r#"{ "output": { "plugins_order": ["maximizer#0"], "maximizer#0": {} } }"#,
+        r#"{ "output": { "plugins_order": ["autotune#0"], "autotune#0": {} } }"#,
     )
     .unwrap();
     assert!(convert(&value, "Empty").is_err());
@@ -210,4 +224,51 @@ fn content_that_cannot_be_mapped_is_reported() {
     assert!(reported.contains("diffusion"), "{warnings:?}");
     assert!(reported.contains("stereo-base"), "{warnings:?}");
     assert!(reported.contains("curve-zone"), "{warnings:?}");
+}
+
+const BOTH_SECTIONS: &str = r#"{
+      "output": {
+        "plugins_order": ["limiter#0"],
+        "limiter#0": { "threshold": -1.0 }
+      },
+      "input": {
+        "plugins_order": ["gate#0", "unknown_effect#0"],
+        "gate#0": { "curve-threshold": -32.0, "reduction": -30.0 }
+      }
+    }"#;
+
+#[test]
+fn the_input_section_is_converted_as_well() {
+    let value: Value = serde_json::from_str(BOTH_SECTIONS).unwrap();
+    let (preset, warnings) = convert(&value, "Imported").unwrap();
+    assert_eq!(preset.output.effects.len(), 1);
+    assert_eq!(preset.input.effects.len(), 1);
+    assert_eq!(preset.input.effects[0].kind, "gate");
+    assert!(
+        warnings.iter().any(|warning| warning.starts_with("input:")),
+        "an input warning should name its section: {warnings:?}"
+    );
+}
+
+#[test]
+fn an_input_only_document_is_accepted() {
+    let value: Value = serde_json::from_str(
+        r#"{"input": {"plugins_order": ["limiter#0"], "limiter#0": {"threshold": -3.0}}}"#,
+    )
+    .unwrap();
+    assert!(is_ees(&value));
+    let (preset, _) = convert(&value, "Imported").unwrap();
+    assert!(preset.output.effects.is_empty());
+    assert_eq!(preset.input.effects.len(), 1);
+}
+
+#[test]
+fn the_input_section_records_its_bypass_state() {
+    let value: Value = serde_json::from_str(
+        r#"{"output": {"bypass": true, "plugins_order": ["limiter#0"], "limiter#0": {"threshold": -3.0}}}"#,
+    )
+    .unwrap();
+    let (preset, _) = convert(&value, "Imported").unwrap();
+    assert!(preset.output.bypassed);
+    assert!(!preset.input.bypassed);
 }

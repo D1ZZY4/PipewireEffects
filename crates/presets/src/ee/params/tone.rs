@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use pwe_core::i18n::tr;
 use serde_json::{Map, Value};
 
 use crate::model::PresetValue;
@@ -40,7 +41,7 @@ pub(super) fn equalizer(
     warnings: &mut Vec<String>,
 ) -> BTreeMap<String, PresetValue> {
     skipped_with_bands(parameters, EQUALIZER_KEYS, "equalizer", warnings);
-    let folded = fold(parameters, warnings);
+    let folded = fold(parameters, "equalizer", warnings);
     let mut params = BTreeMap::new();
     for (band, gain) in folded.gains.iter().enumerate() {
         put(&mut params, gain_id(band), f64::from(*gain));
@@ -126,8 +127,9 @@ fn filter_mode(parameters: &Map<String, Value>, warnings: &mut Vec<String>) -> f
             3.0
         }
         other => {
-            warnings.push(format!(
-                "filter: the type '{other}' has no equivalent here and was mapped to low pass"
+            warnings.push(tr(
+                "filter: the type '{0}' has no equivalent here and was mapped to low pass",
+                &[other],
             ));
             0.0
         }
@@ -150,8 +152,9 @@ fn filter_order(parameters: &Map<String, Value>, warnings: &mut Vec<String>) -> 
         "x3" => 3.0,
         "x4" => 4.0,
         other => {
-            warnings.push(format!(
-                "filter: the slope '{other}' was reduced to order 4"
+            warnings.push(tr(
+                "filter: the slope '{0}' was reduced to order 4",
+                &[other],
             ));
             4.0
         }

@@ -4,7 +4,7 @@ use serde_json::{Map, Value, json};
 
 use crate::model::PresetValue;
 
-use super::{autogain, compressor, deesser, gate, limiter};
+use super::{autogain, compressor, deesser, expander, gate, limiter};
 
 type Converter = fn(&Map<String, Value>, &mut Vec<String>) -> BTreeMap<String, PresetValue>;
 
@@ -137,4 +137,58 @@ fn the_autogain_silence_threshold_is_transferred() {
     );
     assert_eq!(float(&params, "target"), -18.0);
     assert_eq!(float(&params, "silence_threshold"), -60.0);
+}
+
+#[test]
+fn the_expander_knee_is_a_width_and_the_wet_level_is_a_mix() {
+    let (params, warnings) = convert(
+        expander,
+        json!({
+            "threshold": -15.0,
+            "ratio": 8.0,
+            "knee": -6.0,
+            "attack": 30.0,
+            "release": 150.0,
+            "makeup": 3.0,
+            "wet": 0.0
+        }),
+    );
+    assert!((float(&params, "threshold") + 15.0).abs() < 1.0e-9);
+    assert_eq!(float(&params, "ratio"), 8.0);
+    assert!((float(&params, "knee") - 6.0).abs() < 1.0e-9);
+    assert_eq!(float(&params, "attack"), 30.0);
+    assert_eq!(float(&params, "release"), 150.0);
+    assert_eq!(float(&params, "makeup"), 3.0);
+    assert!((float(&params, "mix") - 100.0).abs() < 0.1);
+    assert_eq!(float(&params, "detector"), 0.0);
+    assert!(
+        warnings
+            .iter()
+            .all(|warning| !warning.contains("expander:")),
+        "{warnings:?}"
+    );
+}
+
+#[test]
+fn the_upward_expander_is_reported() {
+    let (params, warnings) = convert(expander, json!({ "mode": "Upward" }));
+    assert_eq!(float(&params, "threshold"), -12.0);
+    assert!(
+        warnings
+            .iter()
+            .any(|warning| warning.contains("upward mode")),
+        "{warnings:?}"
+    );
+}
+
+#[test]
+fn the_expander_detector_follows_the_sidechain() {
+    let (rms, _) = convert(expander, json!({ "sidechain": { "mode": "RMS" } }));
+    assert_eq!(float(&rms, "detector"), 1.0);
+    let (other, warnings) = convert(expander, json!({ "sidechain": { "mode": "SMA" } }));
+    assert_eq!(float(&other, "detector"), 0.0);
+    assert!(
+        warnings.iter().any(|warning| warning.contains("SMA")),
+        "{warnings:?}"
+    );
 }

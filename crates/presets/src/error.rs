@@ -1,4 +1,5 @@
 use pwe_core::CoreError;
+use pwe_core::i18n::tr;
 use std::fmt;
 
 #[derive(Debug)]
@@ -15,18 +16,28 @@ pub enum PresetError {
 impl fmt::Display for PresetError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Io(error) => write!(f, "file system error: {error}"),
-            Self::Json(error) => write!(f, "malformed preset: {error}"),
-            Self::InvalidName(name) => write!(f, "'{name}' is not a valid preset name"),
-            Self::InvalidValue(detail) => write!(f, "invalid parameter value: {detail}"),
-            Self::NotFound(name) => write!(f, "no preset named '{name}'"),
-            Self::UnsupportedVersion { found, supported } => {
-                write!(
-                    f,
-                    "preset schema version {found} is newer than the supported version {supported}"
-                )
+            Self::Io(error) => write!(f, "{}", tr("file system error: {0}", &[&error.to_string()])),
+            Self::Json(error) => {
+                write!(f, "{}", tr("malformed preset: {0}", &[&error.to_string()]))
             }
-            Self::MissingSection(section) => write!(f, "the preset has no '{section}' section"),
+            Self::InvalidName(name) => {
+                write!(f, "{}", tr("'{0}' is not a valid preset name", &[name]))
+            }
+            Self::InvalidValue(detail) => {
+                write!(f, "{}", tr("invalid parameter value: {0}", &[detail]))
+            }
+            Self::NotFound(name) => write!(f, "{}", tr("no preset named '{0}'", &[name])),
+            Self::UnsupportedVersion { found, supported } => write!(
+                f,
+                "{}",
+                tr(
+                    "preset schema version {0} is newer than the supported version {1}",
+                    &[&found.to_string(), &supported.to_string()],
+                )
+            ),
+            Self::MissingSection(section) => {
+                write!(f, "{}", tr("the preset has no '{0}' section", &[section]))
+            }
         }
     }
 }

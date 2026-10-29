@@ -1,10 +1,13 @@
+mod colour;
 mod dynamics;
 mod equalizer;
+mod midside;
 mod time;
 mod tone;
 
 use std::collections::BTreeMap;
 
+use pwe_core::i18n::tr;
 use serde_json::{Map, Value};
 
 use crate::model::PresetValue;
@@ -19,6 +22,13 @@ pub(super) fn convert_parameters(
         "equalizer" => tone::equalizer(parameters, warnings),
         "bass_enhancer" => tone::bass_enhancer(parameters, warnings),
         "crystalizer" => tone::crystalizer(parameters, warnings),
+        "crusher" => colour::crusher(parameters, warnings),
+        "crossfeed" => colour::crossfeed(parameters, warnings),
+        "crosstalk" => colour::crosstalk(parameters, warnings),
+        "exciter" => colour::exciter(parameters, warnings),
+        "expander" => dynamics::expander(parameters, warnings),
+        "maximizer" => dynamics::maximizer(parameters, warnings),
+        "midside_equalizer" => midside::midside_equalizer(parameters, warnings),
         "stereo_tools" => tone::stereo_tools(parameters, warnings),
         "compressor" => dynamics::compressor(parameters, warnings),
         "limiter" => dynamics::limiter(parameters, warnings),
@@ -28,7 +38,7 @@ pub(super) fn convert_parameters(
         "delay" => time::delay(parameters, warnings),
         "reverb" => time::reverb(parameters, warnings),
         other => {
-            warnings.push(format!("'{other}' has no parameter mapping"));
+            warnings.push(tr("'{0}' has no parameter mapping", &[other]));
             BTreeMap::new()
         }
     }
@@ -47,6 +57,15 @@ fn text<'a>(parameters: &'a Map<String, Value>, key: &str) -> &'a str {
 
 fn put(params: &mut BTreeMap<String, PresetValue>, key: &str, value: f64) {
     params.insert(key.to_owned(), PresetValue::Float(value));
+}
+
+fn flag(parameters: &Map<String, Value>, key: &str, fallback: bool) -> f64 {
+    let missing = f64::from(fallback);
+    match parameters.get(key) {
+        Some(Value::Bool(value)) => f64::from(*value),
+        Some(value) => value.as_f64().unwrap_or(missing),
+        None => missing,
+    }
 }
 
 fn level_percent(db: f64) -> f64 {
@@ -96,9 +115,9 @@ fn skipped_keys(
         return;
     }
     unhandled.sort_unstable();
-    warnings.push(format!(
-        "{effect}: {} was left at its default",
-        grouped(&unhandled)
+    warnings.push(tr(
+        "{0}: {1} was left at its default",
+        &[effect, &grouped(&unhandled)],
     ));
 }
 

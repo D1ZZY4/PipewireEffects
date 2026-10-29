@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
+use pwe_core::i18n::tr;
 use serde_json::{Map, Value};
 
 const TARGETS: [f32; 10] = [
@@ -31,7 +32,11 @@ pub(super) struct Folding {
     pub bandwidth: f64,
 }
 
-pub(super) fn fold(parameters: &Map<String, Value>, warnings: &mut Vec<String>) -> Folding {
+pub(super) fn fold(
+    parameters: &Map<String, Value>,
+    effect: &str,
+    warnings: &mut Vec<String>,
+) -> Folding {
     let mut bands: BTreeMap<&str, &Value> = BTreeMap::new();
     let left = parameters.get("left").and_then(Value::as_object);
     for (key, value) in left.unwrap_or(parameters) {
@@ -40,7 +45,7 @@ pub(super) fn fold(parameters: &Map<String, Value>, warnings: &mut Vec<String>) 
         }
     }
     if let Some(right) = parameters.get("right").and_then(Value::as_object) {
-        merge_channel(&mut bands, right, warnings);
+        merge_channel(&mut bands, right, effect, warnings);
     }
 
     let soloed = bands.values().any(|value| flag(value, "solo"));
@@ -79,31 +84,37 @@ pub(super) fn fold(parameters: &Map<String, Value>, warnings: &mut Vec<String>) 
         }
     }
     if collected.len() > TARGETS.len() {
-        warnings.push(format!(
-            "equalizer: {} bands were folded into {} fixed bands",
-            collected.len(),
-            TARGETS.len()
+        warnings.push(tr(
+            "{0}: {1} bands were folded into {2} fixed bands",
+            &[
+                effect,
+                &collected.len().to_string(),
+                &TARGETS.len().to_string(),
+            ],
         ));
     }
     if unsupported > 0 {
-        warnings.push(format!(
-            "equalizer: {unsupported} band types without an equivalent were skipped"
+        warnings.push(tr(
+            "{0}: {1} band types without an equivalent were skipped",
+            &[effect, &unsupported.to_string()],
         ));
     }
     if inactive > 0 {
-        warnings.push(format!(
-            "equalizer: {inactive} muted or non-soloed bands were skipped"
+        warnings.push(tr(
+            "{0}: {1} muted or non-soloed bands were skipped",
+            &[effect, &inactive.to_string()],
         ));
     }
     if unusable > 0 {
-        warnings.push(format!(
-            "equalizer: {unusable} bands without a usable frequency were skipped"
+        warnings.push(tr(
+            "{0}: {1} bands without a usable frequency were skipped",
+            &[effect, &unusable.to_string()],
         ));
     }
     if !ignored.is_empty() {
-        warnings.push(format!(
-            "equalizer: the per-band {} were ignored, because every band here is one filter with a shared bandwidth",
-            ignored.into_iter().collect::<Vec<&str>>().join(", ")
+        warnings.push(tr(
+            "{0}: the per-band {1} were ignored, because every band here is one filter with a shared bandwidth",
+            &[effect, &ignored.into_iter().collect::<Vec<&str>>().join(", ")],
         ));
     }
     Folding {
@@ -119,6 +130,7 @@ fn flag(value: &Value, key: &str) -> bool {
 fn merge_channel<'a>(
     bands: &mut BTreeMap<&'a str, &'a Value>,
     channel: &'a Map<String, Value>,
+    effect: &str,
     warnings: &mut Vec<String>,
 ) {
     let mut conflicts = 0usize;
@@ -135,8 +147,9 @@ fn merge_channel<'a>(
         }
     }
     if conflicts > 0 {
-        warnings.push(format!(
-            "equalizer: {conflicts} right-channel bands differ from the left channel and were merged into the shared curve"
+        warnings.push(tr(
+            "{0}: {1} right-channel bands differ from the left channel and were merged into the shared curve",
+            &[effect, &conflicts.to_string()],
         ));
     }
 }
