@@ -1,0 +1,830 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PipeWire Effects package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PipeWire Effects 0.1.0\n"
+"Report-Msgid-Bugs-To: https://github.com/D1ZZY4/PipewireEffects/issues\n"
+"POT-Creation-Date: 2026-10-30 01:29+0700\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: crates/app/src/cli.rs:39
+msgid "unknown option '{0}'; try --help"
+msgstr ""
+
+#: crates/app/src/cli.rs:80
+msgid ""
+"Process application audio through a chain of effects on a virtual PipeWire "
+"sink."
+msgstr ""
+
+#: crates/app/src/cli.rs:81
+msgid "Show this help and exit"
+msgstr ""
+
+#: crates/app/src/cli.rs:82
+msgid "Show the version and exit"
+msgstr ""
+
+#: crates/app/src/cli.rs:83
+msgid "Load a preset on start"
+msgstr ""
+
+#: crates/app/src/cli.rs:84
+msgid "Send the processed audio to this node"
+msgstr ""
+
+#: crates/app/src/cli.rs:85
+msgid "Start without a window; the interface opens on the next launch"
+msgstr ""
+
+#: crates/app/src/cli.rs:86
+msgid "Print the available presets and exit"
+msgstr ""
+
+#: crates/app/src/cli.rs:87
+msgid "Print the PipeWire devices and exit"
+msgstr ""
+
+#: crates/app/src/cli.rs:95
+msgid "built in"
+msgstr ""
+
+#: crates/app/src/cli.rs:97
+msgid "user"
+msgstr ""
+
+#: crates/app/src/cli.rs:99
+msgid "system"
+msgstr ""
+
+#: crates/app/src/cli.rs:116
+msgid "the audio server could not be reached: {0}"
+msgstr ""
+
+#: crates/app/src/cli.rs:125
+msgid "sink"
+msgstr ""
+
+#: crates/app/src/cli.rs:127
+msgid "source"
+msgstr ""
+
+#: crates/app/src/cli.rs:129
+msgid "device"
+msgstr ""
+
+#: crates/app/src/cli.rs:139
+msgid "{0} needs a value"
+msgstr ""
+
+#: crates/core/src/error.rs:18
+msgid "unknown parameter '{0}'"
+msgstr ""
+
+#: crates/core/src/error.rs:21
+msgid "invalid value for '{0}': {1}"
+msgstr ""
+
+#: crates/core/src/error.rs:27
+msgid "buffer needs {0} frames but can hold {1}"
+msgstr ""
+
+#: crates/core/src/error.rs:34
+msgid "effect chain is full ({0} slots)"
+msgstr ""
+
+#: crates/core/src/error.rs:40
+msgid "index {0} is out of range for a chain of {1} effects"
+msgstr ""
+
+#: crates/core/src/param/spec.rs:192
+msgid "On"
+msgstr ""
+
+#: crates/core/src/param/spec.rs:194
+msgid "Off"
+msgstr ""
+
+#: crates/core/src/param/spec.rs:200
+msgid "Unknown"
+msgstr ""
+
+#: crates/core/src/param/value.rs:59
+msgid "value is not finite"
+msgstr ""
+
+#: crates/core/src/param/value.rs:69
+msgid "parameter has no selectable options"
+msgstr ""
+
+#: crates/core/src/pipeline.rs:19 crates/ui/src/pages.rs:63
+msgid "Output"
+msgstr ""
+
+#: crates/core/src/pipeline.rs:26
+msgid "output"
+msgstr ""
+
+#: crates/dsp/src/registry.rs:17
+msgid "Dynamics"
+msgstr ""
+
+#: crates/engine/src/error.rs:20
+msgid "PipeWire error: {0}"
+msgstr ""
+
+#: crates/engine/src/error.rs:23
+msgid "the {0} stream is not available"
+msgstr ""
+
+#: crates/engine/src/error.rs:26
+msgid "no audio device matches '{0}'"
+msgstr ""
+
+#: crates/engine/src/error.rs:32
+msgid "'{0}' is not a usable PipeWire node name"
+msgstr ""
+
+#: crates/engine/src/error.rs:35
+msgid "the engine is already running"
+msgstr ""
+
+#: crates/engine/src/error.rs:36
+msgid "the engine is not connected to PipeWire"
+msgstr ""
+
+#: crates/engine/src/error.rs:41
+msgid "the engine thread could not be started: {0}"
+msgstr ""
+
+#: crates/engine/src/processor.rs:92
+msgid "the graph quantum is larger than the processing buffer"
+msgstr ""
+
+#: crates/engine/src/runtime.rs:166
+msgid "the {0} pipeline is reconnecting (attempt {1})"
+msgstr ""
+
+#: crates/engine/src/runtime.rs:241
+msgid "the chain is limited to {0} effects"
+msgstr ""
+
+#: crates/engine/src/runtime.rs:251
+msgid "the audio thread command queue is full"
+msgstr ""
+
+#: crates/engine/src/shared.rs:20
+msgid "Stopped"
+msgstr ""
+
+#: crates/engine/src/stream_setup.rs:200
+msgid "the {0} {1} stream failed: {2}"
+msgstr ""
+
+#: crates/engine/src/stream_setup.rs:212
+msgid "the {0} {1} stream left {2} for {3}"
+msgstr ""
+
+#: crates/engine/src/stream_spec.rs:69
+msgid "PipeWire Effects Input"
+msgstr ""
+
+#: crates/engine/src/stream_spec.rs:82
+msgid "PipeWire Effects Output"
+msgstr ""
+
+#: crates/engine/src/target.rs:34
+msgid "no {0} device matches '{1}'"
+msgstr ""
+
+#: crates/presets/src/ee.rs:32
+msgid "the document has no output section"
+msgstr ""
+
+#: crates/presets/src/ee.rs:35
+msgid "no effect in the preset could be mapped"
+msgstr ""
+
+#: crates/presets/src/ee.rs:76
+msgid "'{0}' has no equivalent here and was skipped"
+msgstr ""
+
+#: crates/presets/src/ee.rs:84
+msgid "'{0}' has no parameter block"
+msgstr ""
+
+#: crates/presets/src/ee.rs:103
+msgid "{0}: {1}"
+msgstr ""
+
+#: crates/presets/src/ee/params.rs:41
+msgid "'{0}' has no parameter mapping"
+msgstr ""
+
+#: crates/presets/src/ee/params.rs:119
+msgid "{0}: {1} was left at its default"
+msgstr ""
+
+#: crates/presets/src/ee/params/colour.rs:81
+msgid "crusher: the mode '{0}' has no equivalent here and was mapped to linear"
+msgstr ""
+
+#: crates/presets/src/ee/params/dynamics.rs:195
+msgid "gate: the reverse mode has no equivalent here"
+msgstr ""
+
+#: crates/presets/src/ee/params/dynamics.rs:208
+msgid "deesser: the mode '{0}' is unknown and was mapped to wideband"
+msgstr ""
+
+#: crates/presets/src/ee/params/dynamics.rs:226
+msgid ""
+"compressor: the sidechain mode '{0}' has no equivalent here and was mapped "
+"to peak"
+msgstr ""
+
+#: crates/presets/src/ee/params/dynamics.rs:244
+msgid ""
+"expander: the sidechain mode '{0}' has no equivalent here and was mapped to "
+"peak"
+msgstr ""
+
+#: crates/presets/src/ee/params/dynamics.rs:256
+msgid ""
+"expander: the upward mode has no equivalent here and the downward curve was "
+"loaded"
+msgstr ""
+
+#: crates/presets/src/ee/params/dynamics.rs:260
+msgid "expander: the mode '{0}' is unknown and the downward curve was loaded"
+msgstr ""
+
+#: crates/presets/src/ee/params/dynamics.rs:277
+msgid "{0}: sidechain.{1} was left at its default"
+msgstr ""
+
+#: crates/presets/src/ee/params/equalizer.rs:88
+msgid "{0}: {1} bands were folded into {2} fixed bands"
+msgstr ""
+
+#: crates/presets/src/ee/params/equalizer.rs:98
+msgid "{0}: {1} band types without an equivalent were skipped"
+msgstr ""
+
+#: crates/presets/src/ee/params/equalizer.rs:104
+msgid "{0}: {1} muted or non-soloed bands were skipped"
+msgstr ""
+
+#: crates/presets/src/ee/params/equalizer.rs:110
+msgid "{0}: {1} bands without a usable frequency were skipped"
+msgstr ""
+
+#: crates/presets/src/ee/params/equalizer.rs:116
+msgid ""
+"{0}: the per-band {1} were ignored, because every band here is one filter "
+"with a shared bandwidth"
+msgstr ""
+
+#: crates/presets/src/ee/params/equalizer.rs:151
+msgid ""
+"{0}: {1} right-channel bands differ from the left channel and were merged "
+"into the shared curve"
+msgstr ""
+
+#: crates/presets/src/ee/params/time.rs:86
+msgid "delay: the '{0}' mode for '{1}' has no equivalent here"
+msgstr ""
+
+#: crates/presets/src/ee/params/tone.rs:131
+msgid ""
+"filter: the type '{0}' has no equivalent here and was mapped to low pass"
+msgstr ""
+
+#: crates/presets/src/ee/params/tone.rs:156
+msgid "filter: the slope '{0}' was reduced to order 4"
+msgstr ""
+
+#: crates/presets/src/error.rs:19
+msgid "file system error: {0}"
+msgstr ""
+
+#: crates/presets/src/error.rs:21
+msgid "malformed preset: {0}"
+msgstr ""
+
+#: crates/presets/src/error.rs:24
+msgid "'{0}' is not a valid preset name"
+msgstr ""
+
+#: crates/presets/src/error.rs:27
+msgid "invalid parameter value: {0}"
+msgstr ""
+
+#: crates/presets/src/error.rs:29
+msgid "no preset named '{0}'"
+msgstr ""
+
+#: crates/presets/src/error.rs:34
+msgid "preset schema version {0} is newer than the supported version {1}"
+msgstr ""
+
+#: crates/presets/src/error.rs:39
+msgid "the preset has no '{0}' section"
+msgstr ""
+
+#: crates/presets/src/model.rs:55
+msgid "parameter '{0}' is not a finite number"
+msgstr ""
+
+#: crates/presets/src/store.rs:89
+msgid "{0} is unreadable: {1}"
+msgstr ""
+
+#: crates/presets/src/store.rs:105
+msgid "{0} was skipped: '{1}' is not a valid preset name"
+msgstr ""
+
+#: crates/presets/src/store.rs:114
+msgid "{0} declares the name '{1}'"
+msgstr ""
+
+#: crates/presets/src/store.rs:135
+msgid "{0} was skipped: {1}"
+msgstr ""
+
+#: crates/settings/src/store.rs:51 crates/settings/src/store.rs:62
+msgid "{0} was ignored: {1}"
+msgstr ""
+
+#: crates/ui/src/app.rs:108
+msgid "{0} is running without a window"
+msgstr ""
+
+#: crates/ui/src/app.rs:149 crates/ui/src/state.rs:272
+msgid "'{0}' could not be loaded: {1}"
+msgstr ""
+
+#: crates/ui/src/app.rs:256
+msgid "PipeWire Effects contributors"
+msgstr ""
+
+#: crates/ui/src/app.rs:262
+msgid ""
+"Runs application audio through a chain of effects on a virtual PipeWire sink."
+msgstr ""
+
+#: crates/ui/src/app.rs:271
+msgid "PipeWire Effects could not start"
+msgstr ""
+
+#: crates/ui/src/app.rs:272
+msgid "Close"
+msgstr ""
+
+#: crates/ui/src/chain.rs:160
+msgid "'{0}' is not available"
+msgstr ""
+
+#: crates/ui/src/chain.rs:210
+msgid "'{0}' has no parameter '{1}'"
+msgstr ""
+
+#: crates/ui/src/chain_view.rs:42
+msgid "Enable or disable this effect"
+msgstr ""
+
+#: crates/ui/src/chain_view.rs:96
+msgid "Move up"
+msgstr ""
+
+#: crates/ui/src/chain_view.rs:97
+msgid "Move down"
+msgstr ""
+
+#: crates/ui/src/chain_view.rs:98
+msgid "Remove"
+msgstr ""
+
+#: crates/ui/src/chain_view.rs:110
+msgid "Reorder or remove this effect"
+msgstr ""
+
+#: crates/ui/src/dialogs.rs:108 crates/ui/src/editor.rs:95
+msgid "Add effect"
+msgstr ""
+
+#: crates/ui/src/dialogs.rs:116
+msgid "Search effects"
+msgstr ""
+
+#: crates/ui/src/editor.rs:22
+msgid "Response"
+msgstr ""
+
+#: crates/ui/src/editor.rs:41
+msgid "Parameters"
+msgstr ""
+
+#: crates/ui/src/editor.rs:75
+msgid "Reset every parameter to its default"
+msgstr ""
+
+#: crates/ui/src/editor.rs:93
+msgid "No effect selected"
+msgstr ""
+
+#: crates/ui/src/editor.rs:94 crates/ui/src/pages.rs:70
+msgid "Add an effect to start shaping your audio."
+msgstr ""
+
+#: crates/ui/src/format.rs:61
+msgid "Effect"
+msgstr ""
+
+#: crates/ui/src/pages.rs:62
+msgid "Input"
+msgstr ""
+
+#: crates/ui/src/pages.rs:80
+msgid "Add an effect to the chain"
+msgstr ""
+
+#: crates/ui/src/pages.rs:85
+msgid "Chain"
+msgstr ""
+
+#: crates/ui/src/pages.rs:134
+msgid "Effects"
+msgstr ""
+
+#: crates/ui/src/pages.rs:140
+msgid "Presets"
+msgstr ""
+
+#: crates/ui/src/pages.rs:146
+msgid "Devices"
+msgstr ""
+
+#: crates/ui/src/pages.rs:200
+msgid "Shape what applications play back"
+msgstr ""
+
+#: crates/ui/src/pages.rs:201
+msgid "Shape what your microphone captures"
+msgstr ""
+
+#: crates/ui/src/pages.rs:219 crates/ui/src/pages.rs:221
+#: crates/ui/src/window.rs:278
+msgid "Bypass the effect chain"
+msgstr ""
+
+#: crates/ui/src/pages.rs:223
+msgid "Stops the audio from passing through the effects without removing them"
+msgstr ""
+
+#: crates/ui/src/pages.rs:232
+msgid "Main menu"
+msgstr ""
+
+#: crates/ui/src/pages.rs:240
+msgid "About PipeWire Effects"
+msgstr ""
+
+#: crates/ui/src/pages.rs:241
+msgid "Quit"
+msgstr ""
+
+#: crates/ui/src/pages.rs:302
+msgid "Show or hide the effect chain"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:18
+msgid "Saved presets"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:20
+msgid "Activate a preset to replace the current effect chain."
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:33
+msgid "Save current chain"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:35
+msgid "Import"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:36
+msgid "Export"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:37 crates/ui/src/presets_ui.rs:260
+msgid "Delete"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:70
+msgid "Built in"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:72
+msgid "User preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:74
+msgid "System preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:85
+msgid "Skipped files"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:105
+msgid "The preset loaded with warnings: {0}"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:114
+msgid "The preset could not be loaded: {0}"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:132
+msgid "Import preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:145
+msgid "Import failed: {0}"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:154
+msgid "Load a preset before exporting it"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:162
+msgid "Export preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:166
+msgid "Preset exported"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:168
+msgid "Export failed: {0}"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:181
+msgid "My preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:186
+msgid "Save preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:187
+msgid "The current effect chain is stored under this name."
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:189
+msgid "Save"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:192
+msgid "A preset needs a name"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:199
+msgid "Preset saved"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:203
+msgid "The preset could not be saved: {0}"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:220
+msgid "There are no user presets to delete"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:225
+msgid "Delete preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:255
+msgid "Delete preset?"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:257
+msgid "'{0}' will be removed from your preset directory."
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:265
+msgid "Preset deleted"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:268
+msgid "Could not delete: {0}"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:285
+msgid "{0} and {1} more"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:295
+msgid "Imported '{0}'"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:298
+msgid "Imported '{0}' with warnings: {1}"
+msgstr ""
+
+#: crates/ui/src/settings.rs:39
+msgid "Engine"
+msgstr ""
+
+#: crates/ui/src/settings.rs:42
+msgid "Status"
+msgstr ""
+
+#: crates/ui/src/settings.rs:43
+msgid "Connecting"
+msgstr ""
+
+#: crates/ui/src/settings.rs:44
+msgid "Reconnect"
+msgstr ""
+
+#: crates/ui/src/settings.rs:48
+msgid "Rebuild the streams against the audio server"
+msgstr ""
+
+#: crates/ui/src/settings.rs:56
+msgid "Format"
+msgstr ""
+
+#: crates/ui/src/settings.rs:57
+msgid "unknown"
+msgstr ""
+
+#: crates/ui/src/settings.rs:60
+msgid "Node"
+msgstr ""
+
+#: crates/ui/src/settings.rs:65
+msgid "Copy the node name"
+msgstr ""
+
+#: crates/ui/src/settings.rs:81
+msgid "Routing"
+msgstr ""
+
+#: crates/ui/src/settings.rs:91
+msgid "Destination"
+msgstr ""
+
+#: crates/ui/src/settings.rs:93 crates/ui/src/settings.rs:279
+msgid "Play processed audio on"
+msgstr ""
+
+#: crates/ui/src/settings.rs:94
+msgid "The hardware device that receives the effect chain"
+msgstr ""
+
+#: crates/ui/src/settings.rs:113
+msgid "Microphone"
+msgstr ""
+
+#: crates/ui/src/settings.rs:116
+msgid "Process microphone input"
+msgstr ""
+
+#: crates/ui/src/settings.rs:118
+msgid "Runs the input chain and publishes it as the PipeWire Effects Source"
+msgstr ""
+
+#: crates/ui/src/settings.rs:134
+msgid "Desktop"
+msgstr ""
+
+#: crates/ui/src/settings.rs:136
+msgid "Start on login"
+msgstr ""
+
+#: crates/ui/src/settings.rs:138
+msgid "Begins processing as soon as you sign in, without a window"
+msgstr ""
+
+#: crates/ui/src/settings.rs:154
+msgid "Advanced"
+msgstr ""
+
+#: crates/ui/src/settings.rs:202
+msgid "{0} · {1} pipeline"
+msgstr ""
+
+#: crates/ui/src/settings.rs:209
+msgid "waiting for the graph"
+msgstr ""
+
+#: crates/ui/src/settings.rs:212
+msgid "{0} Hz · {1} channels · {2} frames per buffer"
+msgstr ""
+
+#: crates/ui/src/settings.rs:221
+msgid "Virtual sink"
+msgstr ""
+
+#: crates/ui/src/settings.rs:222
+msgid "Virtual source"
+msgstr ""
+
+#: crates/ui/src/settings.rs:233
+msgid ""
+"Pick PipeWire Effects Sink as the output in an application, or make it the "
+"default sink."
+msgstr ""
+
+#: crates/ui/src/settings.rs:236
+msgid ""
+"Pick PipeWire Effects Source as the input in an application, or make it the "
+"default source."
+msgstr ""
+
+#: crates/ui/src/settings.rs:269
+msgid "No {0} device is available"
+msgstr ""
+
+#: crates/ui/src/settings.rs:271
+msgid "Following the system default, {0}"
+msgstr ""
+
+#: crates/ui/src/settings.rs:280
+msgid "Capture microphone audio from"
+msgstr ""
+
+#: crates/ui/src/settings.rs:303
+msgid "System default"
+msgstr ""
+
+#: crates/ui/src/settings/parts.rs:22
+msgid "Captured frames"
+msgstr ""
+
+#: crates/ui/src/settings/parts.rs:23
+msgid "Processed frames"
+msgstr ""
+
+#: crates/ui/src/settings/parts.rs:24
+msgid "Underrun samples"
+msgstr ""
+
+#: crates/ui/src/settings/parts.rs:25
+msgid "Drift trims"
+msgstr ""
+
+#: crates/ui/src/settings/parts.rs:27
+msgid "Messages"
+msgstr ""
+
+#: crates/ui/src/settings/parts.rs:28 crates/ui/src/settings/parts.rs:67
+msgid "None"
+msgstr ""
+
+#: crates/ui/src/settings/parts.rs:32
+msgid "Diagnostics"
+msgstr ""
+
+#: crates/ui/src/settings/parts.rs:33
+msgid "Audio counters and engine messages"
+msgstr ""
+
+#: crates/ui/src/state.rs:207
+msgid ""
+"the preset carries an input chain; turn on microphone processing to run it"
+msgstr ""
+
+#: crates/ui/src/state.rs:252
+msgid "the settings could not be saved: {0}"
+msgstr ""
+
+#: crates/ui/src/window.rs:157
+msgid "The effect could not be added; the chain may be full"
+msgstr ""
+
+#: crates/ui/src/window.rs:168
+msgid "The microphone pipeline could not start: {0}"
+msgstr ""
+
+#: crates/ui/src/window.rs:203
+msgid "Turn on microphone processing in the Devices page"
+msgstr ""
+
+#: crates/ui/src/window.rs:276
+msgid "The chain is bypassed; press to let the audio through"
+msgstr ""

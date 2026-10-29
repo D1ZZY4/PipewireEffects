@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::i18n::tr;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CoreError {
     UnknownParameter(String),
@@ -12,18 +14,33 @@ pub enum CoreError {
 impl fmt::Display for CoreError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::UnknownParameter(id) => write!(f, "unknown parameter '{id}'"),
-            Self::InvalidValue { id, detail } => write!(f, "invalid value for '{id}': {detail}"),
-            Self::BufferCapacity { needed, available } => {
-                write!(f, "buffer needs {needed} frames but can hold {available}")
+            Self::UnknownParameter(id) => {
+                write!(f, "{}", tr("unknown parameter '{0}'", &[id]))
             }
-            Self::ChainFull { capacity } => write!(f, "effect chain is full ({capacity} slots)"),
-            Self::InvalidIndex { index, len } => {
-                write!(
-                    f,
-                    "index {index} is out of range for a chain of {len} effects"
+            Self::InvalidValue { id, detail } => {
+                write!(f, "{}", tr("invalid value for '{0}': {1}", &[id, detail]))
+            }
+            Self::BufferCapacity { needed, available } => write!(
+                f,
+                "{}",
+                tr(
+                    "buffer needs {0} frames but can hold {1}",
+                    &[&needed.to_string(), &available.to_string()],
                 )
-            }
+            ),
+            Self::ChainFull { capacity } => write!(
+                f,
+                "{}",
+                tr("effect chain is full ({0} slots)", &[&capacity.to_string()])
+            ),
+            Self::InvalidIndex { index, len } => write!(
+                f,
+                "{}",
+                tr(
+                    "index {0} is out of range for a chain of {1} effects",
+                    &[&index.to_string(), &len.to_string()],
+                )
+            ),
         }
     }
 }

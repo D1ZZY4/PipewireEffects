@@ -56,7 +56,7 @@ impl ParamValue {
                 } else {
                     Err(CoreError::InvalidValue {
                         id: spec.id.to_owned(),
-                        detail: "value is not finite".to_owned(),
+                        detail: crate::i18n::t("value is not finite").to_owned(),
                     })
                 }
             }
@@ -66,7 +66,7 @@ impl ParamValue {
                 if labels.is_empty() {
                     return Err(CoreError::InvalidValue {
                         id: spec.id.to_owned(),
-                        detail: "parameter has no selectable options".to_owned(),
+                        detail: crate::i18n::t("parameter has no selectable options").to_owned(),
                     });
                 }
                 Ok(Self::Choice(index.min(labels.len() as u16 - 1)))

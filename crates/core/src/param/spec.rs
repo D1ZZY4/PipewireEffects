@@ -6,6 +6,7 @@ pub enum ParamUnit {
     Decibel,
     Hertz,
     Milliseconds,
+    Microseconds,
     Percent,
     Ratio,
     Samples,
@@ -19,6 +20,7 @@ impl ParamUnit {
             Self::Decibel => "dB",
             Self::Hertz => "Hz",
             Self::Milliseconds => "ms",
+            Self::Microseconds => "µs",
             Self::Percent => "%",
             Self::Ratio => ":1",
             Self::Samples => "smp",
@@ -176,6 +178,7 @@ impl ParamSpec {
                 match self.unit {
                     ParamUnit::Hertz => format!("{raw:.0} Hz"),
                     ParamUnit::Milliseconds => format!("{raw:.1} ms"),
+                    ParamUnit::Microseconds => format!("{raw:.0} µs"),
                     ParamUnit::Seconds => format!("{raw:.2} s"),
                     ParamUnit::Percent => format!("{raw:.0} %"),
                     ParamUnit::Ratio => format!("{raw:.2}:1"),
@@ -186,16 +189,17 @@ impl ParamSpec {
             }
             ParamKind::Boolean { .. } => {
                 if value.as_bool() {
-                    "On".to_owned()
+                    crate::i18n::t("On").to_owned()
                 } else {
-                    "Off".to_owned()
+                    crate::i18n::t("Off").to_owned()
                 }
             }
             ParamKind::Choice { labels, .. } => {
                 let index = value.as_choice() as usize;
-                labels
-                    .get(index)
-                    .map_or_else(|| "Unknown".to_owned(), |label| (*label).to_owned())
+                labels.get(index).map_or_else(
+                    || crate::i18n::t("Unknown").to_owned(),
+                    |label| crate::i18n::t(label).to_owned(),
+                )
             }
         }
     }
