@@ -634,3 +634,24 @@ compressor, expander, reverberation and equalizer editors were captured after th
 change: each renders its groups and its controls, and the De-esser's *Sibilance*,
 *Attack* and *Release* rows are the ones the live-parameter fix made effective.
 No clipping, overlap, truncation or missing glyph was found.
+
+A final pass checked which effect a chain row is showing. It found that the rows
+never marked the effect the editor belonged to. Rebuilding the chain list
+recreated every row and dropped the `GtkListBox` selection, so the highlight was
+gone as soon as the 50 ms poll noticed a change in the chain, and also after a
+preset load, a move or an enable toggle; the editor and the chain then disagreed
+about which effect was selected. The selection is restored from the chain model
+whenever the rows are rebuilt or the editor is refreshed, and the highlighted row
+was captured in both appearances: the row fills with the theme's selection colour
+instead of staying flush with its neighbours. The pass re-ran all thirteen harness
+states in `prefer-light` and `prefer-dark` and re-checked the real microphone
+pipeline, which read −36.8 dB at the input meter and −36.9 dB at the output meter,
+so the input chain is fed by the capture stream rather than drawn.
+
+The gettext pipeline was exercised end to end for the first time. A small
+Indonesian catalog was compiled with `msgfmt` and bound with
+`PIPEWIRE_EFFECTS_LOCALEDIR`; the navigation then read *Efek*, *Preset* and
+*Perangkat*, the chain header read *Rantai*, and the effect names read *Ekualiser*
+and *Pembatas*, while the strings the test catalog did not carry stayed English.
+The mechanism therefore translates and falls back as designed; no translation is
+shipped, so an installed build still shows English.

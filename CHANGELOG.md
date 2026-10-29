@@ -184,6 +184,12 @@ keeps working in the next.
 - Three EasyEffects conversion warnings were written as bare string literals
   rather than through gettext, so they were untranslatable: the two ladder filter
   mappings and the delay's left/right wet mismatch.
+- The effect that the editor is showing is highlighted in the chain again.
+  Rebuilding the chain list recreated every row and dropped the selection, so the
+  row lost its highlight after a preset load, a move, or an enable toggle, and the
+  editor and the chain disagreed about which effect was selected. The selection is
+  restored from the chain model whenever the rows are rebuilt or the editor is
+  refreshed.
 
 ### Changed
 

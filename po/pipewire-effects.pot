@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PipeWire Effects 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/D1ZZY4/PipewireEffects/issues\n"
-"POT-Creation-Date: 2026-10-30 02:48+0700\n"
+"POT-Creation-Date: 2026-10-30 03:26+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1147,7 +1147,7 @@ msgid "Shape what your microphone captures"
 msgstr ""
 
 #: crates/ui/src/pages.rs:220 crates/ui/src/pages.rs:222
-#: crates/ui/src/window.rs:278
+#: crates/ui/src/window.rs:279
 msgid "Bypass the effect chain"
 msgstr ""
 
@@ -1488,6 +1488,6 @@ msgstr ""
 msgid "Turn on microphone processing in the Devices page"
 msgstr ""
 
-#: crates/ui/src/window.rs:276
+#: crates/ui/src/window.rs:277
 msgid "The chain is bypassed; press to let the audio through"
 msgstr ""

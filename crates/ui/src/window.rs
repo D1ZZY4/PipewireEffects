@@ -202,39 +202,40 @@ impl Ui {
             self.chain_placeholder
                 .set_tooltip_text(Some(t("Turn on microphone processing in the Devices page")));
         }
+        self.restore_selection();
     }
 
     pub fn rebuild_editor(self: &Rc<Self>) {
-        let (built, selection) = {
+        let built = {
             let state = self.state.borrow();
             let chain = state.active_chain();
-            let built = chain.selected.and_then(|id| {
+            chain.selected.and_then(|id| {
                 chain
                     .slot(id)
                     .map(|slot| (slot.kind, editor::build(self, slot.kind, &slot.params)))
-            });
-            let selection = chain
-                .slots
-                .iter()
-                .position(|slot| Some(slot.id) == chain.selected);
-            (built, selection)
+            })
         };
         while let Some(child) = self.editor_host.first_child() {
             self.editor_host.remove(&child);
         }
         match built {
-            Some((_kind, widget)) => {
-                self.editor_host.append(&widget);
-                if let Some(index) = selection
-                    && let Some(row) = self.chain_list.row_at_index(index as i32)
-                {
-                    self.chain_list.select_row(Some(&row));
-                }
-            }
-            None => {
-                self.editor_host.append(&editor::empty_state(self));
-            }
+            Some((_kind, widget)) => self.editor_host.append(&widget),
+            None => self.editor_host.append(&editor::empty_state(self)),
         }
+        self.restore_selection();
+    }
+
+    fn restore_selection(&self) {
+        let position = {
+            let state = self.state.borrow();
+            let chain = state.active_chain();
+            chain
+                .slots
+                .iter()
+                .position(|slot| Some(slot.id) == chain.selected)
+        };
+        let row = position.and_then(|index| self.chain_list.row_at_index(index as i32));
+        self.chain_list.select_row(row.as_ref());
     }
 
     pub fn show_banner(&self, message: &str) {
