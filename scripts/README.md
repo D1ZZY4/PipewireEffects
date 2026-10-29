@@ -91,7 +91,8 @@ can gate a review.
 | `banner` | an error banner over the Effects page |
 | `bypass` | the Effects page with the chain bypassed |
 | `narrow` | the collapsed layout at 720x620 |
-| `input` | the Input pipeline, with microphone processing switched on || `effect:<kind>` | the built-in preset plus the named effect, selected |
+| `input` | the Input pipeline, with microphone processing switched on |
+| `effect:<kind>` | the built-in preset plus the named effect, selected |
 
 `input` starts the real microphone pipeline for the duration of the capture.
 Use it knowingly; it records nothing, but it does open the capture device.

@@ -211,7 +211,7 @@ The reference directory was not modified at any point.
 | A mutex and a worker object around every effect | The audio thread here allocates nothing, locks nothing and frees nothing; parameters are atomics and structure changes travel through a bounded lock-free queue. |
 | Third-party plugin wrappers | Replaced with native Rust DSP for a self-contained binary; the plugin-based effects are listed as unimplemented rather than faked. |
 | 30-band equalizer with per-band type/Q and channel splitting | A 10-band octave equalizer with a shared bandwidth and output gain. Reduction recorded in the matrix. |
-| EBU R128 loudness (libebur128) | RMS-based auto gain. The measurement is not R128 and is labelled as such. |
+| EBU R128 loudness (libebur128) | Implemented here from scratch: `crates/dsp/src/r128.rs` applies the ITU-R BS.1770 K-weighting for the running sample rate, 400 ms blocks at a 100 ms hop, the absolute −70 LUFS and relative −10 LU gates, and the −0.691 offset, over a rolling 30-second window. Auto gain drives its gain from that measurement. |
 | KConfig settings | Plain JSON presets plus runtime-only engine settings. |
 | Metadata-driven default device | `default.audio.sink` is read before the sink is created and watched while the engine runs; `priority.session` remains the fallback |
 | The local socket server and the command line options | Not implemented; the interface is the only control surface in this increment. |

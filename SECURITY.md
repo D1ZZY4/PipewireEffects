@@ -28,9 +28,11 @@ Only the latest release is supported. There are no maintenance branches.
 
 Worth reporting:
 
-- Memory safety problems. The crate is safe Rust: it contains no `unsafe`
-  blocks, so a report would mean a bug in the standard library, in
-  `pipewire-rs`, or in one of the other dependencies rather than in this code.
+- Memory safety problems. The application is safe Rust except for one isolated
+  FFI module: `crates/core/src/i18n.rs` declares the gettext and libc functions
+  it calls and reads the `char *` they return. A report would most likely mean a
+  bug in the standard library, in `pipewire-rs`, or in one of the other
+  dependencies rather than in this code.
 - Denial of service: a preset, a parameter value, or a stream format that makes
   the audio thread hang, allocate without bound, or panic.
 - Path traversal or unexpected file writes through preset names.
@@ -62,6 +64,13 @@ For readers auditing this codebase:
 - Audio samples cross the SPA boundary through explicit little-endian byte
   conversion (`f32::from_le_bytes` and `f32::to_le_bytes`), so no aliasing,
   alignment or pointer assumption is involved.
+- The only `unsafe` code is the gettext FFI in `crates/core/src/i18n.rs`: the
+  declarations for `gettext`, `ngettext`, `bindtextdomain`, `textdomain` and
+  `setlocale`, and the `CStr` reads of the pointers they return. Every message
+  identifier is copied into a fixed-size `[u8; 512]` buffer, so the argument is
+  always NUL-terminated and cannot contain an interior NUL, and a message that
+  gettext cannot translate is returned as the identifier itself instead of being
+  dereferenced.
 - Realtime code is allocation-free by design, which also means a hostile
   parameter value cannot make the audio thread allocate. Parameters are clamped
   and rejected if non-finite before they are published to the audio thread.

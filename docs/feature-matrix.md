@@ -21,7 +21,7 @@ classification is:
 | REQUIRED | Twenty effects; the virtual sink and the virtual source; the output and the input pipeline; the destination device; per-effect enable, ordering and global bypass; presets (built-in, user, import, export, EasyEffects conversion); live meters; diagnostics; persistence of the device, the preset and the bypass; the GTK4/libadwaita interface; the desktop entry and icon |
 | PRESERVE | Preset JSON schema v1 and its reader; the easyeffects conversion vocabulary and its warning list; the existing module boundaries and the realtime rules; the repository identity, licence and documentation |
 | EXCLUDED | LV2/LADSPA hosting, the convolver, the spectrum analyser, pitch shift, autotune, bass loudness, the multiband compressor and gate, the loudness processor, the voice suppressor, the echo canceller, the speech processor, deep noise removal and RNNoise. Reasons: each needs a third-party plugin, an FFT or phase-vocoder library, or a neural model and a runtime that cannot be verified here; the per-row reason says which |
-| BLOCKED | Deep noise removal and RNNoise noise reduction (require ONNX/RNNoise models and a runtime that cannot be verified here); the community preset browser (requires network access). Preset autoload per application and the blocklist are **not started** and are recorded as unfinished, not as excluded |
+| BLOCKED | Deep noise removal and RNNoise noise reduction (require ONNX/RNNoise models and a runtime that cannot be verified here); the community preset browser (requires network access). Preset autoload per application and the blocklist are not implemented and are recorded as unfinished, not as excluded |
 
 The application is therefore complete for the two pipelines it implements -
 output and input, on a virtual sink and a virtual source - and is **not** at full
@@ -114,12 +114,12 @@ Reference evidence refers to files under `references/`.
 | DSP (biquads, twenty effects, registry, R128 measurement) | 118 | `crates/dsp/src/**`, `crates/dsp/tests/` |
 | Engine (config, devices, target resolution, metadata, processor, stream properties, byte conversion, registry filtering) | 29 | `crates/engine/src/**` |
 | Presets (schema, coercion, storage, built-ins, reference conversion for both sections) | 103 | `crates/presets/src/**` |
-| Settings (model, atomic store, autostart entry) | 10 | `crates/settings/src/**` |
+| Settings (model, atomic store, autostart entry) | 9 | `crates/settings/src/**` |
 | Interface (formatting, icons, response axis, state model, banners, device labels) | 20 | `crates/ui/src/**` |
 | Command line (parsing, help, exported presets) | 4 | `crates/app/src/cli.rs` |
 | Live PipeWire integration (ignored by default) | 4 | `crates/engine/tests/live_pipewire.rs` |
 
-`cargo test --workspace` therefore runs 319 tests. None of them need an audio
+`cargo test --workspace` therefore runs 318 tests. None of them need an audio
 device. Two of the interface tests look up icons in the live icon theme and skip
 themselves when no display is available. The four live tests are `#[ignore]`d and
 are run explicitly against a running daemon.

@@ -386,7 +386,7 @@ installed into the system here.
 
 ## 11. Verification
 
-- `cargo test --workspace`: 319 tests, no audio device needed.
+- `cargo test --workspace`: 318 tests, no audio device needed.
   Two of them need a display and skip themselves without one: the bundled icon
   lookup and the icon-theme check.
 - The R128 measurement is checked against the standard's own calibration: a
@@ -514,10 +514,12 @@ cores, `rustc 1.99.1`, release profile with thin LTO) a representative run gave:
 
 The whole chain uses about 3 % of one core and leaves roughly thirty times the
 deadline free at both quantum sizes, which is the headroom the realtime callback
-needs for scheduling jitter. Repeated runs on the loaded development machine
-measured between 25× and 33× realtime, or about 3 % to 4 % of one core, so the
-figures are a range rather than a single number. These are wall-clock figures from
-one machine, not a portable claim; re-run the example to reproduce them.
+needs for scheduling jitter. Repeated runs vary with machine load: the same
+machine measured between 22× and 33× realtime for the full chain, or about 3 % to
+4.6 % of one core, so the figures are a range rather than a single number. A
+re-run on a loaded machine gave 27.6× at 1024 frames and 21.9× at 128 frames.
+These are wall-clock figures from one machine, not a portable claim; re-run the
+example to reproduce them.
 
 ### GPU acceleration
 
@@ -701,7 +703,7 @@ pass, not a regression; the earlier walk, with the slider names and value text,
 remains the record for the interactive controls.
 
 `scripts/capture-ui.sh` was re-run unchanged; `scripts/update-po.sh` regenerates
-`po/pipewire-effects.pot` with no change other than its creation date (348
+`po/pipewire-effects.pot` with no change other than its creation date (343
 messages), and `make install DESTDIR=<staging> PREFIX=/usr` installed the
 binary, the desktop entry, both icon sets and the built-in preset into a staging
 tree and `make uninstall` removed exactly what it installed.

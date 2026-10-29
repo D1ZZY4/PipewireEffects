@@ -278,6 +278,19 @@ keeps working in the next.
   engine's `ResetChain` and `RefreshDevices` commands and their handlers, the
   `awaiting_recycling` accessors, the `limited_blocks` and `latency_frames`
   counters, and the chain's unread `loaded_preset` field.
+- A second pass removed the remaining unreachable API: the core error's
+  `InvalidIndex` variant, the engine error's `NoDevice`, `InvalidName` and
+  `AlreadyRunning` variants, the preset error's `MissingSection` variant, the
+  buffer's `clear`, the chain's `reset` and `is_bypassed`, the engine handle's
+  `started`, the preset store's `user_dir`, the autostart helper's `is_enabled`,
+  the settings store's `path` and `exists`, `Settings::runs`, the equalizer's
+  `gain_values`, the Devices and Preferences views' `page` accessors (and the
+  fields behind them), `PreferencesView::developer_mode`, and `State`'s
+  `settings_store` accessor. The translation template dropped the five messages
+  that only those variants carried (343 messages remain).
+- The window activation path matches on the held state directly instead of
+  unwrapping it after a separate check, so no `expect` remains in a production
+  path.
 
 ### Documentation
 
@@ -287,6 +300,15 @@ keeps working in the next.
   checkout, including what was excluded and why, and how a session manager
   treats a virtual device.
 - `docs/feature-matrix.md` documents the reference conversion per effect.
+- The stale claim in `docs/reference-audit.md` that auto gain is an RMS
+  measurement was corrected: the R128 measurement in `crates/dsp/src/r128.rs`
+  implements the standard, and the audit now says so. The test counts in
+  `docs/feature-matrix.md`, `docs/architecture.md` and `README.md` were brought
+  in line with the suite (318), and a merged table row in `scripts/README.md` was
+  split again.
+- `SECURITY.md` claimed the crate contains no `unsafe` blocks, which stopped
+  being true when the gettext FFI was added to `crates/core/src/i18n.rs`. Its
+  scope section and design notes now describe that module accurately.
 - `SECURITY.md` no longer describes `unsafe` blocks that do not exist in the
   codebase.
 
