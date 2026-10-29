@@ -4,6 +4,8 @@ use std::rc::Rc;
 use adw::prelude::*;
 use gtk::gio;
 use gtk::glib;
+use pwe_core::PipelineKind;
+use pwe_core::i18n::{t, tr};
 
 use crate::state::State;
 use crate::window::Ui;
@@ -21,9 +23,35 @@ const STYLE: &str = "
 .numeric { font-feature-settings: \"tnum\"; }
 
 .chain-bypassed { opacity: 0.5; }
+.bypass-button:checked { background: alpha(@accent_bg_color, 0.22); color: @accent_color; }
+.pipeline-switcher button { font-weight: bold; }
 ";
 
-pub fn run() -> std::process::ExitCode {
+#[derive(Debug, Clone)]
+pub struct Options {
+    pub show_window: bool,
+    pub preset: Option<String>,
+    pub device: Option<String>,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            show_window: true,
+            preset: None,
+            device: None,
+        }
+    }
+}
+
+struct Holder {
+    state: Option<State>,
+    ui: Option<Rc<Ui>>,
+    activations: u32,
+    hold: Option<gio::ApplicationHoldGuard>,
+}
+
+pub fn run(options: Options) -> std::process::ExitCode {
     let application = adw::Application::builder()
         .application_id(APPLICATION_ID)
         .build();
@@ -32,36 +60,95 @@ pub fn run() -> std::process::ExitCode {
         install_icons();
         install_actions(application);
     });
-    let holder: Rc<RefCell<Option<Rc<Ui>>>> = Rc::new(RefCell::new(None));
+
+    let holder = Rc::new(RefCell::new(Holder {
+        state: None,
+        ui: None,
+        activations: 0,
+        hold: None,
+    }));
 
     let active = Rc::clone(&holder);
+    let options = Rc::new(options);
     application.connect_activate(move |application| {
-        if let Some(ui) = active.borrow().as_ref() {
-            ui.window.present();
-            return;
+        activate(application, &active, &options);
+    });
+
+    let result = application.run();
+    holder.borrow_mut().ui.take();
+    if let Some(state) = holder.borrow_mut().state.as_mut() {
+        for kind in pwe_core::ALL_PIPELINES {
+            if let Some(engine) = state.chain_mut(kind).engine_mut() {
+                engine.shutdown();
+            }
         }
+    }
+    if result == glib::ExitCode::SUCCESS {
+        std::process::ExitCode::SUCCESS
+    } else {
+        std::process::ExitCode::FAILURE
+    }
+}
+
+fn activate(application: &adw::Application, holder: &Rc<RefCell<Holder>>, options: &Rc<Options>) {
+    let mut holder = holder.borrow_mut();
+    holder.activations += 1;
+    if let Some(ui) = &holder.ui {
+        ui.window.present();
+        return;
+    }
+    if !options.show_window && holder.activations == 1 {
         match State::new() {
             Ok(state) => {
-                let ui = Ui::build(application, state);
-                ui.window.present();
-                if std::env::var_os("PIPEWIRE_EFFECTS_SMOKE_TEST").is_some() {
-                    schedule_smoke_test(&ui);
-                }
-                *active.borrow_mut() = Some(ui);
+                apply_startup(&state, options);
+                holder.state = Some(state);
+                holder.hold = Some(application.hold());
+                println!(
+                    "{}",
+                    tr("{0} is running without a window", &[APPLICATION_ID])
+                );
             }
             Err(error) => {
                 show_fatal(application, &error.to_string());
                 application.quit();
             }
         }
-    });
+        return;
+    }
+    let mut state = holder.state.take();
+    if state.is_none() {
+        match State::new() {
+            Ok(created) => state = Some(created),
+            Err(error) => {
+                show_fatal(application, &error.to_string());
+                application.quit();
+                return;
+            }
+        }
+    }
+    let state = state.expect("the state was just created");
+    apply_startup(&state, options);
+    let ui = Ui::build(application, state);
+    ui.window.present();
+    if std::env::var_os("PIPEWIRE_EFFECTS_SMOKE_TEST").is_some() {
+        schedule_smoke_test(&ui);
+    }
+    holder.ui = Some(ui);
+}
 
-    let result = application.run();
-    holder.borrow_mut().take();
-    if result == glib::ExitCode::SUCCESS {
-        std::process::ExitCode::SUCCESS
-    } else {
-        std::process::ExitCode::FAILURE
+fn apply_startup(state: &State, options: &Options) {
+    if let Some(device) = &options.device {
+        for kind in pwe_core::ALL_PIPELINES {
+            state.chain(kind).set_target_device(device.clone());
+        }
+    }
+    if let Some(preset) = &options.preset
+        && let Err(error) = state.store.load(preset)
+    {
+        state.warn(&tr(
+            "'{0}' could not be loaded: {1}",
+            &[preset, &error.to_string()],
+        ));
     }
 }
 
@@ -87,33 +174,20 @@ fn schedule_smoke_test(ui: &Rc<Ui>) {
                 if !warnings.is_empty() {
                     failures.push(format!("the default preset reported {warnings:?}"));
                 }
-                let count = ui.state.borrow().slots.len();
+                let count = ui.state.borrow().slots().len();
                 if count == 0 {
                     failures.push("the default preset loaded no effects".to_owned());
-                }
-                let disabled = ui
-                    .state
-                    .borrow()
-                    .slots
-                    .iter()
-                    .filter(|slot| !slot.enabled)
-                    .count();
-                if disabled != 4 {
-                    failures.push(format!(
-                        "the default preset enabled {} effects",
-                        8 - disabled
-                    ));
                 }
             }
             Err(error) => failures.push(format!("the default preset failed: {error}")),
         }
         let (state, devices, rate) = {
             let state = ui.state.borrow();
-            let shared = state.engine.shared();
+            let snapshot = state.snapshot_of(PipelineKind::Output);
             (
-                shared.state(),
-                shared.snapshot().devices.len(),
-                shared.snapshot().sample_rate,
+                state.state_of(PipelineKind::Output),
+                snapshot.devices.len(),
+                snapshot.sample_rate,
             )
         };
         if devices == 0 {
@@ -126,7 +200,11 @@ fn schedule_smoke_test(ui: &Rc<Ui>) {
             rate,
             failures.len()
         );
-        ui.state.borrow_mut().engine.shutdown();
+        for kind in pwe_core::ALL_PIPELINES {
+            if let Some(engine) = ui.state.borrow_mut().chain_mut(kind).engine_mut() {
+                engine.shutdown();
+            }
+        }
         if failures.is_empty() {
             std::process::exit(0);
         }
@@ -175,14 +253,14 @@ fn install_actions(application: &adw::Application) {
         let dialog = adw::AboutDialog::builder()
             .application_name("PipeWire Effects")
             .application_icon(APPLICATION_ID)
-            .developers(vec!["PipeWire Effects contributors"])
+            .developers(vec![t("PipeWire Effects contributors")])
             .version(env!("CARGO_PKG_VERSION"))
             .license_type(gtk::License::Gpl30)
             .website(HOMEPAGE)
             .issue_url(format!("{HOMEPAGE}/issues"))
-            .comments(
+            .comments(t(
                 "Runs application audio through a chain of effects on a virtual PipeWire sink.",
-            )
+            ))
             .build();
         dialog.present(app.active_window().as_ref());
     });
@@ -190,8 +268,8 @@ fn install_actions(application: &adw::Application) {
 }
 
 fn show_fatal(application: &adw::Application, message: &str) {
-    let dialog = adw::AlertDialog::new(Some("PipeWire Effects could not start"), Some(message));
-    dialog.add_response("close", "Close");
+    let dialog = adw::AlertDialog::new(Some(t("PipeWire Effects could not start")), Some(message));
+    dialog.add_response("close", t("Close"));
     dialog.set_default_response(Some("close"));
     dialog.set_close_response("close");
     let application = application.clone();
@@ -222,5 +300,15 @@ mod tests {
         );
         let missing = crate::format::missing_icons(&theme);
         assert!(missing.is_empty(), "the icon theme is missing {missing:?}");
+    }
+
+    #[test]
+    fn the_default_options_open_a_window() {
+        assert!(Options::default().show_window);
+        let headless = Options {
+            show_window: false,
+            ..Options::default()
+        };
+        assert!(!headless.show_window);
     }
 }

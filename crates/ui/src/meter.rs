@@ -29,6 +29,7 @@ impl LevelDisplay {
         let container = gtk::Box::new(gtk::Orientation::Vertical, 6);
         container.add_css_class("meter-block");
         container.add_css_class("card");
+        container.set_hexpand(true);
 
         let header = gtk::Box::new(gtk::Orientation::Horizontal, 6);
         let name = gtk::Label::new(Some(title));
@@ -198,6 +199,9 @@ fn draw_history(
     history: &[f64],
 ) {
     if history.len() < 2 || height <= 2.0 {
+        return;
+    }
+    if history.iter().all(|value| *value <= 0.001) {
         return;
     }
     let step = width / (history.len() - 1) as f64;

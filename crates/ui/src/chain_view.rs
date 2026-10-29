@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use gtk::prelude::*;
+use pwe_core::i18n::t;
 use pwe_engine::EffectSlot;
 
 use crate::Ui;
@@ -38,7 +39,7 @@ pub fn row(ui: &Rc<Ui>, id: EffectSlot, kind: &'static str, enabled: bool) -> gt
     let toggle = gtk::Switch::new();
     toggle.set_active(enabled);
     toggle.set_valign(gtk::Align::Center);
-    toggle.set_tooltip_text(Some("Enable or disable this effect"));
+    toggle.set_tooltip_text(Some(t("Enable or disable this effect")));
     {
         let ui = Rc::clone(ui);
         toggle.connect_active_notify(move |toggle| {
@@ -92,9 +93,9 @@ fn row_menu(ui: &Rc<Ui>, id: EffectSlot) -> gtk::MenuButton {
     list.set_margin_start(6);
     list.set_margin_end(6);
 
-    let move_up = menu_entry("Move up", format::ICON_MOVE_UP);
-    let move_down = menu_entry("Move down", format::ICON_MOVE_DOWN);
-    let remove = menu_entry("Remove", format::ICON_REMOVE);
+    let move_up = menu_entry(t("Move up"), format::ICON_MOVE_UP);
+    let move_down = menu_entry(t("Move down"), format::ICON_MOVE_DOWN);
+    let remove = menu_entry(t("Remove"), format::ICON_REMOVE);
     remove.add_css_class("destructive-action");
     list.append(&move_up);
     list.append(&move_down);
@@ -106,7 +107,7 @@ fn row_menu(ui: &Rc<Ui>, id: EffectSlot) -> gtk::MenuButton {
     button.set_icon_name(format::ICON_ROW_MENU);
     button.add_css_class("flat");
     button.set_valign(gtk::Align::Center);
-    button.set_tooltip_text(Some("Reorder or remove this effect"));
+    button.set_tooltip_text(Some(t("Reorder or remove this effect")));
     button.set_popover(Some(&popover));
 
     let ui_up = Rc::clone(ui);

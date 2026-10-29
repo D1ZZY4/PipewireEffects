@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use gtk::{gio, glib};
+use pwe_core::i18n::t;
 
 use crate::format;
 
@@ -104,7 +105,7 @@ where
     F: Fn(&'static str) + 'static,
 {
     let dialog = adw::Dialog::builder()
-        .title("Add effect")
+        .title(t("Add effect"))
         .content_width(420)
         .content_height(560)
         .build();
@@ -112,7 +113,7 @@ where
     toolbar.add_top_bar(&adw::HeaderBar::new());
 
     let search = gtk::SearchEntry::new();
-    search.set_placeholder_text(Some("Search effects"));
+    search.set_placeholder_text(Some(t("Search effects")));
     search.set_margin_top(6);
     search.set_margin_bottom(6);
     search.set_margin_start(12);
@@ -149,8 +150,8 @@ where
             .filter(|descriptor| descriptor.category.label() == category)
         {
             let row = adw::ActionRow::new();
-            row.set_title(descriptor.label);
-            row.set_subtitle(descriptor.summary);
+            row.set_title(t(descriptor.label));
+            row.set_subtitle(t(descriptor.summary));
             row.set_activatable(true);
             row.set_widget_name(descriptor.id);
             let icon = gtk::Image::from_icon_name(format::effect_icon(descriptor.id));

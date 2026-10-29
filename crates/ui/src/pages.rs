@@ -2,6 +2,8 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use gtk::gio;
+use pwe_core::i18n::t;
+use pwe_core::{ALL_PIPELINES, PipelineKind};
 
 use crate::format;
 use crate::meter::LevelDisplay;
@@ -17,6 +19,14 @@ pub const PAGES: [(&str, &str, &str); 3] = [
 
 pub const NARROW_LAYOUT: &str = "max-width: 860px";
 
+#[derive(Clone)]
+pub struct WorkspaceActions {
+    pub on_target: Rc<dyn Fn(String)>,
+    pub on_input: Rc<dyn Fn(bool)>,
+    pub on_autostart: Rc<dyn Fn(bool)>,
+    pub on_reconnect: Rc<dyn Fn()>,
+}
+
 pub struct Workspace {
     pub window: adw::ApplicationWindow,
     pub toast: adw::ToastOverlay,
@@ -24,7 +34,6 @@ pub struct Workspace {
     pub stack: adw::ViewStack,
     pub chain_list: gtk::ListBox,
     pub chain_placeholder: gtk::Widget,
-    pub status_label: gtk::Label,
     pub editor_host: gtk::Box,
     pub preset_list: gtk::ListBox,
     pub preset_buttons: (gtk::Button, gtk::Button, gtk::Button, gtk::Button),
@@ -33,14 +42,14 @@ pub struct Workspace {
     pub meter_in: LevelDisplay,
     pub meter_out: LevelDisplay,
     pub settings_view: SettingsView,
+    pub pipeline_buttons: [gtk::ToggleButton; 2],
 }
 
 impl Workspace {
-    pub fn build(app: &adw::Application, on_target: Rc<dyn Fn(String)>) -> Self {
+    pub fn build(app: &adw::Application, actions: WorkspaceActions) -> Self {
         let window = adw::ApplicationWindow::builder()
             .application(app)
             .title("PipeWire Effects")
-            .icon_name(crate::app::APPLICATION_ID)
             .default_width(1040)
             .default_height(720)
             .build();
@@ -50,29 +59,30 @@ impl Workspace {
         let banner = adw::Banner::new("");
         banner.set_revealed(false);
 
-        let (input_box, meter_in) = LevelDisplay::new("Input", true);
-        let (output_box, meter_out) = LevelDisplay::new("Output", false);
+        let (input_box, meter_in) = LevelDisplay::new(t("Input"), true);
+        let (output_box, meter_out) = LevelDisplay::new(t("Output"), true);
 
         let chain_list = gtk::ListBox::new();
         chain_list.set_selection_mode(gtk::SelectionMode::Single);
         chain_list.add_css_class("navigation-sidebar");
         chain_list.set_valign(gtk::Align::Start);
 
-        let chain_placeholder = placeholder("Add an effect to start shaping your audio.");
+        let chain_placeholder = placeholder(t("Add an effect to start shaping your audio."));
         let chain_scroll = gtk::ScrolledWindow::new();
         chain_scroll.set_vexpand(true);
         chain_scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
         chain_scroll.set_propagate_natural_width(false);
         chain_scroll.set_child(Some(&chain_list));
 
-        let status_label = status_line();
         let add_button = gtk::Button::from_icon_name(format::ICON_ADD);
         add_button.add_css_class("flat");
         add_button.set_valign(gtk::Align::Center);
-        add_button.set_tooltip_text(Some("Add an effect to the chain"));
+        add_button.set_tooltip_text(Some(t("Add an effect to the chain")));
+
+        let (pipeline_row, pipeline_buttons) = pipeline_switcher();
 
         let chain_header = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-        chain_header.append(&widgets::section_title("Chain"));
+        chain_header.append(&widgets::section_title(t("Chain")));
         let filler = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         filler.set_hexpand(true);
         chain_header.append(&filler);
@@ -83,11 +93,14 @@ impl Workspace {
         sidebar.set_margin_bottom(10);
         sidebar.set_margin_start(10);
         sidebar.set_margin_end(10);
-        sidebar.append(&input_box);
+        sidebar.append(&pipeline_row);
         sidebar.append(&chain_header);
-        sidebar.append(&status_label);
         sidebar.append(&chain_placeholder);
         sidebar.append(&chain_scroll);
+
+        let levels = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        levels.append(&input_box);
+        levels.append(&output_box);
 
         let editor_host = gtk::Box::new(gtk::Orientation::Vertical, 0);
         editor_host.set_vexpand(true);
@@ -96,7 +109,7 @@ impl Workspace {
         editor_column.set_margin_bottom(10);
         editor_column.set_margin_start(14);
         editor_column.set_margin_end(14);
-        editor_column.append(&output_box);
+        editor_column.append(&levels);
         editor_column.append(&editor_host);
         let editor_scroll = gtk::ScrolledWindow::new();
         editor_scroll.set_vexpand(true);
@@ -109,7 +122,7 @@ impl Workspace {
         preset_scroll.set_vexpand(true);
         preset_scroll.set_child(Some(&presets_page));
 
-        let (settings_page, settings_view) = SettingsView::new(on_target);
+        let (settings_page, settings_view) = SettingsView::new(actions);
         let settings_scroll = gtk::ScrolledWindow::new();
         settings_scroll.set_vexpand(true);
         settings_scroll.set_child(Some(&settings_page));
@@ -118,19 +131,19 @@ impl Workspace {
         stack.add_titled_with_icon(
             &effects,
             Some("effects"),
-            "Effects",
+            t("Effects"),
             format::ICON_PAGE_EFFECTS,
         );
         stack.add_titled_with_icon(
             &preset_scroll,
             Some("presets"),
-            "Presets",
+            t("Presets"),
             format::ICON_PAGE_PRESETS,
         );
         stack.add_titled_with_icon(
             &settings_scroll,
             Some("devices"),
-            "Devices",
+            t("Devices"),
             format::ICON_PAGE_DEVICES,
         );
 
@@ -158,7 +171,6 @@ impl Workspace {
             stack,
             chain_list,
             chain_placeholder,
-            status_label,
             editor_host,
             preset_list,
             preset_buttons,
@@ -167,20 +179,57 @@ impl Workspace {
             meter_in,
             meter_out,
             settings_view,
+            pipeline_buttons,
         }
     }
+}
+
+fn pipeline_switcher() -> (gtk::Box, [gtk::ToggleButton; 2]) {
+    let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    row.add_css_class("linked");
+    row.add_css_class("pipeline-switcher");
+    row.set_halign(gtk::Align::Fill);
+    row.set_homogeneous(true);
+
+    let mut buttons: Vec<gtk::ToggleButton> = Vec::new();
+    for kind in ALL_PIPELINES {
+        let button = gtk::ToggleButton::with_label(kind.label());
+        button.add_css_class("flat");
+        button.set_hexpand(true);
+        button.set_tooltip_text(Some(match kind {
+            PipelineKind::Output => t("Shape what applications play back"),
+            PipelineKind::Input => t("Shape what your microphone captures"),
+        }));
+        if let Some(previous) = buttons.last() {
+            button.set_group(Some(previous));
+        }
+        row.append(&button);
+        buttons.push(button);
+    }
+    let buttons = match buttons.try_into() {
+        Ok(array) => array,
+        Err(_) => unreachable!("exactly two pipeline buttons are built"),
+    };
+    (row, buttons)
 }
 
 fn header_controls(header: &adw::HeaderBar) -> (gtk::ToggleButton, gtk::MenuButton) {
     let bypass = gtk::ToggleButton::new();
     bypass.set_icon_name(format::ICON_BYPASS);
-    bypass.set_tooltip_text(Some("Bypass every effect without removing it"));
+    bypass.set_tooltip_text(Some(t("Bypass the effect chain")));
+    bypass.update_property(&[
+        gtk::accessible::Property::Label(t("Bypass the effect chain")),
+        gtk::accessible::Property::Description(t(
+            "Stops the audio from passing through the effects without removing them",
+        )),
+    ]);
     bypass.add_css_class("flat");
+    bypass.add_css_class("bypass-button");
     header.pack_start(&bypass);
 
     let menu_button = gtk::MenuButton::builder()
         .icon_name(format::ICON_MENU)
-        .tooltip_text("Main menu")
+        .tooltip_text(t("Main menu"))
         .build();
     header.pack_end(&menu_button);
     (bypass, menu_button)
@@ -188,18 +237,9 @@ fn header_controls(header: &adw::HeaderBar) -> (gtk::ToggleButton, gtk::MenuButt
 
 fn main_menu() -> gio::Menu {
     let menu = gio::Menu::new();
-    menu.append(Some("About PipeWire Effects"), Some("app.about"));
-    menu.append(Some("Quit"), Some("app.quit"));
+    menu.append(Some(t("About PipeWire Effects")), Some("app.about"));
+    menu.append(Some(t("Quit")), Some("app.quit"));
     menu
-}
-
-fn status_line() -> gtk::Label {
-    let label = gtk::Label::new(Some("Connecting"));
-    label.set_xalign(0.0);
-    label.add_css_class("caption");
-    label.add_css_class("dim-label");
-    label.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    label
 }
 
 fn placeholder(text: &str) -> gtk::Widget {
@@ -259,7 +299,7 @@ pub fn effects_page(
 fn sidebar_toggle(split: &adw::OverlaySplitView) -> gtk::ToggleButton {
     let toggle = gtk::ToggleButton::new();
     toggle.set_icon_name(format::ICON_SIDEBAR);
-    toggle.set_tooltip_text(Some("Show or hide the effect chain"));
+    toggle.set_tooltip_text(Some(t("Show or hide the effect chain")));
     toggle.add_css_class("flat");
     toggle.set_visible(false);
 

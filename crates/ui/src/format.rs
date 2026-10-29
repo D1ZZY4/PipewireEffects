@@ -1,6 +1,4 @@
-use pwe_engine::Snapshot;
-
-pub const ICON_BYPASS: &str = "media-playback-pause-symbolic";
+pub const ICON_BYPASS: &str = "system-shutdown-symbolic";
 pub const ICON_MENU: &str = "open-menu-symbolic";
 pub const ICON_SIDEBAR: &str = "sidebar-show-symbolic";
 pub const ICON_PAGE_EFFECTS: &str = "audio-x-generic-symbolic";
@@ -16,6 +14,9 @@ pub const ICON_REMOVE: &str = "user-trash-symbolic";
 pub const ICON_OPEN: &str = "go-next-symbolic";
 pub const ICON_RESET: &str = "edit-undo-symbolic";
 pub const ICON_ADD: &str = "list-add-symbolic";
+pub const ICON_SAVE: &str = "document-save-symbolic";
+pub const ICON_IMPORT: &str = "document-open-symbolic";
+pub const ICON_EXPORT: &str = "document-send-symbolic";
 
 pub const CHROME_ICONS: &[&str] = &[
     ICON_BYPASS,
@@ -34,6 +35,9 @@ pub const CHROME_ICONS: &[&str] = &[
     ICON_OPEN,
     ICON_RESET,
     ICON_ADD,
+    ICON_SAVE,
+    ICON_IMPORT,
+    ICON_EXPORT,
 ];
 
 pub fn missing_icons(theme: &gtk::IconTheme) -> Vec<&'static str> {
@@ -53,28 +57,38 @@ pub fn missing_icons(theme: &gtk::IconTheme) -> Vec<&'static str> {
 }
 
 pub fn effect_label(kind: &str) -> &'static str {
-    pwe_dsp::find(kind).map_or("Effect", |descriptor| descriptor.label)
+    pwe_dsp::find(kind).map_or_else(
+        || pwe_core::i18n::t("Effect"),
+        |descriptor| pwe_core::i18n::t(descriptor.label),
+    )
 }
 
 pub fn effect_summary(kind: &str) -> &'static str {
-    pwe_dsp::find(kind).map_or("", |descriptor| descriptor.summary)
+    pwe_dsp::find(kind).map_or("", |descriptor| pwe_core::i18n::t(descriptor.summary))
 }
 
 pub fn effect_icon(kind: &str) -> &'static str {
     match kind {
-        "equalizer" => "view-list-symbolic",
-        "filter" => "view-sort-descending-symbolic",
-        "compressor" => "audio-volume-medium-symbolic",
-        "limiter" => "audio-volume-high-symbolic",
-        "gate" => "microphone-sensitivity-low-symbolic",
-        "deesser" => "audio-headphones-symbolic",
-        "autogain" => "microphone-sensitivity-high-symbolic",
-        "bass_enhancer" => "audio-speakers-symbolic",
-        "crystalizer" => "starred-symbolic",
-        "stereo_tools" => "object-flip-horizontal-symbolic",
-        "gain" => "multimedia-volume-control-symbolic",
-        "delay" => "alarm-symbolic",
-        "reverb" => "document-open-recent-symbolic",
+        "equalizer" => "pipewire-effects-equalizer-symbolic",
+        "midside_equalizer" => "pipewire-effects-midside_equalizer-symbolic",
+        "filter" => "pipewire-effects-filter-symbolic",
+        "compressor" => "pipewire-effects-compressor-symbolic",
+        "limiter" => "pipewire-effects-limiter-symbolic",
+        "maximizer" => "pipewire-effects-maximizer-symbolic",
+        "gate" => "pipewire-effects-gate-symbolic",
+        "expander" => "pipewire-effects-expander-symbolic",
+        "deesser" => "pipewire-effects-deesser-symbolic",
+        "autogain" => "pipewire-effects-autogain-symbolic",
+        "bass_enhancer" => "pipewire-effects-bass_enhancer-symbolic",
+        "crystalizer" => "pipewire-effects-crystalizer-symbolic",
+        "crusher" => "pipewire-effects-crusher-symbolic",
+        "exciter" => "pipewire-effects-exciter-symbolic",
+        "stereo_tools" => "pipewire-effects-stereo_tools-symbolic",
+        "crossfeed" => "pipewire-effects-crossfeed-symbolic",
+        "crosstalk" => "pipewire-effects-crosstalk-symbolic",
+        "gain" => "pipewire-effects-gain-symbolic",
+        "delay" => "pipewire-effects-delay-symbolic",
+        "reverb" => "pipewire-effects-reverb-symbolic",
         _ => category_icon(kind),
     }
 }
@@ -100,26 +114,6 @@ pub fn db_text(db: f32) -> String {
 
 pub fn normalized_db(db: f32) -> f64 {
     ((db.clamp(-60.0, 0.0) + 60.0) / 60.0) as f64
-}
-
-pub fn status_text(snapshot: &Snapshot, state: pwe_engine::EngineState) -> String {
-    match state {
-        pwe_engine::EngineState::Running => {
-            if snapshot.bypassed {
-                "Bypassed".to_owned()
-            } else if snapshot.sample_rate == 0 {
-                "Waiting for the graph".to_owned()
-            } else {
-                format!(
-                    "{} Hz · {} channels",
-                    snapshot.sample_rate, snapshot.channels
-                )
-            }
-        }
-        pwe_engine::EngineState::Starting => "Connecting to PipeWire".to_owned(),
-        pwe_engine::EngineState::Failed => "PipeWire connection failed".to_owned(),
-        pwe_engine::EngineState::Stopped => "Stopped".to_owned(),
-    }
 }
 
 #[cfg(test)]
@@ -157,28 +151,5 @@ mod tests {
             );
             seen.push(icon);
         }
-    }
-
-    #[test]
-    fn the_status_text_follows_the_engine_state() {
-        use pwe_engine::EngineState;
-        let mut snapshot = Snapshot::default();
-        snapshot.sample_rate = 48_000;
-        snapshot.channels = 2;
-        assert_eq!(
-            status_text(&snapshot, EngineState::Running),
-            "48000 Hz · 2 channels"
-        );
-        snapshot.bypassed = true;
-        assert_eq!(status_text(&snapshot, EngineState::Running), "Bypassed");
-        assert_eq!(
-            status_text(&snapshot, EngineState::Starting),
-            "Connecting to PipeWire"
-        );
-        assert_eq!(
-            status_text(&snapshot, EngineState::Failed),
-            "PipeWire connection failed"
-        );
-        assert_eq!(status_text(&snapshot, EngineState::Stopped), "Stopped");
     }
 }

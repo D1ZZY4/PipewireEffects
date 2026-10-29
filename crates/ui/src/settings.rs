@@ -1,137 +1,178 @@
+mod parts;
+
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use adw::prelude::*;
 use gtk::glib;
+use pwe_core::PipelineKind;
+use pwe_core::i18n::{t, tr};
 use pwe_engine::{EngineState, Snapshot, StatsSnapshot};
 
 use crate::format;
+use crate::pages::WorkspaceActions;
+use crate::settings::parts::Diagnostics;
 
 pub struct SettingsView {
     page: adw::PreferencesPage,
     state_row: adw::ActionRow,
     rate_row: adw::ActionRow,
-    sink_row: adw::ActionRow,
+    node_row: adw::ActionRow,
+    routing_row: adw::ActionRow,
+    reconnect: gtk::Button,
     devices: adw::ComboRow,
     device_names: RefCell<Vec<String>>,
     updating: Rc<Cell<bool>>,
-    captured: adw::ActionRow,
-    processed: adw::ActionRow,
-    underruns: adw::ActionRow,
-    trims: adw::ActionRow,
-    warnings: adw::ActionRow,
-    expander: adw::ExpanderRow,
+    microphone: adw::SwitchRow,
+    autostart: adw::SwitchRow,
+    diagnostics: Diagnostics,
     destination: RefCell<String>,
+    status: RefCell<String>,
+    toggles: Rc<Cell<bool>>,
 }
 
 impl SettingsView {
-    pub fn new(on_target: Rc<dyn Fn(String)>) -> (adw::PreferencesPage, Self) {
+    pub fn new(actions: WorkspaceActions) -> (adw::PreferencesPage, Self) {
         let page = adw::PreferencesPage::new();
 
         let engine = adw::PreferencesGroup::new();
-        engine.set_title("Engine");
+        engine.set_title(t("Engine"));
 
         let state_row = adw::ActionRow::new();
-        state_row.set_title("Status");
-        state_row.set_subtitle("Connecting");
+        state_row.set_title(t("Status"));
+        state_row.set_subtitle(t("Connecting"));
+        let reconnect = gtk::Button::with_label(t("Reconnect"));
+        reconnect.add_css_class("flat");
+        reconnect.set_valign(gtk::Align::Center);
+        reconnect.set_visible(false);
+        reconnect.set_tooltip_text(Some(t("Rebuild the streams against the audio server")));
+        {
+            let on_reconnect = Rc::clone(&actions.on_reconnect);
+            reconnect.connect_clicked(move |_| on_reconnect());
+        }
+        state_row.add_suffix(&reconnect);
 
         let rate_row = adw::ActionRow::new();
-        rate_row.set_title("Format");
-        rate_row.set_subtitle("unknown");
+        rate_row.set_title(t("Format"));
+        rate_row.set_subtitle(t("unknown"));
 
-        let sink_row = adw::ActionRow::new();
-        sink_row.set_title("Virtual sink");
-        sink_row.set_subtitle("pipewire-effects-sink");
+        let node_row = adw::ActionRow::new();
+        node_row.set_title(t("Node"));
+        node_row.set_subtitle("pipewire-effects-sink");
         let copy = gtk::Button::from_icon_name(format::ICON_COPY);
         copy.add_css_class("flat");
         copy.set_valign(gtk::Align::Center);
-        copy.set_tooltip_text(Some("Copy the node name"));
-        copy.connect_clicked(|button| {
-            button
-                .display()
-                .clipboard()
-                .set_text("pipewire-effects-sink");
-            button.set_icon_name(format::ICON_COPIED);
-            let button = button.clone();
-            glib::timeout_add_local_once(std::time::Duration::from_millis(900), move || {
-                button.set_icon_name(format::ICON_COPY);
+        copy.set_tooltip_text(Some(t("Copy the node name")));
+        {
+            let node = node_row.clone();
+            copy.connect_clicked(move |button| {
+                let name = node.widget_name().to_string();
+                button.display().clipboard().set_text(&name);
+                button.set_icon_name(format::ICON_COPIED);
+                let button = button.clone();
+                glib::timeout_add_local_once(std::time::Duration::from_millis(900), move || {
+                    button.set_icon_name(format::ICON_COPY);
+                });
             });
-        });
-        sink_row.add_suffix(&copy);
+        }
+        node_row.add_suffix(&copy);
 
         let routing_row = adw::ActionRow::new();
-        routing_row.set_title("Routing");
-        routing_row.set_subtitle(
-            "Pick PipeWire Effects Sink as the output in an application, or make it the default sink.",
-        );
-        routing_row.set_subtitle_lines(2);
+        routing_row.set_title(t("Routing"));
+        routing_row.set_subtitle_lines(3);
 
         engine.add(&state_row);
         engine.add(&rate_row);
-        engine.add(&sink_row);
+        engine.add(&node_row);
         engine.add(&routing_row);
         page.add(&engine);
 
         let output = adw::PreferencesGroup::new();
-        output.set_title("Destination");
+        output.set_title(t("Destination"));
         let devices = adw::ComboRow::new();
-        devices.set_title("Play processed audio on");
-        devices.set_subtitle("The hardware device that receives the effect chain");
-        let target = on_target.clone();
+        devices.set_title(t("Play processed audio on"));
+        devices.set_subtitle(t("The hardware device that receives the effect chain"));
         let updating = Rc::new(Cell::new(false));
         let flag = Rc::clone(&updating);
         let names = Rc::new(RefCell::new(Vec::<String>::new()));
         let names_clone = Rc::clone(&names);
+        let on_target = Rc::clone(&actions.on_target);
         devices.connect_selected_notify(move |row| {
             if flag.get() {
                 return;
             }
             let index = row.selected() as usize;
             if let Some(name) = names_clone.borrow().get(index) {
-                target(name.clone());
+                on_target(name.clone());
             }
         });
         output.add(&devices);
         page.add(&output);
 
+        let monitoring = adw::PreferencesGroup::new();
+        monitoring.set_title(t("Microphone"));
+        let toggles = Rc::new(Cell::new(false));
+        let microphone = adw::SwitchRow::new();
+        microphone.set_title(t("Process microphone input"));
+        microphone.set_subtitle(t(
+            "Runs the input chain and publishes it as the PipeWire Effects Source",
+        ));
+        {
+            let flag = Rc::clone(&toggles);
+            let on_input = Rc::clone(&actions.on_input);
+            microphone.connect_active_notify(move |row| {
+                if flag.get() {
+                    return;
+                }
+                on_input(row.is_active());
+            });
+        }
+        monitoring.add(&microphone);
+        page.add(&monitoring);
+
+        let desktop = adw::PreferencesGroup::new();
+        desktop.set_title(t("Desktop"));
+        let autostart = adw::SwitchRow::new();
+        autostart.set_title(t("Start on login"));
+        autostart.set_subtitle(t(
+            "Begins processing as soon as you sign in, without a window",
+        ));
+        {
+            let flag = Rc::clone(&toggles);
+            let on_autostart = Rc::clone(&actions.on_autostart);
+            autostart.connect_active_notify(move |row| {
+                if flag.get() {
+                    return;
+                }
+                on_autostart(row.is_active());
+            });
+        }
+        desktop.add(&autostart);
+        page.add(&desktop);
+
         let advanced = adw::PreferencesGroup::new();
-        advanced.set_title("Advanced");
+        advanced.set_title(t("Advanced"));
 
-        let captured = counter_row("Captured frames");
-        let processed = counter_row("Processed frames");
-        let underruns = counter_row("Underrun samples");
-        let trims = counter_row("Drift trims");
-        let warnings = adw::ActionRow::new();
-        warnings.set_title("Messages");
-        warnings.set_subtitle("None");
-        warnings.set_subtitle_lines(4);
-
-        let expander = adw::ExpanderRow::new();
-        expander.set_title("Diagnostics");
-        expander.set_subtitle("Audio counters and engine messages");
-        expander.add_row(&captured);
-        expander.add_row(&processed);
-        expander.add_row(&underruns);
-        expander.add_row(&trims);
-        expander.add_row(&warnings);
-        advanced.add(&expander);
+        let diagnostics = Diagnostics::new();
+        advanced.add(diagnostics.row());
         page.add(&advanced);
 
         let view = Self {
             page: page.clone(),
             state_row,
             rate_row,
-            sink_row,
+            node_row,
+            routing_row,
+            reconnect,
             devices,
             device_names: RefCell::new(Vec::new()),
             updating,
-            captured,
-            processed,
-            underruns,
-            trims,
-            warnings,
-            expander,
+            microphone,
+            autostart,
+            diagnostics,
             destination: RefCell::new(String::new()),
+            status: RefCell::new(String::new()),
+            toggles,
         };
         (page, view)
     }
@@ -141,44 +182,71 @@ impl SettingsView {
     }
 
     pub fn expand_diagnostics(&self) {
-        self.expander.set_expanded(true);
+        self.diagnostics.expand();
+    }
+
+    pub fn set_running(&self, running: bool) {
+        self.toggles.set(true);
+        self.microphone.set_active(running);
+        self.toggles.set(false);
+    }
+
+    pub fn set_autostart(&self, enabled: bool) {
+        self.toggles.set(true);
+        self.autostart.set_active(enabled);
+        self.toggles.set(false);
     }
 
     pub fn update(&self, snapshot: &Snapshot, stats: &StatsSnapshot, state: EngineState) {
-        self.state_row.set_subtitle(state.label());
-        self.state_row.remove_css_class("error");
-        if state == EngineState::Failed {
-            self.state_row.add_css_class("error");
+        let kind = snapshot.kind;
+        let status = tr("{0} · {1} pipeline", &[state.label(), kind.label()]);
+        if *self.status.borrow() != status {
+            self.status_row(&status, state == EngineState::Failed);
+            *self.status.borrow_mut() = status;
         }
+        self.reconnect.set_visible(state == EngineState::Failed);
         self.rate_row.set_subtitle(&if snapshot.sample_rate == 0 {
-            "waiting for the graph".to_owned()
+            t("waiting for the graph").to_owned()
         } else {
-            format!(
-                "{} Hz · {} channels · {} frames per buffer",
-                snapshot.sample_rate, snapshot.channels, stats.buffer_frames
+            tr(
+                "{0} Hz · {1} channels · {2} frames per buffer",
+                &[
+                    &snapshot.sample_rate.to_string(),
+                    &snapshot.channels.to_string(),
+                    &stats.buffer_frames.to_string(),
+                ],
             )
         });
-        self.sink_row
-            .set_subtitle(&if snapshot.sink_node_name.is_empty() {
-                "pipewire-effects-sink".to_owned()
-            } else {
-                snapshot.sink_node_name.clone()
-            });
-        self.captured
-            .set_subtitle(&stats.captured_frames.to_string());
-        self.processed
-            .set_subtitle(&stats.processed_frames.to_string());
-        self.underruns
-            .set_subtitle(&stats.underrun_samples.to_string());
-        self.trims.set_subtitle(&stats.trim_events.to_string());
-        self.warnings
-            .set_subtitle(&if snapshot.warnings.is_empty() {
-                "None".to_owned()
-            } else {
-                snapshot.warnings.join("\n")
-            });
+        self.node_row.set_title(match kind {
+            PipelineKind::Output => t("Virtual sink"),
+            PipelineKind::Input => t("Virtual source"),
+        });
+        let node = if snapshot.node_name.is_empty() {
+            pwe_engine::virtual_node_name(kind).to_owned()
+        } else {
+            snapshot.node_name.clone()
+        };
+        self.node_row.set_subtitle(&node);
+        self.node_row.set_widget_name(&node);
+        self.routing_row.set_subtitle(match kind {
+            PipelineKind::Output => t(
+                "Pick PipeWire Effects Sink as the output in an application, or make it the default sink.",
+            ),
+            PipelineKind::Input => t(
+                "Pick PipeWire Effects Source as the input in an application, or make it the default source.",
+            ),
+        });
+        self.diagnostics.update(stats, &snapshot.warnings);
         self.sync_devices(snapshot);
         self.sync_destination(snapshot);
+    }
+
+    fn status_row(&self, status: &str, failed: bool) {
+        self.state_row.remove_css_class("error");
+        self.state_row.set_subtitle(status);
+        if failed {
+            self.state_row.add_css_class("error");
+        }
     }
 
     fn sync_destination(&self, snapshot: &Snapshot) {
@@ -196,34 +264,44 @@ impl SettingsView {
                     }
                 },
             );
-        let subtitle = if snapshot.target.is_empty() || snapshot.target == "no destination" {
-            "No output device is available".to_owned()
+        let noun = snapshot.kind.noun();
+        let subtitle = if snapshot.target.is_empty() {
+            tr("No {0} device is available", &[noun])
         } else if snapshot.automatic {
-            format!("Following the system default, {described}")
+            tr("Following the system default, {0}", &[&described])
         } else {
             described
         };
         if *self.destination.borrow() == subtitle {
             return;
         }
+        self.devices.set_title(match snapshot.kind {
+            PipelineKind::Output => t("Play processed audio on"),
+            PipelineKind::Input => t("Capture microphone audio from"),
+        });
         self.devices.set_subtitle(&subtitle);
         *self.destination.borrow_mut() = subtitle;
     }
 
     fn sync_devices(&self, snapshot: &Snapshot) {
-        let sinks: Vec<(String, String)> = snapshot
+        let own = snapshot.node_name.as_str();
+        let matching: Vec<(String, String)> = snapshot
             .devices
             .iter()
-            .filter(|device| device.is_sink() && device.name != snapshot.sink_node_name)
+            .filter(|device| device.name != own)
+            .filter(|device| match snapshot.kind {
+                PipelineKind::Output => device.is_sink(),
+                PipelineKind::Input => device.is_source(),
+            })
             .map(|device| (device.name.clone(), device.description.clone()))
             .collect();
         let mut names = vec![pwe_engine::AUTO_TARGET.to_owned()];
-        names.extend(sinks.iter().map(|(name, _)| name.clone()));
-        if sinks.is_empty() || *self.device_names.borrow() == names {
+        names.extend(matching.iter().map(|(name, _)| name.clone()));
+        if matching.is_empty() || *self.device_names.borrow() == names {
             return;
         }
-        let mut labels = vec!["System default".to_owned()];
-        labels.extend(device_labels(&sinks));
+        let mut labels = vec![t("System default").to_owned()];
+        labels.extend(parts::device_labels(&matching));
         let selected = if snapshot.automatic {
             0
         } else {
@@ -238,77 +316,5 @@ impl SettingsView {
         self.devices.set_selected(selected as u32);
         self.updating.set(false);
         *self.device_names.borrow_mut() = names;
-    }
-}
-
-fn device_labels(sinks: &[(String, String)]) -> Vec<String> {
-    let mut seen: Vec<&str> = Vec::new();
-    sinks
-        .iter()
-        .map(|(name, description)| {
-            let description = if description.is_empty() {
-                name.as_str()
-            } else {
-                description.as_str()
-            };
-            let repeated = sinks
-                .iter()
-                .filter(|(_, other)| other.as_str() == description)
-                .count()
-                > 1;
-            if !repeated {
-                return description.to_owned();
-            }
-            let position = seen
-                .iter()
-                .filter(|candidate| **candidate == description)
-                .count()
-                + 1;
-            seen.push(description);
-            format!("{description} ({position})")
-        })
-        .collect()
-}
-
-fn counter_row(title: &str) -> adw::ActionRow {
-    let row = adw::ActionRow::new();
-    row.set_title(title);
-    row.set_subtitle("0");
-    row
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn pair(name: &str, description: &str) -> (String, String) {
-        (name.to_owned(), description.to_owned())
-    }
-
-    #[test]
-    fn unique_descriptions_are_used_as_labels() {
-        let labels = device_labels(&[
-            pair("alsa_output.a", "Built-in Audio"),
-            pair("bluez.1", "Headset"),
-        ]);
-        assert_eq!(labels, vec!["Built-in Audio", "Headset"]);
-    }
-
-    #[test]
-    fn repeated_descriptions_are_numbered() {
-        let labels = device_labels(&[
-            pair("alsa_output.a", "Built-in Audio Pro"),
-            pair("alsa_output.b", "Built-in Audio Pro"),
-        ]);
-        assert_eq!(
-            labels,
-            vec!["Built-in Audio Pro (1)", "Built-in Audio Pro (2)"]
-        );
-    }
-
-    #[test]
-    fn a_missing_description_falls_back_to_the_name() {
-        let labels = device_labels(&[pair("node.one", "")]);
-        assert_eq!(labels, vec!["node.one"]);
     }
 }

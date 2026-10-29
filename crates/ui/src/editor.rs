@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use adw::prelude::*;
+use pwe_core::i18n::t;
 use pwe_core::{ParamKind, ParamSet, ParamSpec};
 
 use crate::Ui;
@@ -18,7 +19,7 @@ pub fn build(ui: &Rc<Ui>, slot_kind: &str, params: &ParamSet) -> gtk::Widget {
 
     if let Some(area) = curve.clone() {
         let group = adw::PreferencesGroup::new();
-        group.set_title("Response");
+        group.set_title(t("Response"));
         let frame = gtk::Frame::new(None);
         frame.set_child(Some(&area));
         frame.add_css_class("response-frame");
@@ -28,22 +29,23 @@ pub fn build(ui: &Rc<Ui>, slot_kind: &str, params: &ParamSet) -> gtk::Widget {
 
     let mut groups: Vec<&'static str> = Vec::new();
     for spec in params.specs() {
-        if !groups.contains(&spec.group) {
-            groups.push(spec.group);
+        let group = t(spec.group);
+        if !groups.contains(&group) {
+            groups.push(group);
         }
     }
 
     for group_name in groups {
         let group = adw::PreferencesGroup::new();
         group.set_title(if group_name.is_empty() {
-            "Parameters"
+            t("Parameters")
         } else {
             group_name
         });
         for spec in params
             .specs()
             .iter()
-            .filter(|spec| spec.group == group_name)
+            .filter(|spec| t(spec.group) == group_name)
         {
             group.add(&row_for(*spec, params, curve.clone()));
         }
@@ -70,7 +72,7 @@ fn hero(
     let reset = gtk::Button::from_icon_name(format::ICON_RESET);
     reset.add_css_class("flat");
     reset.set_valign(gtk::Align::Center);
-    reset.set_tooltip_text(Some("Reset every parameter to its default"));
+    reset.set_tooltip_text(Some(t("Reset every parameter to its default")));
     let params = params.clone();
     let ui = Rc::clone(ui);
     reset.connect_clicked(move |_| {
@@ -88,9 +90,9 @@ fn hero(
 pub fn empty_state(ui: &Rc<Ui>) -> gtk::Widget {
     let page = adw::StatusPage::new();
     page.set_icon_name(Some(format::ICON_EMPTY));
-    page.set_title("No effect selected");
-    page.set_description(Some("Add an effect to start shaping your audio."));
-    let button = gtk::Button::with_label("Add effect");
+    page.set_title(t("No effect selected"));
+    page.set_description(Some(t("Add an effect to start shaping your audio.")));
+    let button = gtk::Button::with_label(t("Add effect"));
     button.add_css_class("pill");
     button.add_css_class("suggested-action");
     button.set_halign(gtk::Align::Center);
@@ -114,7 +116,7 @@ fn row_for(spec: ParamSpec, params: &ParamSet, curve: Option<gtk::DrawingArea>) 
 
 fn boolean_row(spec: ParamSpec, params: &ParamSet) -> gtk::Widget {
     let row = adw::SwitchRow::new();
-    row.set_title(spec.label);
+    row.set_title(t(spec.label));
     row.set_active(
         params
             .get(spec.id)
@@ -136,10 +138,10 @@ fn boolean_row(spec: ParamSpec, params: &ParamSet) -> gtk::Widget {
 }
 
 fn choice_row(spec: ParamSpec, params: &ParamSet, labels: &'static [&'static str]) -> gtk::Widget {
-    let options: Vec<&str> = labels.to_vec();
+    let options: Vec<&str> = labels.iter().map(|label| t(label)).collect();
     let model = gtk::StringList::new(&options);
     let row = adw::ComboRow::new();
-    row.set_title(spec.label);
+    row.set_title(t(spec.label));
     row.set_model(Some(&model));
     row.set_selected(
         params
@@ -163,7 +165,7 @@ fn choice_row(spec: ParamSpec, params: &ParamSet, labels: &'static [&'static str
 
 fn float_row(spec: ParamSpec, params: &ParamSet, curve: Option<gtk::DrawingArea>) -> gtk::Widget {
     let row = adw::ActionRow::new();
-    row.set_title(spec.label);
+    row.set_title(t(spec.label));
 
     let suffix = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     suffix.set_valign(gtk::Align::Center);
@@ -175,6 +177,10 @@ fn float_row(spec: ParamSpec, params: &ParamSet, curve: Option<gtk::DrawingArea>
     scale.set_round_digits(3);
     let current = params.get(spec.id).unwrap_or_else(|| spec.default_value());
     scale.set_value(f64::from(spec.normalize(current.as_f32())));
+    scale.update_property(&[
+        gtk::accessible::Property::Label(t(spec.label)),
+        gtk::accessible::Property::ValueText(&spec.display(current)),
+    ]);
 
     let value = gtk::Label::new(Some(&spec.display(current)));
     value.set_width_chars(9);
@@ -188,12 +194,15 @@ fn float_row(spec: ParamSpec, params: &ParamSet, curve: Option<gtk::DrawingArea>
 
     let params_scale = params.clone();
     let value_label = value.clone();
+    let scale_for_notify = scale.clone();
     let curve = curve.clone();
     let notify = Rc::new(move |normalised: f64| {
         let raw = spec.denormalize(normalised as f32);
         if params_scale.set_f32(spec.id, raw).is_ok() {
             if let Some(display) = params_scale.get(spec.id) {
-                value_label.set_label(&spec.display(display));
+                let text = spec.display(display);
+                value_label.set_label(&text);
+                scale_for_notify.update_property(&[gtk::accessible::Property::ValueText(&text)]);
             }
             if let Some(area) = &curve {
                 area.queue_draw();

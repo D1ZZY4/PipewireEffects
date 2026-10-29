@@ -11,6 +11,7 @@ pwe-core.workspace = true
 pwe-dsp.workspace = true
 pwe-engine.workspace = true
 pwe-presets.workspace = true
+pwe-settings.workspace = true
 adw.workspace = true
 gtk.workspace = true
 

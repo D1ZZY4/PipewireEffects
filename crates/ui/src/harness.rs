@@ -8,6 +8,8 @@ use crate::dialogs;
 use crate::presets_ui;
 
 pub const STATE_VARIABLE: &str = "PIPEWIRE_EFFECTS_UI_STATE";
+pub const CAPTURE_VARIABLE: &str = "PIPEWIRE_EFFECTS_UI_CAPTURE";
+const CAPTURE_ATTEMPTS: u32 = 24;
 
 pub fn install(ui: &Rc<Ui>) {
     let Some(state) = std::env::var(STATE_VARIABLE)
@@ -16,14 +18,89 @@ pub fn install(ui: &Rc<Ui>) {
     else {
         return;
     };
+    if state == "narrow" {
+        ui.window.set_default_size(720, 620);
+    }
     let ui = Rc::clone(ui);
     glib::timeout_add_seconds_local(2, move || {
         apply(&ui, &state);
+        schedule_capture(&ui);
         glib::ControlFlow::Break
     });
 }
 
+fn schedule_capture(ui: &Rc<Ui>) {
+    let Some(path) = std::env::var_os(CAPTURE_VARIABLE) else {
+        return;
+    };
+    let path = path.to_string_lossy().into_owned();
+    let ui = Rc::clone(ui);
+    let _ = glib::timeout_add_local_once(std::time::Duration::from_millis(900), move || {
+        attempt_capture(ui, path, 0);
+    });
+}
+
+fn attempt_capture(ui: Rc<Ui>, path: String, attempt: u32) {
+    if capture(&ui, &path) {
+        return;
+    }
+    if attempt >= CAPTURE_ATTEMPTS {
+        eprintln!("{CAPTURE_VARIABLE}: gave up after {attempt} attempts");
+        return;
+    }
+    glib::timeout_add_local_once(std::time::Duration::from_millis(250), move || {
+        attempt_capture(ui, path, attempt + 1);
+    });
+}
+
+fn capture(ui: &Ui, path: &str) -> bool {
+    let window = ui
+        .window
+        .application()
+        .and_then(|application| application.active_window())
+        .unwrap_or_else(|| ui.window.clone().upcast::<gtk::Window>());
+    let window = window.upcast::<gtk::Widget>();
+    let paintable = gtk::WidgetPaintable::new(Some(&window));
+    let width = f64::from(window.width());
+    let height = f64::from(window.height());
+    let snapshot = gtk::Snapshot::new();
+    paintable.snapshot(&snapshot, width, height);
+    let Some(node) = snapshot.to_node() else {
+        return false;
+    };
+    let renderer = window.native().and_then(|native| native.renderer());
+    let Some(renderer) = renderer else {
+        eprintln!("{CAPTURE_VARIABLE}: the window has no renderer");
+        return false;
+    };
+    let texture = renderer.render_texture(&node, None);
+    match texture.save_to_png(path) {
+        Ok(()) => {
+            println!("{CAPTURE_VARIABLE}: wrote {path} at {width}x{height}");
+            true
+        }
+        Err(error) => {
+            eprintln!("{CAPTURE_VARIABLE}: {error}");
+            false
+        }
+    }
+}
+
 fn apply(ui: &Rc<Ui>, state: &str) {
+    if let Some(kind) = state.strip_prefix("effect:") {
+        load_default(ui);
+        if !ui
+            .state
+            .borrow()
+            .slots()
+            .iter()
+            .any(|slot| slot.kind == kind)
+        {
+            ui.add_effect(kind);
+        }
+        select_kind(ui, kind);
+        return;
+    }
     match state {
         "chain" => load_default(ui),
         "editor" => {
@@ -35,6 +112,12 @@ fn apply(ui: &Rc<Ui>, state: &str) {
             select_kind(ui, "equalizer");
         }
         "presets" => ui.stack.set_visible_child_name("presets"),
+        "input" => {
+            load_default(ui);
+            ui.toggle_input(true);
+            ui.set_pipeline(pwe_core::PipelineKind::Input);
+            ui.add_effect("gate");
+        }
         "devices" => {
             ui.settings_view.expand_diagnostics();
             ui.stack.set_visible_child_name("devices");
@@ -45,10 +128,7 @@ fn apply(ui: &Rc<Ui>, state: &str) {
         "save" => presets_ui::prompt_save(ui),
         "banner" => ui.show_banner("No output device matches 'Studio monitors'"),
         "bypass" => ui.bypass.set_active(true),
-        "narrow" => {
-            load_default(ui);
-            ui.window.set_default_size(720, 620);
-        }
+        "narrow" => load_default(ui),
         _ => {}
     }
 }
@@ -67,9 +147,9 @@ fn load_default(ui: &Rc<Ui>) {
 }
 
 fn select(ui: &Rc<Ui>, index: usize) {
-    let id = ui.state.borrow().slots.get(index).map(|slot| slot.id);
+    let id = ui.state.borrow().slots().get(index).map(|slot| slot.id);
     if let Some(id) = id {
-        ui.state.borrow_mut().selected = Some(id);
+        ui.state.borrow_mut().set_selected(Some(id));
         ui.rebuild_editor();
     }
 }
@@ -78,12 +158,12 @@ fn select_kind(ui: &Rc<Ui>, kind: &str) {
     let id = ui
         .state
         .borrow()
-        .slots
+        .slots()
         .iter()
         .find(|slot| slot.kind == kind)
         .map(|slot| slot.id);
     if let Some(id) = id {
-        ui.state.borrow_mut().selected = Some(id);
+        ui.state.borrow_mut().set_selected(Some(id));
         ui.rebuild_editor();
         ui.rebuild_chain();
     }

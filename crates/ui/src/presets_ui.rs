@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use adw::prelude::*;
+use pwe_core::i18n::{t, tr};
 
 use crate::Ui;
 use crate::dialogs;
@@ -14,8 +15,10 @@ pub fn build_page() -> (
     let page = adw::PreferencesPage::new();
 
     let group = adw::PreferencesGroup::new();
-    group.set_title("Presets");
-    group.set_description(Some("Loading a preset replaces the current effect chain."));
+    group.set_title(t("Saved presets"));
+    group.set_description(Some(t(
+        "Activate a preset to replace the current effect chain.",
+    )));
 
     let list = gtk::ListBox::new();
     list.set_selection_mode(gtk::SelectionMode::None);
@@ -24,19 +27,18 @@ pub fn build_page() -> (
     page.add(&group);
 
     let actions = adw::PreferencesGroup::new();
-    actions.set_title("Library");
     let bar = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    bar.set_margin_top(6);
-    bar.set_margin_bottom(6);
-    bar.set_halign(gtk::Align::Center);
-    let save = gtk::Button::with_label("Save current chain");
+    bar.set_halign(gtk::Align::Start);
+    bar.set_margin_top(2);
+    let save = action_button(format::ICON_SAVE, t("Save current chain"));
     save.add_css_class("suggested-action");
-    let delete = gtk::Button::with_label("Delete");
-    let import = gtk::Button::with_label("Import");
-    let export = gtk::Button::with_label("Export");
+    let import = action_button(format::ICON_IMPORT, t("Import"));
+    let export = action_button(format::ICON_EXPORT, t("Export"));
+    let delete = action_button(format::ICON_REMOVE, t("Delete"));
+    delete.add_css_class("destructive-action");
+    bar.append(&save);
     bar.append(&import);
     bar.append(&export);
-    bar.append(&save);
     bar.append(&delete);
     actions.add(&bar);
     page.add(&actions);
@@ -44,21 +46,32 @@ pub fn build_page() -> (
     (page.upcast(), list, (save, delete, import, export))
 }
 
+fn action_button(icon: &str, label: &str) -> gtk::Button {
+    let content = adw::ButtonContent::new();
+    content.set_icon_name(icon);
+    content.set_label(label);
+    let button = gtk::Button::new();
+    button.set_child(Some(&content));
+    button.set_tooltip_text(Some(label));
+    button.update_property(&[gtk::accessible::Property::Label(label)]);
+    button
+}
+
 pub fn populate(ui: &Rc<Ui>) {
     while let Some(child) = ui.preset_list.first_child() {
         ui.preset_list.remove(&child);
     }
     let (infos, warnings) = ui.state.borrow().store.list();
-    let current = ui.state.borrow().loaded_preset.clone();
+    let current = ui.state.borrow().loaded_preset().map(str::to_owned);
     for info in &infos {
         let row = adw::ActionRow::new();
         row.set_title(&info.name);
         row.set_subtitle(if info.builtin {
-            "Built in"
+            t("Built in")
         } else if info.deletable() {
-            "User preset"
+            t("User preset")
         } else {
-            "System preset"
+            t("System preset")
         });
         row.set_activatable(true);
         row.set_widget_name(&info.name);
@@ -69,7 +82,7 @@ pub fn populate(ui: &Rc<Ui>) {
     }
     if !warnings.is_empty() {
         let row = adw::ActionRow::new();
-        row.set_title("Skipped files");
+        row.set_title(t("Skipped files"));
         row.set_subtitle(&warnings.join("\n"));
         ui.preset_list.append(&row);
     }
@@ -88,16 +101,19 @@ pub fn wire(ui: &Rc<Ui>, buttons: (gtk::Button, gtk::Button, gtk::Button, gtk::B
         match loaded {
             Ok(warnings) => {
                 if !warnings.is_empty() {
-                    ui_load.show_banner(&format!(
-                        "The preset loaded with warnings: {}",
-                        summarized(&warnings)
+                    ui_load.show_banner(&tr(
+                        "The preset loaded with warnings: {0}",
+                        &[&summarized(&warnings)],
                     ));
                 }
                 ui_load.rebuild_chain();
                 ui_load.rebuild_editor();
                 populate(&ui_load);
             }
-            Err(error) => ui_load.show_banner(&format!("The preset could not be loaded: {error}")),
+            Err(error) => ui_load.show_banner(&tr(
+                "The preset could not be loaded: {0}",
+                &[&error.to_string()],
+            )),
         }
     });
 
@@ -111,30 +127,31 @@ pub fn wire(ui: &Rc<Ui>, buttons: (gtk::Button, gtk::Button, gtk::Button, gtk::B
     import.connect_clicked(move |_| {
         let ui = Rc::clone(&ui_import);
         let window = ui.window.clone();
-        dialogs::choose_file(&window, "Import preset", false, None, move |path| match ui
-            .state
-            .borrow()
-            .store
-            .import(&path, None)
-        {
-            Ok((preset, warnings)) => {
-                populate(&ui);
-                let message = imported_banner(&preset.name, &warnings);
-                if warnings.is_empty() {
-                    ui.toast(&message);
-                } else {
-                    ui.show_banner(&message);
+        dialogs::choose_file(
+            &window,
+            t("Import preset"),
+            false,
+            None,
+            move |path| match ui.state.borrow().store.import(&path, None) {
+                Ok((preset, warnings)) => {
+                    populate(&ui);
+                    let message = imported_banner(&preset.name, &warnings);
+                    if warnings.is_empty() {
+                        ui.toast(&message);
+                    } else {
+                        ui.show_banner(&message);
+                    }
                 }
-            }
-            Err(error) => ui.show_banner(&format!("Import failed: {error}")),
-        });
+                Err(error) => ui.show_banner(&tr("Import failed: {0}", &[&error.to_string()])),
+            },
+        );
     });
 
     let ui_export = Rc::clone(ui);
     export.connect_clicked(move |_| {
-        let name = ui_export.state.borrow().loaded_preset.clone();
+        let name = ui_export.state.borrow().loaded_preset().map(str::to_owned);
         let Some(name) = name else {
-            ui_export.show_banner("Load a preset before exporting it");
+            ui_export.show_banner(t("Load a preset before exporting it"));
             return;
         };
         let suggested = format!("{name}.json");
@@ -142,12 +159,14 @@ pub fn wire(ui: &Rc<Ui>, buttons: (gtk::Button, gtk::Button, gtk::Button, gtk::B
         let window = ui.window.clone();
         dialogs::choose_file(
             &window,
-            "Export preset",
+            t("Export preset"),
             true,
             Some(&suggested),
             move |path| match ui.state.borrow().store.export(&name, &path) {
-                Ok(()) => ui.toast("Preset exported"),
-                Err(error) => ui.show_banner(&format!("Export failed: {error}")),
+                Ok(()) => ui.toast(t("Preset exported")),
+                Err(error) => {
+                    ui.show_banner(&tr("Export failed: {0}", &[&error.to_string()]));
+                }
             },
         );
     });
@@ -157,29 +176,34 @@ pub fn prompt_save(ui: &Rc<Ui>) {
     let name = ui
         .state
         .borrow()
-        .loaded_preset
-        .clone()
-        .unwrap_or_else(|| "My preset".to_owned());
+        .loaded_preset()
+        .map(str::to_owned)
+        .unwrap_or_else(|| t("My preset").to_owned());
     let ui = Rc::clone(ui);
     let window = ui.window.clone();
     dialogs::text_prompt(
         &window,
-        "Save preset",
-        "The current effect chain is stored under this name.",
+        t("Save preset"),
+        t("The current effect chain is stored under this name."),
         &name,
-        "Save",
+        t("Save"),
         move |name| {
             if name.trim().is_empty() {
-                ui.show_banner("A preset needs a name");
+                ui.show_banner(t("A preset needs a name"));
                 return;
             }
             let saved = ui.state.borrow_mut().save_preset(name.trim());
             match saved {
                 Ok(_) => {
                     populate(&ui);
-                    ui.toast("Preset saved");
+                    ui.toast(t("Preset saved"));
                 }
-                Err(error) => ui.show_banner(&format!("The preset could not be saved: {error}")),
+                Err(error) => {
+                    ui.show_banner(&tr(
+                        "The preset could not be saved: {0}",
+                        &[&error.to_string()],
+                    ));
+                }
             }
         },
     );
@@ -193,12 +217,12 @@ fn prompt_delete(ui: &Rc<Ui>) {
         .map(|info| info.name)
         .collect();
     if user_presets.is_empty() {
-        ui.show_banner("There are no user presets to delete");
+        ui.show_banner(t("There are no user presets to delete"));
         return;
     }
 
     let dialog = adw::Dialog::builder()
-        .title("Delete preset")
+        .title(t("Delete preset"))
         .content_width(360)
         .build();
     let toolbar = adw::ToolbarView::new();
@@ -228,16 +252,21 @@ fn prompt_delete(ui: &Rc<Ui>) {
         let dialog_clone = dialog_clone.clone();
         dialogs::confirm(
             &dialog_window,
-            "Delete preset?",
-            &format!("'{name}' will be removed from your preset directory."),
-            "Delete",
+            t("Delete preset?"),
+            &tr(
+                "'{0}' will be removed from your preset directory.",
+                &[&name],
+            ),
+            t("Delete"),
             move || {
                 match ui_inner.state.borrow_mut().delete_preset(&name) {
                     Ok(()) => {
                         populate(&ui_inner);
-                        ui_inner.toast("Preset deleted");
+                        ui_inner.toast(t("Preset deleted"));
                     }
-                    Err(error) => ui_inner.show_banner(&format!("Could not delete: {error}")),
+                    Err(error) => {
+                        ui_inner.show_banner(&tr("Could not delete: {0}", &[&error.to_string()]))
+                    }
                 }
                 dialog_clone.close();
             },
@@ -252,18 +281,23 @@ fn summarized(warnings: &[String]) -> String {
     if warnings.len() <= SHOWN {
         return warnings.join(", ");
     }
-    format!(
-        "{} and {} more",
-        warnings[..SHOWN].join(", "),
-        warnings.len() - SHOWN
+    tr(
+        "{0} and {1} more",
+        &[
+            &warnings[..SHOWN].join(", "),
+            &(warnings.len() - SHOWN).to_string(),
+        ],
     )
 }
 
 fn imported_banner(name: &str, warnings: &[String]) -> String {
     if warnings.is_empty() {
-        format!("Imported '{name}'")
+        tr("Imported '{0}'", &[name])
     } else {
-        format!("Imported '{name}' with warnings: {}", summarized(warnings))
+        tr(
+            "Imported '{0}' with warnings: {1}",
+            &[name, &summarized(warnings)],
+        )
     }
 }
 

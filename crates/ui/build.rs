@@ -11,7 +11,9 @@ fn main() {
     let target = PathBuf::from(out_dir).join("app.gresource");
 
     println!("cargo:rerun-if-changed={}", xml.display());
-    println!("cargo:rerun-if-changed={}", icons.display());
+    for entry in resource_files(&xml) {
+        println!("cargo:rerun-if-changed={}", icons.join(entry).display());
+    }
 
     let result = Command::new("glib-compile-resources")
         .arg(&xml)
@@ -28,4 +30,16 @@ fn main() {
         ),
         Err(error) => panic!("glib-compile-resources could not be run: {error}"),
     }
+}
+
+fn resource_files(xml: &Path) -> Vec<String> {
+    let Ok(text) = std::fs::read_to_string(xml) else {
+        return Vec::new();
+    };
+    text.split("<file>")
+        .skip(1)
+        .filter_map(|chunk| chunk.split("</file>").next())
+        .map(|entry| entry.trim().to_owned())
+        .filter(|entry| !entry.is_empty())
+        .collect()
 }

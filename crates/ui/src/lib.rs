@@ -1,4 +1,6 @@
+mod actions;
 mod app;
+mod chain;
 mod chain_view;
 mod dialogs;
 mod editor;
@@ -13,5 +15,5 @@ mod state;
 mod widgets;
 mod window;
 
-pub use app::{APPLICATION_ID, run};
+pub use app::{APPLICATION_ID, Options, run};
 pub use window::Ui;
