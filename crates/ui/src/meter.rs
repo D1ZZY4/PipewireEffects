@@ -56,8 +56,15 @@ impl LevelDisplay {
         }));
 
         let borrowed = Rc::clone(&state);
-        area.set_draw_func(move |_, context, width, height| {
-            draw(context, width, height, &borrowed.borrow(), with_history);
+        area.set_draw_func(move |area, context, width, height| {
+            draw(
+                area,
+                context,
+                width,
+                height,
+                &borrowed.borrow(),
+                with_history,
+            );
         });
 
         container.append(&header);
@@ -109,6 +116,7 @@ struct Levels {
 }
 
 fn draw(
+    area: &gtk::DrawingArea,
     context: &gtk::cairo::Context,
     width: i32,
     height: i32,
@@ -125,6 +133,7 @@ fn draw(
     for channel in 0..2 {
         let top = channel as f64 * (bar_height + 3.0);
         draw_bar(
+            area,
             context,
             Bar {
                 left: 0.0,
@@ -151,7 +160,7 @@ fn draw(
     }
 }
 
-fn draw_bar(context: &gtk::cairo::Context, bar: Bar, levels: Levels) {
+fn draw_bar(area: &gtk::DrawingArea, context: &gtk::cairo::Context, bar: Bar, levels: Levels) {
     let gap = SEGMENT_GAP;
     let segment = (bar.width - gap * (SEGMENTS - 1) as f64) / SEGMENTS as f64;
     if segment <= 0.2 {
@@ -176,15 +185,21 @@ fn draw_bar(context: &gtk::cairo::Context, bar: Bar, levels: Levels) {
         );
         let _ = context.fill();
     }
+    let foreground = area.color();
     if levels.rms > 0.005 {
         let x = bar.left + levels.rms.clamp(0.0, 1.0) * bar.width;
-        context.set_source_rgba(0.0, 0.0, 0.0, 0.35);
+        context.set_source_rgba(0.42, 0.68, 1.0, 0.9);
         context.rectangle(x - 1.0, bar.top, 2.0, bar.height);
         let _ = context.fill();
     }
     if levels.hold > 0.01 {
         let x = bar.left + levels.hold.clamp(0.0, 1.0) * bar.width;
-        context.set_source_rgba(1.0, 1.0, 1.0, 0.85);
+        context.set_source_rgba(
+            f64::from(foreground.red()),
+            f64::from(foreground.green()),
+            f64::from(foreground.blue()),
+            0.9,
+        );
         context.rectangle(x - 1.0, bar.top, 2.0, bar.height);
         let _ = context.fill();
     }

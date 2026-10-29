@@ -12,13 +12,19 @@ pub fn build(params: &ParamSet) -> gtk::DrawingArea {
     area.set_hexpand(true);
     area.add_css_class("response");
     let params = params.clone();
-    area.set_draw_func(move |_, context, width, height| {
-        draw(context, width, height, &params);
+    area.set_draw_func(move |area, context, width, height| {
+        draw(area, context, width, height, &params);
     });
     area
 }
 
-fn draw(context: &gtk::cairo::Context, width: i32, height: i32, params: &ParamSet) {
+fn draw(
+    area: &gtk::DrawingArea,
+    context: &gtk::cairo::Context,
+    width: i32,
+    height: i32,
+    params: &ParamSet,
+) {
     let width = f64::from(width);
     let height = f64::from(height);
     if width <= 1.0 || height <= 1.0 {
@@ -85,7 +91,13 @@ fn draw(context: &gtk::cairo::Context, width: i32, height: i32, params: &ParamSe
     }
     let _ = context.stroke();
 
-    context.set_source_rgba(0.9, 0.9, 0.9, 0.5);
+    let foreground = area.color();
+    context.set_source_rgba(
+        f64::from(foreground.red()),
+        f64::from(foreground.green()),
+        f64::from(foreground.blue()),
+        0.75,
+    );
     context.set_line_width(1.0);
     for (band, frequency) in BAND_FREQUENCIES.iter().enumerate() {
         if gains[band].abs() < 0.05 {
