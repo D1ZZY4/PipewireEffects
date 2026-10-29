@@ -4,9 +4,9 @@ use std::sync::Mutex;
 
 use pipewire as pw;
 use pw::spa::utils::dict::DictRef;
+use pwe_core::PipelineKind;
 
 pub const METADATA_NAME: &str = "default";
-pub const SINK_KEY: &str = "default.audio.sink";
 
 pub struct Handles {
     _metadata: pw::metadata::Metadata,
@@ -17,6 +17,7 @@ pub struct Handles {
 pub struct Watch {
     name: Mutex<Option<String>>,
     handles: RefCell<Option<Handles>>,
+    own: Vec<String>,
 }
 
 impl Watch {
@@ -28,20 +29,20 @@ impl Watch {
         self: &Rc<Self>,
         registry: &pw::registry::RegistryRc,
         object: &pw::registry::GlobalObject<&DictRef>,
-        own_nodes: [&str; 2],
+        kind: PipelineKind,
     ) {
         let Ok(metadata) = registry.bind::<pw::metadata::Metadata, _>(object) else {
             return;
         };
         let watch = Rc::clone(self);
-        let own = own_nodes.map(str::to_owned);
+        let wanted = crate::config::metadata_key(kind);
         let listener = metadata
             .add_listener_local()
             .property(move |_subject, key, _type, value| {
                 if let (Some(key), Some(value)) = (key, value)
-                    && key == SINK_KEY
+                    && key == wanted
                     && let Some(name) = parse_sink(value)
-                    && !own.iter().any(|node| node == &name)
+                    && !watch.own.contains(&name)
                     && let Ok(mut slot) = watch.name.lock()
                 {
                     *slot = Some(name);
@@ -68,8 +69,11 @@ pub fn parse_sink(value: &str) -> Option<String> {
     (!name.is_empty()).then(|| name.to_owned())
 }
 
-pub fn watch() -> Rc<Watch> {
-    Rc::new(Watch::default())
+pub fn watch(own_nodes: Vec<String>) -> Rc<Watch> {
+    Rc::new(Watch {
+        own: own_nodes,
+        ..Watch::default()
+    })
 }
 
 #[cfg(test)]
@@ -93,5 +97,17 @@ mod tests {
         assert!(parse_sink("{}").is_none());
         assert!(parse_sink("{\"name\":\"\"}").is_none());
         assert!(parse_sink("not json").is_none());
+    }
+
+    #[test]
+    fn each_pipeline_watches_its_own_metadata_key() {
+        assert_eq!(
+            crate::config::metadata_key(PipelineKind::Output),
+            "default.audio.sink"
+        );
+        assert_eq!(
+            crate::config::metadata_key(PipelineKind::Input),
+            "default.audio.source"
+        );
     }
 }

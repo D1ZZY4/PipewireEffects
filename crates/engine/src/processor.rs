@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use crossbeam_queue::ArrayQueue;
+use pwe_core::i18n::t;
 use pwe_core::{AudioBuffer, AudioFormat, ChainCommand, Effect, EffectChain, LevelMeter};
 use rtrb::Consumer;
 
@@ -87,8 +88,9 @@ impl Processor {
 
         let processed_frames = wanted / channels;
         if self.buffer.configure(channels, processed_frames).is_err() {
-            self.shared
-                .add_warning("the graph quantum is larger than the processing buffer".to_owned());
+            self.shared.add_warning(
+                t("the graph quantum is larger than the processing buffer").to_owned(),
+            );
             return;
         }
         self.buffer.deinterleave_from(&self.scratch[..wanted]);

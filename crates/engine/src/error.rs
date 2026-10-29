@@ -1,5 +1,7 @@
 use std::fmt;
 
+use pwe_core::i18n::{t, tr};
+
 #[derive(Debug)]
 pub enum EngineError {
     PipeWire(pipewire::Error),
@@ -14,14 +16,30 @@ pub enum EngineError {
 impl fmt::Display for EngineError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::PipeWire(error) => write!(f, "PipeWire error: {error}"),
-            Self::StreamUnavailable(which) => write!(f, "the {which} stream is not available"),
-            Self::NoDevice(target) => write!(f, "no audio device matches '{target}'"),
-            Self::InvalidName(name) => write!(f, "'{name}' is not a usable PipeWire node name"),
-            Self::AlreadyRunning => write!(f, "the engine is already running"),
-            Self::NotConnected => write!(f, "the engine is not connected to PipeWire"),
+            Self::PipeWire(error) => {
+                write!(f, "{}", tr("PipeWire error: {0}", &[&error.to_string()]))
+            }
+            Self::StreamUnavailable(which) => {
+                write!(f, "{}", tr("the {0} stream is not available", &[which]))
+            }
+            Self::NoDevice(target) => {
+                write!(f, "{}", tr("no audio device matches '{0}'", &[target]))
+            }
+            Self::InvalidName(name) => {
+                write!(
+                    f,
+                    "{}",
+                    tr("'{0}' is not a usable PipeWire node name", &[name])
+                )
+            }
+            Self::AlreadyRunning => write!(f, "{}", t("the engine is already running")),
+            Self::NotConnected => write!(f, "{}", t("the engine is not connected to PipeWire")),
             Self::ThreadSpawn(detail) => {
-                write!(f, "the engine thread could not be started: {detail}")
+                write!(
+                    f,
+                    "{}",
+                    tr("the engine thread could not be started: {0}", &[detail])
+                )
             }
         }
     }

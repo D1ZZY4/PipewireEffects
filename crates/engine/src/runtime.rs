@@ -2,19 +2,21 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crossbeam_queue::ArrayQueue;
 use pipewire as pw;
 use pw::registry::Listener as RegistryListener;
+use pwe_core::i18n::{t, tr};
 use pwe_core::{ChainCommand, Effect};
 
 use crate::command::{EffectSlot, EngineCommand};
-use crate::config::{EngineConfig, PROCESS_TIMEOUT_MS};
+use crate::config::{EngineConfig, PROCESS_TIMEOUT_MS, RETRY_BACKOFF_MS};
 use crate::connection::{roundtrip, settle};
 use crate::defaults::{self, Watch};
 use crate::device::{self, DeviceInfo};
 use crate::error::{EngineError, EngineResult};
+use crate::listener;
 use crate::shared::{EngineState, Shared};
 use crate::stream_setup::{self, StreamSetup, Streams};
 use crate::target;
@@ -34,6 +36,8 @@ pub struct Runtime {
     mirror: Vec<EffectSlot>,
     target: String,
     system_default: Rc<Watch>,
+    retry_at: Option<Instant>,
+    attempts: u32,
 }
 
 impl Runtime {
@@ -50,56 +54,9 @@ impl Runtime {
         let registry = core.get_registry_rc()?;
 
         let devices: Arc<Mutex<Vec<DeviceInfo>>> = Arc::new(Mutex::new(Vec::new()));
-        let collected = Arc::clone(&devices);
-        let shared_for_listener = Arc::clone(&shared);
-        let removed = Arc::clone(&devices);
-        let shared_for_removal = Arc::clone(&shared);
-        let system_default = defaults::watch();
-        let watched = Rc::clone(&system_default);
-        let registry_for_metadata = registry.clone();
-        let own_nodes = [
-            config.sink_node_name.clone(),
-            stream_setup::PLAYBACK_NODE.to_owned(),
-        ];
-        let registry_listener = registry
-            .add_listener_local()
-            .global(move |object| {
-                if defaults::want_metadata(object) {
-                    watched.bind(
-                        &registry_for_metadata,
-                        object,
-                        [own_nodes[0].as_str(), own_nodes[1].as_str()],
-                    );
-                    return;
-                }
-                if object.type_ != pw::types::ObjectType::Node {
-                    return;
-                }
-                let Some(props) = object.props else {
-                    return;
-                };
-                let Some(info) = DeviceInfo::from_properties(object.id, props) else {
-                    return;
-                };
-                if let Ok(mut known) = collected.lock()
-                    && !known.iter().any(|existing| existing.id == info.id)
-                {
-                    known.push(info);
-                    shared_for_listener
-                        .update_snapshot(|snapshot| snapshot.devices = known.clone());
-                }
-            })
-            .global_remove(move |id| {
-                if let Ok(mut known) = removed.lock() {
-                    let before = known.len();
-                    known.retain(|device| device.id != id);
-                    if known.len() != before {
-                        shared_for_removal
-                            .update_snapshot(|snapshot| snapshot.devices = known.clone());
-                    }
-                }
-            })
-            .register();
+        let system_default = defaults::watch(config.owned_nodes().to_vec());
+        let registry_listener =
+            listener::install(&registry, &config, &shared, &devices, &system_default);
 
         let mut runtime = Self {
             main_loop,
@@ -116,6 +73,8 @@ impl Runtime {
             mirror: Vec::new(),
             target: String::new(),
             system_default,
+            retry_at: None,
+            attempts: 0,
         };
         roundtrip(&runtime.main_loop, &runtime.core)?;
         runtime.report_devices();
@@ -136,6 +95,7 @@ impl Runtime {
             self.drain_retired();
             self.refresh_snapshot();
             self.follow_system_default();
+            self.recover();
             self.main_loop
                 .loop_()
                 .iterate(pw::loop_::Timeout::Finite(Duration::from_millis(
@@ -148,12 +108,7 @@ impl Runtime {
     }
 
     pub fn shutdown(&mut self) {
-        if let Some(streams) = self.streams.take() {
-            let _ = streams.playback.disconnect();
-            let _ = streams.capture.disconnect();
-            streams.playback_listener.unregister();
-            streams.capture_listener.unregister();
-        }
+        self.release_streams();
         self.registry_listener.take();
         settle(&self.main_loop, 4, 10);
         self.drain_retired();
@@ -164,14 +119,18 @@ impl Runtime {
         });
     }
 
-    fn rebuild_streams(&mut self) -> EngineResult<()> {
+    fn release_streams(&mut self) {
         if let Some(streams) = self.streams.take() {
-            let _ = streams.playback.disconnect();
-            let _ = streams.capture.disconnect();
-            streams.playback_listener.unregister();
-            streams.capture_listener.unregister();
+            let _ = streams.downstream.disconnect();
+            let _ = streams.upstream.disconnect();
+            streams.downstream_listener.unregister();
+            streams.upstream_listener.unregister();
             settle(&self.main_loop, 4, 10);
         }
+    }
+
+    fn rebuild_streams(&mut self) -> EngineResult<()> {
+        self.release_streams();
         let setup = StreamSetup {
             core: self.core.clone(),
             config: self.config.clone(),
@@ -186,6 +145,34 @@ impl Runtime {
         self.streams = Some(streams);
         self.shared.set_state(EngineState::Running);
         Ok(())
+    }
+
+    fn recover(&mut self) {
+        if self.shared.state() != EngineState::Failed {
+            self.attempts = 0;
+            self.retry_at = None;
+            return;
+        }
+        let now = Instant::now();
+        if self.retry_at.is_some_and(|at| now < at) {
+            return;
+        }
+        self.attempts = self.attempts.saturating_add(1);
+        let backoff = RETRY_BACKOFF_MS.saturating_mul(u64::from(self.attempts.min(8)));
+        self.retry_at = Some(now + Duration::from_millis(backoff));
+        self.shared.set_state(EngineState::Starting);
+        self.shared.set_error(None);
+        self.shared.add_warning(tr(
+            "the {0} pipeline is reconnecting (attempt {1})",
+            &[self.config.kind.noun(), &self.attempts.to_string()],
+        ));
+        match self.rebuild_streams() {
+            Ok(()) => {
+                self.attempts = 0;
+                self.retry_at = None;
+            }
+            Err(error) => self.report(error),
+        }
     }
 
     fn handle(&mut self, command: EngineCommand) {
@@ -250,9 +237,9 @@ impl Runtime {
 
     fn add_effect(&mut self, slot: EffectSlot, effect: Box<dyn Effect>) {
         if self.mirror.len() >= crate::config::MAX_EFFECTS {
-            self.shared.add_warning(format!(
-                "the chain is limited to {} effects",
-                crate::config::MAX_EFFECTS
+            self.shared.add_warning(tr(
+                "the chain is limited to {0} effects",
+                &[&crate::config::MAX_EFFECTS.to_string()],
             ));
             let _ = self.retired.push(effect);
             return;
@@ -261,7 +248,7 @@ impl Runtime {
             self.mirror.push(slot);
         } else {
             self.shared
-                .add_warning("the audio thread command queue is full".to_owned());
+                .add_warning(t("the audio thread command queue is full").to_owned());
         }
     }
 
@@ -286,7 +273,7 @@ impl Runtime {
     }
 
     fn follow_system_default(&mut self) {
-        if !self.config.target.is_empty() && self.config.target != crate::config::AUTO_TARGET {
+        if !self.config.follows_the_system_default() {
             return;
         }
         let Some(wanted) = self.system_default.current() else {
@@ -296,9 +283,10 @@ impl Runtime {
             .devices
             .lock()
             .map_or_else(|_| Vec::new(), |known| known.clone());
-        match device::resolve(&devices, &wanted, &self.config.sink_node_name) {
-            Some(device) if device.name != self.target => {
-                self.target = device.name.clone();
+        let own = self.config.own_nodes();
+        match device::resolve(&devices, &wanted, &own, self.config.kind) {
+            Some(chosen) if chosen.name != self.target => {
+                self.target = chosen.name.clone();
                 if let Err(error) = self.rebuild_streams() {
                     self.report(error);
                 }
@@ -323,22 +311,18 @@ impl Runtime {
         let node_id = self
             .streams
             .as_ref()
-            .map_or(0, |streams| streams.capture.node_id())
+            .map_or(0, |streams| streams.virtual_node_id())
             .min(u32::MAX - 1);
         self.shared.update_snapshot(move |snapshot| {
+            snapshot.kind = config.kind;
             snapshot.sample_rate = rate;
             snapshot.channels = config.channels;
-            snapshot.target = if target.is_empty() {
-                "no destination".to_owned()
-            } else {
-                target.clone()
-            };
+            snapshot.target = target.clone();
             snapshot.bypassed = config.bypassed;
-            snapshot.automatic =
-                config.target.is_empty() || config.target == crate::config::AUTO_TARGET;
-            snapshot.sink_node_name = config.sink_node_name.clone();
-            snapshot.sink_node_id = node_id;
-            snapshot.sink_description = config.sink_description.clone();
+            snapshot.automatic = config.follows_the_system_default();
+            snapshot.node_name = config.node_name.clone();
+            snapshot.node_id = node_id;
+            snapshot.node_description = config.node_description.clone();
             if !live {
                 snapshot.sample_rate = 0;
             }

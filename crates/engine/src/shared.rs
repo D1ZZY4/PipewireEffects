@@ -1,6 +1,8 @@
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
 
+use pwe_core::PipelineKind;
+
 use crate::command::EffectSlot;
 use crate::device::DeviceInfo;
 
@@ -13,13 +15,13 @@ pub enum EngineState {
 }
 
 impl EngineState {
-    pub const fn label(self) -> &'static str {
-        match self {
+    pub fn label(self) -> &'static str {
+        pwe_core::i18n::t(match self {
             Self::Stopped => "Stopped",
             Self::Starting => "Starting",
             Self::Running => "Running",
             Self::Failed => "Failed",
-        }
+        })
     }
 
     fn from_code(code: u8) -> Self {
@@ -62,7 +64,7 @@ pub struct Stats {
     latency_frames: AtomicU64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct StatsSnapshot {
     pub captured_frames: u64,
     pub processed_frames: u64,
@@ -153,6 +155,17 @@ pub struct MeterSnapshot {
     pub output_rms_db: [f32; 2],
 }
 
+impl Default for MeterSnapshot {
+    fn default() -> Self {
+        Self {
+            input_peak_db: [f32::NEG_INFINITY; 2],
+            input_rms_db: [f32::NEG_INFINITY; 2],
+            output_peak_db: [f32::NEG_INFINITY; 2],
+            output_rms_db: [f32::NEG_INFINITY; 2],
+        }
+    }
+}
+
 impl Meters {
     pub fn publish_input(&self, peak: [f32; 2], rms: [f32; 2]) {
         for channel in 0..2 {
@@ -191,13 +204,14 @@ fn read_db(values: &[AtomicU64; 2]) -> [f32; 2] {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Snapshot {
+    pub kind: PipelineKind,
     pub sample_rate: u32,
     pub channels: usize,
     pub devices: Vec<DeviceInfo>,
     pub target: String,
-    pub sink_node_name: String,
-    pub sink_node_id: u32,
-    pub sink_description: String,
+    pub node_name: String,
+    pub node_id: u32,
+    pub node_description: String,
     pub chain: Vec<(&'static str, EffectSlot)>,
     pub bypassed: bool,
     pub automatic: bool,
@@ -207,13 +221,14 @@ pub struct Snapshot {
 impl Default for Snapshot {
     fn default() -> Self {
         Self {
+            kind: PipelineKind::Output,
             sample_rate: 0,
             channels: 2,
             devices: Vec::new(),
             target: "default".to_owned(),
-            sink_node_name: String::new(),
-            sink_node_id: 0,
-            sink_description: String::new(),
+            node_name: String::new(),
+            node_id: 0,
+            node_description: String::new(),
             chain: Vec::new(),
             bypassed: false,
             automatic: true,

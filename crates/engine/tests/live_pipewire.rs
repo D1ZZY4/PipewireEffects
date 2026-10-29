@@ -59,7 +59,8 @@ fn the_engine_connects_and_reports_its_devices() {
     assert!(!snapshot.devices.is_empty(), "no devices were discovered");
     assert!(snapshot.devices.iter().any(|device| device.is_sink()));
     assert_eq!(snapshot.channels, 2);
-    assert_eq!(snapshot.sink_node_name, "pipewire-effects-sink");
+    assert_eq!(snapshot.node_name, "pipewire-effects-sink");
+    assert_eq!(snapshot.kind, pwe_core::PipelineKind::Output);
     engine.shutdown();
     assert_eq!(engine.shared().state(), EngineState::Stopped);
 }
@@ -68,8 +69,8 @@ fn the_engine_connects_and_reports_its_devices() {
 #[ignore = "needs a running PipeWire daemon and plays a quiet tone"]
 fn audio_is_processed_by_the_chain_and_measured_at_the_output() {
     let private = EngineConfig {
-        sink_node_name: format!("pipewire-effects-live-{}", std::process::id()),
-        sink_description: "PipeWire Effects live test".to_owned(),
+        node_name: format!("pipewire-effects-live-{}", std::process::id()),
+        node_description: "PipeWire Effects live test".to_owned(),
         ..EngineConfig::default()
     };
     let mut engine = EngineHandle::spawn(private).expect("engine should start");
@@ -89,11 +90,11 @@ fn audio_is_processed_by_the_chain_and_measured_at_the_output() {
     let mut sink_target = String::new();
     while Instant::now() < sink_deadline {
         let snapshot = engine.shared().snapshot();
-        if snapshot.sink_node_id != 0
+        if snapshot.node_id != 0
             && let Some(device) = snapshot
                 .devices
                 .iter()
-                .find(|device| device.id == snapshot.sink_node_id)
+                .find(|device| device.id == snapshot.node_id)
         {
             sink_target = if device.serial != 0 {
                 device.serial.to_string()
@@ -212,6 +213,84 @@ fn audio_is_processed_by_the_chain_and_measured_at_the_output() {
         (reduction - 20.0).abs() < 4.0,
         "expected about 20 dB of gain reduction, measured {reduction}"
     );
+
+    engine.shutdown();
+}
+
+#[test]
+#[ignore = "needs a running PipeWire daemon and records from the virtual source"]
+fn a_client_can_record_the_processed_input_pipeline() {
+    let mut engine = EngineHandle::spawn(EngineConfig::for_kind(pwe_core::PipelineKind::Input))
+        .expect("engine should start");
+    assert!(
+        wait_for(&engine, EngineState::Running, Duration::from_secs(5)),
+        "the input engine did not start"
+    );
+
+    let params = ParamSet::new(pwe_dsp::effects::gain_specs());
+    params.set_f32("gain", -6.0).unwrap();
+    engine
+        .add_effect(EffectSlot(1), Box::new(pwe_dsp::effects::Gain::new(params)))
+        .expect("effect should be accepted");
+    sleep(Duration::from_millis(300));
+
+    let snapshot = engine.shared().snapshot();
+    println!(
+        "input pipeline node '{}' id {} target '{}'",
+        snapshot.node_name, snapshot.node_id, snapshot.target
+    );
+    assert_eq!(snapshot.kind, pwe_core::PipelineKind::Input);
+    assert_eq!(snapshot.node_name, "pipewire-effects-source");
+
+    let path = std::env::temp_dir().join("pipewire-effects-input-live.wav");
+    let recorder = Command::new("pw-cat")
+        .args([
+            "--record",
+            "--target",
+            "pipewire-effects-source",
+            "--format",
+            "f32",
+            "--rate",
+            "48000",
+        ])
+        .arg(&path)
+        .spawn();
+    let mut recorder = match recorder {
+        Ok(child) => child,
+        Err(error) => {
+            eprintln!("pw-cat is unavailable; the input test was not executed: {error}");
+            engine.shutdown();
+            return;
+        }
+    };
+
+    let deadline = Instant::now() + Duration::from_secs(6);
+    let mut processed = 0;
+    while Instant::now() < deadline {
+        processed = engine.shared().stats().snapshot().processed_frames;
+        if processed >= MIN_PROCESSED_FRAMES {
+            break;
+        }
+        sleep(Duration::from_millis(50));
+    }
+    let meters = engine.shared().meters().snapshot();
+    let _ = recorder.kill();
+    let _ = recorder.wait();
+    let _ = std::fs::remove_file(&path);
+
+    println!(
+        "the input chain processed {processed} frames; last read: input {:.2} dB, output {:.2} dB",
+        meters.input_peak_db[0], meters.output_peak_db[0]
+    );
+    assert!(
+        snapshot.node_id != 0,
+        "the virtual source never appeared, so a client cannot record from it"
+    );
+    assert!(
+        processed >= MIN_PROCESSED_FRAMES,
+        "recording from the virtual source never drove the input chain"
+    );
+    assert!(meters.output_peak_db[0].is_finite());
 
     engine.shutdown();
 }

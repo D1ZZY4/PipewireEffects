@@ -1,6 +1,7 @@
 use pipewire as pw;
 use pw::spa::utils::dict::DictRef;
 use pw::types::ObjectType;
+use pwe_core::PipelineKind;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -83,29 +84,35 @@ pub fn is_device_class(media_class: &str) -> bool {
     )
 }
 
-pub fn pick_sink<'a>(devices: &'a [DeviceInfo], sink_node_name: &str) -> Option<&'a DeviceInfo> {
+pub fn pick_sink<'a>(devices: &'a [DeviceInfo], own: &[&str]) -> Option<&'a DeviceInfo> {
     devices
         .iter()
-        .filter(|device| device.is_sink() && device.name != sink_node_name)
+        .filter(|device| device.is_sink() && !own.contains(&device.name.as_str()))
         .max_by_key(|device| (std::cmp::Reverse(device.virtual_device), device.priority))
 }
 
-pub fn pick_source<'a>(devices: &'a [DeviceInfo], sink_node_name: &str) -> Option<&'a DeviceInfo> {
+pub fn pick_source<'a>(devices: &'a [DeviceInfo], own: &[&str]) -> Option<&'a DeviceInfo> {
     devices
         .iter()
-        .filter(|device| device.is_source() && device.name != sink_node_name)
+        .filter(|device| device.is_source() && !own.contains(&device.name.as_str()))
         .max_by_key(|device| (std::cmp::Reverse(device.virtual_device), device.priority))
 }
 
 pub fn resolve<'a>(
     devices: &'a [DeviceInfo],
     target: &str,
-    sink_node_name: &str,
+    own: &[&str],
+    kind: PipelineKind,
 ) -> Option<&'a DeviceInfo> {
     if target.is_empty() || target == "default" {
-        return pick_sink(devices, sink_node_name);
+        return match kind {
+            PipelineKind::Output => pick_sink(devices, own),
+            PipelineKind::Input => pick_source(devices, own),
+        };
     }
-    devices.iter().find(|device| device.name == target)
+    devices
+        .iter()
+        .find(|device| device.name == target && !own.contains(&device.name.as_str()))
 }
 
 pub fn list_devices() -> EngineResult<Vec<DeviceInfo>> {
@@ -199,7 +206,7 @@ mod tests {
             },
         ];
         assert_eq!(
-            pick_sink(&devices, "pipewire-effects-sink").map(|device| device.name.as_str()),
+            pick_sink(&devices, &["pipewire-effects-sink"]).map(|device| device.name.as_str()),
             Some("hdmi")
         );
     }
@@ -216,10 +223,66 @@ mod tests {
             priority: 100,
         }];
         assert_eq!(
-            resolve(&devices, "usb", "sink").map(|device| device.id),
+            resolve(&devices, "usb", &[], PipelineKind::Output).map(|device| device.id),
             Some(1)
         );
-        assert!(resolve(&devices, "missing", "sink").is_none());
+        assert!(resolve(&devices, "missing", &[], PipelineKind::Output).is_none());
+    }
+
+    #[test]
+    fn the_internal_nodes_are_never_chosen_as_a_destination() {
+        let devices = vec![DeviceInfo {
+            serial: 0,
+            id: 1,
+            name: "pipewire-effects-source".into(),
+            description: "Internal".into(),
+            media_class: MEDIA_CLASS_SOURCE.into(),
+            virtual_device: true,
+            priority: 1000,
+        }];
+        assert!(pick_source(&devices, &["pipewire-effects-source"]).is_none());
+        assert_eq!(
+            resolve(
+                &devices,
+                "",
+                &["pipewire-effects-source"],
+                PipelineKind::Input
+            )
+            .map(|d| d.id),
+            None
+        );
+    }
+
+    #[test]
+    fn the_input_pipeline_picks_a_source_and_the_output_pipeline_a_sink() {
+        let devices = vec![
+            DeviceInfo {
+                serial: 0,
+                id: 1,
+                name: "sink".into(),
+                description: "Sink".into(),
+                media_class: MEDIA_CLASS_SINK.into(),
+                virtual_device: false,
+                priority: 500,
+            },
+            DeviceInfo {
+                serial: 0,
+                id: 2,
+                name: "source".into(),
+                description: "Source".into(),
+                media_class: MEDIA_CLASS_SOURCE.into(),
+                virtual_device: false,
+                priority: 500,
+            },
+        ];
+        assert_eq!(
+            resolve(&devices, "", &[], PipelineKind::Output).map(|d| d.name.as_str()),
+            Some("sink")
+        );
+        assert_eq!(
+            resolve(&devices, "", &[], PipelineKind::Input).map(|d| d.name.as_str()),
+            Some("source")
+        );
     }
 
     #[test]
