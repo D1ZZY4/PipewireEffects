@@ -1,3 +1,6 @@
+use pwe_core::AudioBuffer;
+use pwe_core::math;
+
 pub fn soft_knee_reduction_db(level_db: f32, threshold_db: f32, knee_db: f32, ratio: f32) -> f32 {
     if !level_db.is_finite() {
         return 0.0;
@@ -39,6 +42,66 @@ pub fn ballistics(attack_ms: f32, release_ms: f32, rate: u32) -> (f32, f32) {
     let attack = 1.0 - (-1.0 / ((attack_ms.max(0.01) / 1000.0) * rate)).exp();
     let release = 1.0 - (-1.0 / ((release_ms.max(0.01) / 1000.0) * rate)).exp();
     (attack.clamp(0.0, 1.0), release.clamp(0.0, 1.0))
+}
+
+pub fn blend(dry: f32, wet: f32, mix: f32) -> f32 {
+    dry * (1.0 - mix) + wet * mix
+}
+
+#[derive(Default)]
+pub struct Detector {
+    level: f32,
+    rms: f32,
+    attack: f32,
+    release: f32,
+    rms_coefficient: f32,
+}
+
+impl Detector {
+    pub fn set_ballistics(&mut self, attack_ms: f32, release_ms: f32, rate: u32) {
+        let (attack, release) = ballistics(attack_ms, release_ms, rate);
+        self.attack = attack;
+        self.release = release;
+        self.rms_coefficient = math::one_pole_alpha(10.0, rate);
+    }
+
+    pub fn reset(&mut self) {
+        self.level = 0.0;
+        self.rms = 0.0;
+    }
+
+    pub fn track(
+        &mut self,
+        buffer: &AudioBuffer,
+        channels: usize,
+        frame: usize,
+        use_rms: bool,
+    ) -> f32 {
+        let mut peak = 0.0f32;
+        let mut square = 0.0f32;
+        for channel in 0..channels {
+            let sample = buffer.channel(channel)[frame];
+            peak = peak.max(sample.abs());
+            square += sample * sample;
+        }
+        square /= channels.max(1) as f32;
+        let level = if use_rms {
+            self.rms += (square - self.rms) * self.rms_coefficient;
+            self.rms.max(0.0).sqrt()
+        } else {
+            peak
+        };
+        let coefficient = if level > self.level {
+            self.attack
+        } else {
+            self.release
+        };
+        self.level += (level - self.level) * coefficient;
+        if !self.level.is_finite() {
+            self.level = 0.0;
+        }
+        self.level
+    }
 }
 
 #[cfg(test)]
@@ -102,5 +165,29 @@ mod tests {
             envelope += (target - envelope) * coefficient;
         }
         assert!((envelope + 6.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn the_detector_follows_a_steady_level() {
+        let mut buffer = AudioBuffer::new(2, 64);
+        buffer.configure(2, 64).unwrap();
+        for channel in 0..2 {
+            buffer.channel_mut(channel).fill(0.5);
+        }
+        let mut detector = Detector::default();
+        detector.set_ballistics(1.0, 50.0, 48_000);
+        let mut level = 0.0;
+        for _ in 0..200 {
+            for frame in 0..64 {
+                level = detector.track(&buffer, 2, frame, false);
+            }
+        }
+        assert!((level - 0.5).abs() < 1.0e-3, "{level}");
+    }
+
+    #[test]
+    fn the_mix_blend_crosses_between_dry_and_wet() {
+        assert!((blend(0.0, 1.0, 0.25) - 0.25).abs() < 1.0e-6);
+        assert!((blend(0.4, 0.4, 1.0) - 0.4).abs() < 1.0e-6);
     }
 }
