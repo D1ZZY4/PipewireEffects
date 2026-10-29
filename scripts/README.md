@@ -82,15 +82,16 @@ can gate a review.
 | `editor` | the Effects page with the third effect selected |
 | `equalizer` | the equalizer editor with its response curve |
 | `presets` | the preset library |
-| `devices` | the Devices page with diagnostics expanded |
+| `devices` | the Devices dialog, opened through the `win.devices` action |
+| `preferences` | the Preferences dialog |
+| `developer` | Preferences with developer mode on and the diagnostics expanded |
 | `picker` | the Add-effect dialog |
 | `picker-tone` | the Add-effect dialog scrolled to its end |
 | `about` | the About dialog |
 | `banner` | an error banner over the Effects page |
 | `bypass` | the Effects page with the chain bypassed |
 | `narrow` | the collapsed layout at 720x620 |
-| `input` | the Input pipeline, with microphone processing switched on |
-| `effect:<kind>` | the built-in preset plus the named effect, selected |
+| `input` | the Input pipeline, with microphone processing switched on || `effect:<kind>` | the built-in preset plus the named effect, selected |
 
 `input` starts the real microphone pipeline for the duration of the capture.
 Use it knowingly; it records nothing, but it does open the capture device.

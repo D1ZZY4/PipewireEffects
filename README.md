@@ -35,7 +35,7 @@ Twenty effects, each with real processing and a generated control surface:
 | **Gate** | Noise gate with range, attack, hold and release |
 | **Expander** | Downward expander with a soft knee, attack, release and makeup |
 | **De-esser** | Split or wideband sibilance reduction |
-| **Auto gain** | Slow RMS normalisation towards a target level (not EBU R128) |
+| **Auto gain** | EBU R128 loudness normalisation towards a target loudness |
 | **Bass enhancer** | Low-band harmonic generation so small speakers reproduce bass |
 | **Crystalizer** | Four-band transient emphasis |
 | **Crusher** | Bit-depth and sample-rate reduction with a modulated hold |
@@ -50,8 +50,8 @@ Twenty effects, each with real processing and a generated control surface:
 Around them:
 
 - Two pipelines: an **Output** chain and an **Input** (microphone) chain, each
-  with its own device, meters and enable switch. The Effects page switches
-  between them.
+  with its own device, meters and enable switch. They are the first two tabs of
+  the window.
 - A chain you can reorder, enable per stage, or bypass as a whole.
 - Presets stored as readable JSON with `output` and `input` sections, one built
   in, with save, delete, import and export. EasyEffects presets load too, both
@@ -67,6 +67,8 @@ Around them:
   system default source the same way.
 - A command line, and a *Start on login* switch that processes audio from
   sign-in.
+- *Devices* and *Preferences* in the main menu, and a *Developer mode* switch in
+  Preferences that reveals the engine counters and diagnostic messages.
 
 ## Requirements
 
@@ -158,8 +160,9 @@ pactl set-default-source pipewire-effects-source
 
 ## Settings
 
-The device of each pipeline, the loaded preset, the bypass and the autostart
-switch are remembered in `$XDG_CONFIG_HOME/pipewire-effects/settings.json`
+The device of each pipeline, the loaded preset, the bypass, the autostart
+switch and the developer mode are remembered in
+`$XDG_CONFIG_HOME/pipewire-effects/settings.json`
 (usually `~/.config/pipewire-effects/settings.json`). The file is written
 atomically, and a damaged file falls back to the defaults with a message rather
 than stopping the application.
@@ -269,7 +272,7 @@ factor for each effect and for the full twenty-effect chain:
 cargo run --release -p pwe-dsp --example benchmark
 ```
 
-317 tests, none of which need an audio device or a display; the two icon lookups
+319 tests, none of which need an audio device or a display; the two icon lookups
 skip themselves when no display is available. They cover biquad designs against
 their analytic magnitude response, the effects against measured signal levels and
 numerical bounds, the ring buffer and trimming policy with a real producer and
@@ -318,7 +321,8 @@ Working, and honest about the gaps:
   resampling.
 - The limiter has no lookahead, so its instantaneous attack trades some
   transient distortion for a guaranteed ceiling.
-- Auto gain is RMS-based, not EBU R128.
+- Auto gain is EBU R128 loudness normalisation over a rolling 30-second window,
+  not the whole program.
 - The underlying transport is two `pw_stream`s joined by a ring buffer, per
   pipeline, rather than one `pw_filter` node per effect, because `pipewire-rs`
   0.10 exposes no `pw_filter` binding. The cost is the buffer and its drift

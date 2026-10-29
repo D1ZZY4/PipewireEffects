@@ -15,7 +15,7 @@ pwe-core  ◄── pwe-settings ───────────────�
 | Crate | Owns | Does not know about |
 |---|---|---|
 | `pwe-core` | Audio buffers, parameter specifications, the effect contract, the chain, meters, realtime-safe helpers, the pipeline kinds | PipeWire, GTK, files |
-| `pwe-dsp` | The twenty effects, the biquad designs and the effect registry | Threads, devices, presets |
+| `pwe-dsp` | The twenty effects, the R128 loudness measurement, the biquad designs and the effect registry | Threads, devices, presets |
 | `pwe-presets` | The preset schema, name validation and the preset directory | Which effects exist |
 | `pwe-settings` | The settings document, its atomic store and the autostart entry | The engine, the interface, the effects |
 | `pwe-engine` | PipeWire streams, the virtual sink and source, the destination device, the realtime processor, counters | GTK, presets, settings |
@@ -194,26 +194,31 @@ click a repeated sample produces at a buffer boundary.
 ## 7. The interface
 
 `adw::ApplicationWindow` → `adw::ToolbarView` → `adw::ViewStack`, with an
-`adw::ViewSwitcher` in the header as the top-level navigation. The three pages
-also have `Ctrl`+`1`, `Ctrl`+`2` and `Ctrl`+`3` accelerators, registered as
-window actions.
+`adw::ViewSwitcher` in the header as the top-level navigation. The tabs are
+**Output**, **Input** and **Presets**, and they have `Ctrl`+`1`, `Ctrl`+`2` and
+`Ctrl`+`3` accelerators, registered as window actions. The main menu carries
+**Devices** (`Ctrl`+`4`), **Preferences** (`Ctrl`+`,`), **About PipeWire
+Effects** and **Quit**; the two device destinations open
+`adw::PreferencesDialog`s rather than occupying a tab.
 
-- **Effects**: an `adw::OverlaySplitView`. The start side is a fixed-width chain
-  column (a pipeline switch, input meter, engine status, the effect rows, *Add
-  effect*); the end side is the editor for the selected effect. Below 860 px the
-  split view collapses and a header toggle reveals the chain over the editor. The
-  switch chooses between the **Output** and **Input** chains; the sidebar and the
-  editor always show the chain that is selected, and the meters follow it.
+- **Output** and **Input**: one `adw::OverlaySplitView` per pipeline, each with
+  its own chain column, meters and editor, so switching tabs never rebuilds the
+  other pipeline's widgets. The start side is a fixed-width chain column (the
+  chain title, *Add effect*, the effect rows); the end side carries the chain's
+  input and output meters above the editor for the selected effect. Below 860 px
+  both split views collapse and a header toggle reveals the chain over the
+  editor. The visible tab is the active pipeline.
 - **Presets**: the preset library, with load, save, delete, import and export.
-- **Devices**: the engine status for the selected pipeline, its node name with a
-  copy button, its destination chooser, a *Microphone* switch, a *Start on login*
-  switch, statistics and diagnostics, and a *Reconnect* button that appears when
-  the engine has failed.
+- **Devices** (menu): the engine status for the active pipeline, its node name
+  with a copy button, its routing hint, its destination chooser, a *Microphone*
+  switch and a *Reconnect* button that appears when the engine has failed.
+- **Preferences** (menu): *Start on login* and a *Developer mode* switch. The
+  engine counters and the diagnostic messages are shown in a *Diagnostics* group
+  only while developer mode is on, and the choice is persisted.
 - **Chain rows**: the effect's symbolic icon, its name and summary, and an enable
   switch; move up/down and remove are behind a menu button that appears on hover
   or secondary click. The labels are ellipsized so that the column width does not
-  depend on the length of an effect summary. The column also carries the input
-  meter and one line of engine status.
+  depend on the length of an effect summary.
 - **Editor**: a `adw::PreferencesPage` generated from the selected effect's
   parameter specifications. Booleans become `adw::SwitchRow`, choices become
   `adw::ComboRow`, floats become a labelled `gtk::Scale` that maps through the
@@ -224,8 +229,8 @@ window actions.
 - **Dialogs**: effect picker with search, and the name, confirm and file dialogs
   used by the preset library.
 - **Meters**: `gtk::LevelBar` for peak with an RMS offset marker, plus a numeric
-  readout. Both meters run through `LevelMeter`, so the two readouts are
-  comparable when the chain is empty.
+  readout. Both meters run through `LevelMeter`, so the two readouts of one
+  pipeline are comparable when its chain is empty.
 - **Banner**: engine errors and conversion warnings appear in an `adw::Banner`
   with a *Dismiss* button. The meter's hold and RMS markers and the equalizer's
   band markers are drawn from the widget's own foreground colour, so each stays
@@ -339,7 +344,8 @@ without a system preset directory.
   "input":  { "device": "default", "bypassed": false },
   "preset": "Default",
   "process_input": false,
-  "autostart": false
+  "autostart": false,
+  "developer_mode": false
 }
 ```
 
@@ -358,7 +364,10 @@ The binary parses its own flags before GTK sees them: `--help`, `--version`,
 `--preset NAME`, `--device NAME`, `--no-window`, `--list-presets` and
 `--list-devices`. `crates/app/src/cli.rs` owns the parsing and is covered by
 tests; the parsing is deliberately hand-written rather than pulling in an
-argument-parsing dependency for seven flags.
+argument-parsing dependency for seven flags. The application is started with
+`Application::run_with_args` and only the program name, so GLib's own argument
+parser never sees the options; `Application::run` hands it the whole process
+command line, and it rejects any option it does not know.
 
 `make install` installs the binary, the desktop entry, both icon sets and the
 built-in preset below `$(PREFIX)`. `packaging/` carries a `PKGBUILD` and a
@@ -377,9 +386,13 @@ installed into the system here.
 
 ## 11. Verification
 
-- `cargo test --workspace`: 317 tests, no audio device needed.
+- `cargo test --workspace`: 319 tests, no audio device needed.
   Two of them need a display and skip themselves without one: the bundled icon
   lookup and the icon-theme check.
+- The R128 measurement is checked against the standard's own calibration: a
+  full-scale sine measures about 0 LUFS, a −23 dBFS sine measures −23 LUFS within
+  0.4 LU, a 10 dB step moves the measurement by 10 LU, and silence is not
+  measured at all.
 - The registry checks itself: effect identifiers and labels are unique, every
   effect publishes parameters and builds, and every parameter identifier is
   unique within its effect.
@@ -427,10 +440,12 @@ installed into the system here.
   running PipeWire.
 - `PIPEWIRE_EFFECTS_UI_STATE=<state>` drives the real window into one state after
   it is mapped, so a screenshot can be taken of a specific screen. The states are
-  `chain`, `editor`, `equalizer`, `presets`, `devices`, `input`, `picker`,
-  `picker-tone`, `about`, `save`, `banner`, `bypass`, `narrow` and
-  `effect:<kind>`, which loads the built-in preset, adds the named effect if it
-  is absent and selects it. This is the harness the interface review in section 13
+  `chain`, `editor`, `equalizer`, `presets`, `devices`, `preferences`,
+  `developer`, `input`, `picker`, `picker-tone`, `about`, `save`, `banner`,
+  `bypass`, `narrow` and `effect:<kind>`, which loads the built-in preset, adds
+  the named effect if it is absent and selects it. `devices` and `preferences`
+  activate the `win.devices` and `win.preferences` actions, so the menu wiring is
+  exercised too. This is the harness the interface review in section 13
   used; it is not part of the product.
 - `scripts/capture-ui.sh` runs the harness over an isolated headless GNOME
   session and writes one PNG per state; `scripts/README.md` documents it. It
@@ -655,3 +670,59 @@ Indonesian catalog was compiled with `msgfmt` and bound with
 and *Pembatas*, while the strings the test catalog did not carry stayed English.
 The mechanism therefore translates and falls back as designed; no translation is
 shipped, so an installed build still shows English.
+
+A later pass re-ran the harness on the current build on the headless Wayland
+session: the fourteen light states and eleven dark states were captured and
+inspected again, together with the twenty-effect editors where they differ. The
+light pass covered `chain`, `editor`, `equalizer`, `presets`, `devices`,
+`picker`, `picker-tone`, `about`, `banner`, `bypass`, `narrow`, the crusher and
+reverberation editors, and the input pipeline; the dark pass repeated the
+standard set and the crusher editor. The input pipeline read −36.8 dB on both
+meters again, which is the real capture device feeding the second chain. No
+clipping, overlap, truncation, missing glyph or theme-contrast problem was found.
+The pass confirmed the *Dismiss* button on the error banner and the equalizer
+band markers in both appearances. It found no new interface defect, but it
+prompted a check of the command line, which found the `Application::run` defect
+recorded in section 9: `--no-window`, `--preset` and `--device` were rejected by
+GLib before the application saw them. The application is run with
+`Application::run_with_args` now, and `--no-window`, `--preset Default`,
+`--preset=Default`, `--device does-not-exist`, `--list-presets` and
+`--list-devices` were each run against the rebuilt binary under a private bus and
+behaved as documented.
+
+The accessibility tree was probed again over a private AT-SPI bus
+(`at-spi2-registryd` on a private `AT_SPI_BUS_ADDRESS`). It exposed the desktop,
+the `pipewire-effects` application, the `PipeWire Effects` frame, the container
+hierarchy and individual labels such as `Input`, `-inf dB` and `Engine` (twenty
+to twenty-two objects per state), which confirms the tree is populated. This pass
+did not reproduce the control-level walk recorded above: its traversal did not
+yet reach the switches, combo boxes and sliders. That is a limitation of this
+pass, not a regression; the earlier walk, with the slider names and value text,
+remains the record for the interactive controls.
+
+`scripts/capture-ui.sh` was re-run unchanged; `scripts/update-po.sh` regenerates
+`po/pipewire-effects.pot` with no change other than its creation date (348
+messages), and `make install DESTDIR=<staging> PREFIX=/usr` installed the
+binary, the desktop entry, both icon sets and the built-in preset into a staging
+tree and `make uninstall` removed exactly what it installed.
+
+The most recent pass reviewed the navigation change and the R128 auto gain on the
+same headless Wayland session, in the light appearance and again in the dark one.
+It found and fixed two defects: the destination chooser's value was ellipsized in
+the narrower Devices dialog, so the row was shortened to *Output device* /
+*Input device*; and the first version of the *Developer mode* switch hid the
+group it lived in, which would have made it impossible to switch back off. The
+final captures show the *Output*, *Input* and *Presets* tabs, the Output chain
+with the built-in preset, the Input chain driven by the real capture device
+(−36.8 dB on both of its meters), the Devices and Preferences dialogs, and the
+Preferences dialog with developer mode on and the engine counters visible. The
+harness now reaches the two dialogs by activating the same `win.devices` and
+`win.preferences` actions the menu uses, and the run reports no
+"action could not be activated" line, which is how the menu wiring is checked
+without a compositor screenshot of the popover. The settings file written by the
+run carries `"developer_mode": true`, which is how the persistence of the new
+switch was checked.
+
+The R128 measurement is not verified by the interface pass. It is verified by the
+unit tests listed in section 11, against the standard's own calibration values,
+and it runs in the audio path through `AutoGain`.

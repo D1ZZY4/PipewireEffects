@@ -62,13 +62,19 @@ keeps working in the next.
   effect and the full twenty-effect chain and prints microseconds per block, the
   realtime factor and the cost as a percentage of one core, at two block sizes.
   `cargo run --release -p pwe-dsp --example benchmark`.
-
-### Changed
-
-- The input and output meters sit side by side below the chain header instead of
-  one above the chain and one above the editor, and both expand to the width of
-  the column.
-- The level history trace is not drawn while the meter is silent.
+- The window's top-level navigation is now *Output*, *Input* and *Presets*.
+  Each pipeline owns its own chain column, its own *In* and *Out* meters and its
+  own editor, so a chain is never drawn against another pipeline's levels.
+- *Devices* and *Preferences* moved into the main menu and open
+  `adw::PreferencesDialog`s. The menu entries carry icons and have `Ctrl`+`4`
+  and `Ctrl`+`,` accelerators.
+- A *Developer mode* switch in Preferences. The engine counters and the
+  diagnostic messages are shown only while it is on, and the choice survives a
+  restart in the settings file.
+- `ParamUnit::Lufs`, and an EBU R128 loudness measurement in
+  `crates/dsp/src/r128.rs`: ITU-R BS.1770 K-weighting for the running sample
+  rate, 400 ms blocks at a 100 ms hop, the absolute −70 LUFS and relative −10 LU
+  gates, and the −0.691 offset.
 
 ### Fixed
 
@@ -167,7 +173,7 @@ keeps working in the next.
   Those labels are read through gettext but declared outside a `t()` call, so
   `xgettext` never saw them and a translator had nothing to translate; they are
   marked for extraction and `scripts/update-po.sh` now teaches `xgettext` the
-  parameter builders, which grew the catalog from 199 to 337 messages. Effect
+  parameter builders, which grew the catalog from 199 to 348 messages. Effect
   names, parameter labels, groups and choice labels are therefore translatable
   for the first time.
 - Two dialog *Cancel* buttons were not translated, and the error banner had no
@@ -190,9 +196,46 @@ keeps working in the next.
   editor and the chain disagreed about which effect was selected. The selection is
   restored from the chain model whenever the rows are rebuilt or the editor is
   refreshed.
+- The crusher's dry path no longer carries the held sample. With a partial mix
+  the output was `held * (1 - mix) + crushed * mix`, so the dry term was the
+  sample-and-hold value instead of the input sample; a signal that did not reach
+  a hold boundary returned the previous held sample. The dry term is the input
+  sample now.
+- A removed effect is never freed on the audio thread. When the recycle queue was
+  full the audio thread dropped the box, which called the allocator inside the
+  realtime callback; the processor holds the effect in a small side buffer and
+  moves it to the queue on the next block instead.
+- The application's own options reach the application again. `Application::run`
+  handed the whole process command line to GLib, which rejects an option it does
+  not know, so `--no-window`, `--preset` and `--device` printed
+  `Unknown option ...` and exited with status 1 instead of starting. The autostart
+  entry, which is `pipewire-effects --no-window`, therefore did nothing at
+  sign-in. The application is now run with only its program name, and the options
+  are read by the parser in `crates/app/src/cli.rs`.
 
 ### Changed
 
+- Auto gain normalises to an EBU R128 loudness target instead of a raw RMS
+  level, so its *Target loudness* and *Silence threshold* are in LUFS and a
+  reference preset's `target` now means what it means in EasyEffects. The
+  measurement covers a rolling 30-second window rather than the whole program.
+- The settings document gained `developer_mode`, and the diagnostics that used to
+  sit in an *Advanced* group on the Devices page moved into Preferences, behind
+  that switch.
+- The destination chooser's row was shortened to *Output device* / *Input
+  device*, so its value is no longer ellipsized in the narrower dialog.
+- The input and output meters sit side by side below the chain header instead of
+  one above the chain and one above the editor, and both expand to the width of
+  the column.
+- The level history trace is not drawn while the meter is silent.
+- The diagnostics expander reports overrun samples and the current ring
+  occupancy next to the captured frames, processed frames, underrun samples and
+  drift trims, so every counter the engine keeps is visible.
+- The destination chooser rebuilds its entries whenever the discovered devices
+  change, including when a pipeline currently has no matching device, so it can
+  no longer show a list that the engine has outgrown.
+- A preset named on the command line with `--preset` now reports the conversion
+  warnings it produced instead of loading in silence.
 - The interface-review harness renders a state through the window's own render
   tree (`PIPEWIRE_EFFECTS_UI_CAPTURE`) and writes it to a PNG, so a capture can
   be taken on a Wayland session, where GNOME refuses its screenshot interface to
@@ -228,8 +271,13 @@ keeps working in the next.
 - The playback buffer is bounded by the processing scratch buffer, so a graph
   quantum larger than the application's maximum cannot index past it.
 - Unused helpers were removed: the meter's unused reset and loudness accessors,
-  the buffer's `set_frames`, the `InvalidIndex` error variant, and several DSP
-  helpers that no effect called.
+  the buffer's `set_frames`, the `InvalidIndex` error variant, the effect
+  contract's default `latency_frames`, the chain's `latency_frames`, the
+  parameter set's untyped boolean, choice and index readers, the value's
+  `from_bits`, the smoothed value's `is_settled`, the table `interpolate`, the
+  engine's `ResetChain` and `RefreshDevices` commands and their handlers, the
+  `awaiting_recycling` accessors, the `limited_blocks` and `latency_frames`
+  counters, and the chain's unread `loaded_preset` field.
 
 ### Documentation
 

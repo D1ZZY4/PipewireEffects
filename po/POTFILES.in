@@ -47,12 +47,14 @@ crates/settings/src/store.rs
 crates/ui/src/app.rs
 crates/ui/src/chain.rs
 crates/ui/src/chain_view.rs
+crates/ui/src/chrome.rs
+crates/ui/src/devices.rs
+crates/ui/src/diagnostics.rs
 crates/ui/src/dialogs.rs
 crates/ui/src/editor.rs
 crates/ui/src/format.rs
 crates/ui/src/pages.rs
+crates/ui/src/preferences.rs
 crates/ui/src/presets_ui.rs
-crates/ui/src/settings.rs
-crates/ui/src/settings/parts.rs
 crates/ui/src/state.rs
 crates/ui/src/window.rs

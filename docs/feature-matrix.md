@@ -47,7 +47,7 @@ Reference evidence refers to files under `references/`.
 | Limiter | `src/limiter.cpp`, `docs/plugins/limiter.md` | Lookahead limiter (LADSPA) | `crates/dsp/src/effects/limiter.rs` | Partial | Instantaneous-attack peak limiter with ceiling and release. No lookahead, therefore no reported latency and some transient distortion. Tested: ceiling never exceeded with +20 dB input, unity for quiet material, gain recovery. |
 | Gate | `src/gate.cpp`, `docs/plugins/gate.md` | Noise gate with threshold, range, attack, hold, release | `crates/dsp/src/effects/gate.rs` | Partial | Same parameter set plus mix. No sidechain or hysteresis controls. Tested: open on loud material, range attenuation, hold delay. |
 | De-esser | `src/deesser.cpp`, `docs/plugins/deesser.md` | Sibilance reduction, split or wideband | `crates/dsp/src/effects/deesser.rs` | Implemented | Band detector, threshold, ratio, split/wideband, attack, release. Tested: sibilance reduced, low frequencies untouched, finite output. |
-| Auto gain | `src/autogain.cpp` (libebur128) | EBU R128 integrated loudness normalisation | `crates/dsp/src/effects/autogain.rs` | Partial | Slow RMS normalisation with target, maximum gain, silence threshold and speed. **Not R128.** Tested: gain converges, capped, silence does not move the gain. |
+| Auto gain | `src/autogain.cpp` (libebur128) | EBU R128 integrated loudness normalisation | `crates/dsp/src/effects/autogain.rs`, `crates/dsp/src/r128.rs` | Implemented | ITU-R BS.1770 K-weighting (the standard shelf and RLB high-pass, designed for the running sample rate), 400 ms blocks at a 100 ms hop, the absolute −70 LUFS and relative −10 LU gates, and the −0.691 offset. The measurement covers a rolling 30-second window rather than the whole program. Parameters: target loudness (LUFS), maximum gain, silence threshold, speed. Tested: a full-scale sine measures about 0 LUFS and a −23 dBFS sine measures −23 LUFS within 0.4 LU, a 10 dB step moves the measurement by 10 LU, silence is not measured, the gain converges and is capped. |
 | Bass enhancer | `src/bass_enhancer.cpp` | Low-band harmonic generation | `crates/dsp/src/effects/bass_enhancer.rs` | Partial | Low-pass split, rectification, DC removal, harmonic blend, output gain. Different algorithm from the reference. Tested: harmonics appear, zero amount is transparent, bounded output. |
 | Crystalizer | `src/crystalizer.cpp` | Transient emphasis across bands | `crates/dsp/src/effects/crystalizer.rs` | Partial | Four fixed bands, per-band enable, transient emphasis from fast/slow envelopes, amount and gain. Tested: transients emphasised, steady tones nearly unchanged, disabled bands transparent. |
 | Stereo tools | `src/stereo_tools.cpp` | Width, balance, mid/side, stereo base | `crates/dsp/src/effects/stereo_tools.rs` | Partial | Input gain, width 0–200 %, balance, Haas stereo base. No mid/side gain matrix. Tested: mono collapse, double width, balance, delay. |
@@ -61,7 +61,7 @@ Reference evidence refers to files under `references/`.
 | Echo canceller | `src/echo_canceller.cpp` | WebRTC AEC | - | Not implemented | Requires webrtc-audio-processing. |
 | Voice suppressor | `src/voice_suppressor.cpp` | Voice removal | - | Not implemented | Requires a vocal-detection model. |
 | Level meter (as an effect) | `src/level_meter.cpp` | Per-plugin metering | `crates/core/src/meter.rs` | Partial | Global input and output meters (peak + RMS) instead of a per-effect meter node. |
-| Loudness | `src/loudness.cpp` | EBU R128 metering | - | Not implemented | Would require libebur128 or an independent R128 implementation. |
+| Loudness | `src/loudness.cpp` | EBU R128 metering | `crates/dsp/src/r128.rs` | Partial | The R128 measurement itself now exists and drives Auto gain; a separate volume-matching *Loudness* effect that reports momentary and short-term loudness is not implemented, and a per-effect loudness meter is not shown in the interface. |
 | Multiband compressor | `src/multiband_compressor.cpp` | Per-band compression | - | Not implemented | Deferred; the crossover infrastructure would be shared with the crystalizer. |
 | Multiband gate | `src/multiband_gate.cpp` | Per-band gating | - | Not implemented | Deferred. |
 | Pitch shift | `src/pitch.cpp` | SoundTouch pitch shifting | - | Not implemented | Requires a phase vocoder or SoundTouch. |
@@ -93,7 +93,10 @@ Reference evidence refers to files under `references/`.
 | Following the default device | `bestHardwareOutputDeviceName` | Implemented | The metadata object is watched while the engine runs; a change rebuilds the two streams for the new device. |
 | Level meters | `output_level.cpp` | Implemented | Input and output, peak with an RMS marker, 20 Hz refresh, for whichever pipeline is being edited. Both meters run through `LevelMeter`, so an empty chain reports the same level at both. |
 | Spectrum analyser | `src/spectrum.cpp` | Not implemented | Requires an FFT. |
-| Statistics and diagnostics | reference logs + advanced info page | Implemented | Captured/processed frames, underruns, overruns, trims, warnings, per pipeline. |
+| Statistics and diagnostics | reference logs + advanced info page | Implemented | Captured/processed frames, underruns, overruns, trims, ring occupancy, warnings, per pipeline. Shown in Preferences, and only while *Developer mode* is on. |
+| Developer mode | reference advanced info page | Implemented | A switch in Preferences reveals the engine counters and the diagnostic messages; the choice is persisted in the settings file. |
+| Main menu | reference hamburger menu | Implemented | *Devices*, *Preferences*, *About PipeWire Effects* and *Quit*. Devices and Preferences open `adw::PreferencesDialog`s; `Ctrl`+`4` and `Ctrl`+`,` activate them. |
+| Top-level navigation | reference device/page tabs | Implemented | *Output*, *Input* and *Presets* tabs (`Ctrl`+`1`, `Ctrl`+`2`, `Ctrl`+`3`). Each of the first two owns its own chain column, meters and editor. |
 | Buffer size / samplerate control | `DbMain`, kcfg | Not applicable | The graph rate and quantum are owned by PipeWire and followed, not forced. |
 | Settings persistence | `DbMain`, `db_manager.cpp` | Implemented | `$XDG_CONFIG_HOME/pipewire-effects/settings.json`, written atomically; a damaged file falls back to the defaults with a message. |
 | Stream failure recovery | reference reconnect logic | Implemented | A failed stream is rebuilt with an increasing backoff, and the Devices page offers a manual *Reconnect*. |
@@ -107,8 +110,8 @@ Reference evidence refers to files under `references/`.
 
 | Area | Count | Location |
 |---|---|---|
-| Core primitives (buffers, parameters, chain, meters, math, pipeline kinds, gettext lookup) | 37 | `crates/core/src/**` |
-| DSP (biquads, twenty effects, registry) | 114 | `crates/dsp/src/**`, `crates/dsp/tests/` |
+| Core primitives (buffers, parameters, chain, meters, math, pipeline kinds, gettext lookup) | 35 | `crates/core/src/**` |
+| DSP (biquads, twenty effects, registry, R128 measurement) | 118 | `crates/dsp/src/**`, `crates/dsp/tests/` |
 | Engine (config, devices, target resolution, metadata, processor, stream properties, byte conversion, registry filtering) | 29 | `crates/engine/src/**` |
 | Presets (schema, coercion, storage, built-ins, reference conversion for both sections) | 103 | `crates/presets/src/**` |
 | Settings (model, atomic store, autostart entry) | 10 | `crates/settings/src/**` |
@@ -116,7 +119,7 @@ Reference evidence refers to files under `references/`.
 | Command line (parsing, help, exported presets) | 4 | `crates/app/src/cli.rs` |
 | Live PipeWire integration (ignored by default) | 4 | `crates/engine/tests/live_pipewire.rs` |
 
-`cargo test --workspace` therefore runs 317 tests. None of them need an audio
+`cargo test --workspace` therefore runs 319 tests. None of them need an audio
 device. Two of the interface tests look up icons in the live icon theme and skip
 themselves when no display is available. The four live tests are `#[ignore]`d and
 are run explicitly against a running daemon.
@@ -179,7 +182,7 @@ reference setting has no equivalent here.
 | `limiter` | `threshold`, `release`, `input-gain` | `limit`, `release`, `input_gain` | `output-gain`, `mode`, `oversampling`, `dithering`, `sidechain-type`, `lookahead`, `attack`, `stereo-link`, `alr*`, `gain-boost`, `sidechain-preamp`, the sidechain mix controls |
 | `gate` | `curve-threshold`, `reduction`, `attack`, `release`, `wet` | `threshold`, `range` (magnitude), `attack`, `release`, `mix` | `input-gain`, `output-gain`, `dry`, `curve-zone`, `hysteresis`, `hysteresis-threshold`, `hysteresis-zone`, `makeup`, `stereo-split`, `sidechain`, `hpf-mode`, `hpf-frequency`, `lpf-mode`, `lpf-frequency`, `input-to-sidechain`, `input-to-link`, `sidechain-to-input`, `sidechain-to-link`, `link-to-input`, `link-to-sidechain`; the reverse mode is refused because the gate here has no upward mode |
 | `deesser` | `f1-freq`, `threshold`, `ratio`, `mode` | `frequency`, `threshold`, `ratio`, `mode` (`Wide` or `Wideband`) | `detection`, `laxity`, `makeup`, `f1-level`, `f2-*`, `sc-listen`. The reference default mode is `Wide`, so a document without one becomes wideband, as it does in the reference. |
-| `autogain` | `target`, `silence-threshold` | `target`, `silence_threshold` | `maximum-history`, `reference`, `force-silence`; the reference measures EBU R128 and this auto gain is RMS based |
+| Auto gain | `target`, `silence-threshold` | `target` (LUFS), `silence_threshold` | `maximum-history`, `reference`, `force-silence`; the reference measures EBU R128 with libebur128 and this auto gain measures EBU R128 with its own implementation over a rolling window |
 | `delay` | `time-l`, `time-r`, `mode-l`, `mode-r`, `wet-l`/`wet-r` | `delay_left`, `delay_right`, `mix` | `dry-*`, `sample-*`, `meters-*`, `centimeters-*`, `temperature-*`, `invert-phase-*`; a non-time mode keeps the reference default delay (0 ms) and is reported, and so is a left/right wet pair that differs, because one mix cannot carry both. |
 | `reverb` | `predelay`, `decay-time`, `hf-damp`, `amount`, `dry` | `pre_delay`, `room_size` (`decay-time` × 40), `damping` (`hf-damp` ÷ 200), `wet`, `dry` | `room-size`, `diffusion`, `bass-cut`, `treble-cut` |
 | `expander` | `threshold`, `ratio`, `knee`, `attack`, `release`, `makeup`, `wet`, `sidechain.mode` | `threshold`, `ratio`, `knee` (width, positive), `attack`, `release`, `makeup`, `mix`, `detector` | `dry`, `mode`, `stereo-split`, the sidechain mix controls, the `Low-Pass` and `SMA` sidechain modes, and the upward mode, which the expander here does not implement |
