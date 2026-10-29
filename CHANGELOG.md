@@ -58,6 +58,10 @@ keeps working in the next.
 - `scripts/capture-ui.sh`, which renders every interface state on an isolated
   headless GNOME session and writes one PNG per state, and `scripts/update-po.sh`.
   See `scripts/README.md`.
+- `crates/dsp/examples/benchmark.rs`, a reproducible CPU baseline. It times each
+  effect and the full twenty-effect chain and prints microseconds per block, the
+  realtime factor and the cost as a percentage of one core, at two block sizes.
+  `cargo run --release -p pwe-dsp --example benchmark`.
 
 ### Changed
 
@@ -146,6 +150,40 @@ keeps working in the next.
   by defaults; the mix level of a fully dry effect was inverted.
 - EasyEffects conversion warnings and storage warnings now reach the interface
   instead of being discarded while loading or importing a preset.
+- The De-esser reads its detector frequency, attack and release while it runs.
+  The band-pass coefficients and the ballistics were computed once, on the first
+  block, so moving *Sibilance*, *Attack* or *Release* changed nothing until the
+  effect was recreated.
+- The reverberation pre-delay line keeps a separate history per channel. One
+  line was shared by both channels, so the left channel's pre-delayed path
+  carried the right channel's past samples.
+- The equalizer importer reports a reference band that falls outside the ten
+  fixed bands instead of folding it to nothing in silence, and the mid/side
+  importer takes the shared bandwidth from the side block when the mid block
+  stores no quality.
+- The expander importer reports a reference `dry` setting instead of listing it
+  as handled and dropping it.
+- The translation template carries the effect, parameter and choice vocabulary.
+  Those labels are read through gettext but declared outside a `t()` call, so
+  `xgettext` never saw them and a translator had nothing to translate; they are
+  marked for extraction and `scripts/update-po.sh` now teaches `xgettext` the
+  parameter builders, which grew the catalog from 199 to 337 messages. Effect
+  names, parameter labels, groups and choice labels are therefore translatable
+  for the first time.
+- Two dialog *Cancel* buttons were not translated, and the error banner had no
+  way to be dismissed by hand: a handler was wired to its button but the button
+  was never shown.
+- The level meter's hold and RMS markers and the equalizer's band markers were
+  drawn in fixed colours, so the hold and RMS markers were invisible in one
+  appearance and the band markers were invisible in the light appearance. They
+  are drawn from the widget's own foreground colour now.
+- The crystalizer's four band switches were labelled with their parameter
+  identifiers (`band1`…`band4`). They read `Below 200 Hz`, `200 Hz to 2 kHz`,
+  `2 kHz to 8 kHz` and `Above 8 kHz` now, after the fixed crossovers, and the
+  labels go through gettext with the rest of the vocabulary.
+- Three EasyEffects conversion warnings were written as bare string literals
+  rather than through gettext, so they were untranslatable: the two ladder filter
+  mappings and the delay's left/right wet mismatch.
 
 ### Changed
 
@@ -174,6 +212,18 @@ keeps working in the next.
   setting that has no equivalent here is reported rather than dropped.
 - The equalizer conversion folds the reference bands using the reference band
   quality as the shared bandwidth.
+- The effect registry carries one table. The identifier list and the function
+  that returned an effect's parameter specifications were separate and could
+  drift apart; each descriptor now carries its specifications, and a descriptor
+  that is added without them no longer publishes an empty parameter set in
+  silence.
+- The compressor and the expander share one detector and one gain stage instead
+  of two copies of the same code.
+- The playback buffer is bounded by the processing scratch buffer, so a graph
+  quantum larger than the application's maximum cannot index past it.
+- Unused helpers were removed: the meter's unused reset and loudness accessors,
+  the buffer's `set_frames`, the `InvalidIndex` error variant, and several DSP
+  helpers that no effect called.
 
 ### Documentation
 

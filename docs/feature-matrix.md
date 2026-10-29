@@ -97,7 +97,7 @@ Reference evidence refers to files under `references/`.
 | Buffer size / samplerate control | `DbMain`, kcfg | Not applicable | The graph rate and quantum are owned by PipeWire and followed, not forced. |
 | Settings persistence | `DbMain`, `db_manager.cpp` | Implemented | `$XDG_CONFIG_HOME/pipewire-effects/settings.json`, written atomically; a damaged file falls back to the defaults with a message. |
 | Stream failure recovery | reference reconnect logic | Implemented | A failed stream is rebuilt with an increasing backoff, and the Devices page offers a manual *Reconnect*. |
-| Translations | `po/` (30+ languages) | Implemented | gettext with a `po/` catalog (`po/POTFILES.in`, `po/LINGUAS`, `po/pipewire-effects.pot`) and `scripts/update-po.sh`. Every user-facing string is wrapped with `pwe_core::i18n::t`/`tr`/`tn`; effect labels, parameter labels, groups and choice labels are translated when read. No translation is shipped yet, so an installed build shows English until a `po/<lang>.po` is added. |
+| Translations | `po/` (30+ languages) | Implemented | gettext with a `po/` catalog (`po/POTFILES.in`, `po/LINGUAS`, `po/pipewire-effects.pot`) and `scripts/update-po.sh`. Every user-facing string is wrapped with `pwe_core::i18n::t`/`tr`/`tn`; effect labels, parameter labels, groups and choice labels are translated when read, and the vocabulary they name is marked for extraction (`pwe_core::i18n::mark`) so the template lists it. No translation ships yet, so an installed build shows English until a `po/<lang>.po` is added. |
 | Autostart / tray | `src/autostart.cpp` | Partial | *Start on login* writes the XDG autostart entry; there is no tray icon. |
 | Command line interface | `src/command_line_parser.cpp` | Implemented | `--help`, `--version`, `--preset`, `--device`, `--no-window`, `--list-presets`, `--list-devices`. |
 | Desktop file and icon | `src/contents/*.desktop.in`, icons | Implemented | `data/`. |
@@ -107,16 +107,16 @@ Reference evidence refers to files under `references/`.
 
 | Area | Count | Location |
 |---|---|---|
-| Core primitives (buffers, parameters, chain, meters, math, pipeline kinds, gettext lookup) | 36 | `crates/core/src/**` |
-| DSP (biquads, twenty effects, registry) | 111 | `crates/dsp/src/**`, `crates/dsp/tests/` |
+| Core primitives (buffers, parameters, chain, meters, math, pipeline kinds, gettext lookup) | 37 | `crates/core/src/**` |
+| DSP (biquads, twenty effects, registry) | 114 | `crates/dsp/src/**`, `crates/dsp/tests/` |
 | Engine (config, devices, target resolution, metadata, processor, stream properties, byte conversion, registry filtering) | 29 | `crates/engine/src/**` |
-| Presets (schema, coercion, storage, built-ins, reference conversion for both sections) | 101 | `crates/presets/src/**` |
+| Presets (schema, coercion, storage, built-ins, reference conversion for both sections) | 103 | `crates/presets/src/**` |
 | Settings (model, atomic store, autostart entry) | 10 | `crates/settings/src/**` |
 | Interface (formatting, icons, response axis, state model, banners, device labels) | 20 | `crates/ui/src/**` |
 | Command line (parsing, help, exported presets) | 4 | `crates/app/src/cli.rs` |
 | Live PipeWire integration (ignored by default) | 4 | `crates/engine/tests/live_pipewire.rs` |
 
-`cargo test --workspace` therefore runs 311 tests. None of them need an audio
+`cargo test --workspace` therefore runs 317 tests. None of them need an audio
 device. Two of the interface tests look up icons in the live icon theme and skip
 themselves when no display is available. The four live tests are `#[ignore]`d and
 are run explicitly against a running daemon.
@@ -140,6 +140,17 @@ window (GTK4 ignores a size set after mapping) and that the About dialog is a
 separate toplevel, and verified the icon redraw, checked at 32, 64, 128 and
 512 px and in the About dialog. See `docs/architecture.md` section 12.
 
+A further pass inspected the accessibility tree over the real AT-SPI bus and
+took an independent whole-screen capture under `Xvfb` with ImageMagick's
+`import`, which is a screen capture by another process rather than the window
+rendering itself. It found that the crystalizer's four band switches were
+labelled with their parameter identifiers (`band1`…`band4`); they now read
+`Below 200 Hz`, `200 Hz to 2 kHz`, `2 kHz to 8 kHz` and `Above 8 kHz`, and the
+labels are marked for translation. Three conversion warnings that were written
+as bare string literals instead of going through gettext were found and
+translated. The accessibility tree named every interactive element and reported
+the parameter sliders' value text; see `docs/architecture.md` section 11.
+
 ## 4. Deliberate exclusions and their justification
 
 - **No LV2/LADSPA/plugin hosting.** The reference's most capable effects are
@@ -160,7 +171,7 @@ reference setting has no equivalent here.
 | Reference effect | Reference keys transferred | Converted here as | Reported as left at the default |
 |---|---|---|---|
 | `filter` | `type`, `frequency`, `quality`, `gain`, `slope` | `mode`, `frequency`, `q`, `gain`, `order` | `mode`, `width`, `decramp`, `equal-mode`, `balance`; unknown types and slopes. The reference default `slope` is `x1`, so an omitted slope becomes order 1. The two ladder types have no exact equivalent: `Ladder-pass` is mapped to a plain low pass and `Ladder-rejection` to a notch, and both are reported. |
-| `equalizer` | `left`/`right` `bandN.{frequency,gain,q,type}`, `input-gain`, `output-gain` | ten fixed bands, `output_gain`, shared `bandwidth` (median reference `q`) | `num-bands`, `mode`, `decramp`, `split-channels`, `balance`, `pitch-left`, `pitch-right`; bands that are not bell or shelf, bands folded beyond ten, bands that are muted or not soloed while another band is soloed, and bands with no usable frequency. Both channel blocks are folded into the one shared curve, and a right channel that differs from the left is reported. The per-band `mode`, `slope` and `width` are reported because every band here is one filter with a shared bandwidth. |
+| `equalizer` | `left`/`right` `bandN.{frequency,gain,q,type}`, `input-gain`, `output-gain` | ten fixed bands, `output_gain`, shared `bandwidth` (median reference `q`) | `num-bands`, `mode`, `decramp`, `split-channels`, `balance`, `pitch-left`, `pitch-right`; bands that are not bell or shelf, bands folded beyond ten, bands that are muted or not soloed while another band is soloed, bands with no usable frequency, and bands that fall outside the ten fixed bands. Both channel blocks are folded into the one shared curve, and a right channel that differs from the left is reported. The per-band `mode`, `slope` and `width` are reported because every band here is one filter with a shared bandwidth. |
 | `bass_enhancer` | `scope`, `amount` (dB), `output-gain` | `frequency`, `amount` (linear), `gain` | `harmonics`, `floor`, `floor-active`, `blend`, `listen`. The reference default `amount` of 0 dB becomes the full amount here. |
 | `crystalizer` | `output-gain` | `gain` | everything else, including `band0`…`band12`: the reference splits thirteen bands with adaptive intensity, oversampling and a per-band bypass, which is a different algorithm rather than a parameter rescaling. The per-band settings are reported instead of being dropped. |
 | `stereo_tools` | `input-gain`, `balance-out`, `side-level` (dB) | `input_gain`, `balance`, `stereo_width` | `output-gain`, `mode`, `balance-in`, `softclip`, `mutel`, `muter`, `phasel`, `phaser`, `side-balance`, `middle-level`, `middle-panorama`, `stereo-base`, `delay`, `sc-level`, `stereo-phase`, `dry`, `wet` |

@@ -226,6 +226,11 @@ window actions.
 - **Meters**: `gtk::LevelBar` for peak with an RMS offset marker, plus a numeric
   readout. Both meters run through `LevelMeter`, so the two readouts are
   comparable when the chain is empty.
+- **Banner**: engine errors and conversion warnings appear in an `adw::Banner`
+  with a *Dismiss* button. The meter's hold and RMS markers and the equalizer's
+  band markers are drawn from the widget's own foreground colour, so each stays
+  visible in both appearances; a fixed colour made the hold and RMS markers
+  invisible in one appearance and the band markers invisible in the light one.
 
 The window polls the engine every 50 ms. Nothing blocks: the snapshot is a short
 mutex acquisition on a plain data structure. The poll also compares a small
@@ -250,6 +255,16 @@ Effect labels, parameter labels, parameter groups and choice labels stay plain
 English where they are declared, in `pwe-dsp`, and are translated where they are
 read, in `crates/ui`. An effect author therefore never calls gettext, and the
 registry's uniqueness checks still compare identifiers rather than translations.
+
+`t`, `tn`, `tr` and a no-op `mark` are the four extraction keywords. `mark`
+returns its argument unchanged and exists only so `xgettext` can see a label
+declared outside a `t()` call: the registry's effect names, categories and
+summaries, the filter and choice tables, the equalizer band labels, and the
+pipeline names. The remaining parameter labels and group names are literal
+arguments to the parameter builders, so `scripts/update-po.sh` teaches
+`xgettext` those builders (`float:2`, `boolean:2`, `choice:2`, `group:1`) instead
+of repeating every label in a `t()` call. Without both, the template carried none
+of that vocabulary and a translator had no message to translate.
 
 The catalog lives in `po/`: `POTFILES.in` lists the sources, `LINGUAS` the
 shipped languages, and `scripts/update-po.sh` regenerates the template. `make
@@ -362,7 +377,7 @@ installed into the system here.
 
 ## 11. Verification
 
-- `cargo test --workspace`: 311 tests, no audio device needed.
+- `cargo test --workspace`: 317 tests, no audio device needed.
   Two of them need a display and skip themselves without one: the bundled icon
   lookup and the icon-theme check.
 - The registry checks itself: effect identifiers and labels are unique, every
@@ -374,6 +389,14 @@ installed into the system here.
   limiter ceilings with 20 dB of drive, compressor ratios, gate range and hold,
   delay timing, reverb tail decay, de-esser selectivity, and numerical bounds
   under abusive settings.
+- The De-esser is checked for a live detector change: moving *Sibilance* while it
+  runs must release a tone the detector was holding, which fails if the band-pass
+  is only computed once.
+- The reverberation pre-delay is checked for channel isolation: an impulse in the
+  right channel must not appear at the left output, which fails if the two
+  channels share one pre-delay line.
+- The registry carries each descriptor's parameter specifications, so a
+  descriptor and its parameter table cannot drift apart.
 - The ring buffer, command queue and trimming policy are exercised with a real
   `rtrb` producer and consumer.
 - The two meters are checked against each other: an empty chain must report the
@@ -420,6 +443,29 @@ installed into the system here.
   render tree and writes the result to that PNG. It exists because GNOME refuses
   `org.gnome.Shell.Screenshot` to every client except the shell itself, so a
   compositor screenshot is not available to a test on a Wayland session.
+- A second, independent capture channel exists for the X11 backend: the release
+  binary runs under `Xvfb` and an external client takes the whole root window with
+  ImageMagick's `import -window root`. That is a screen capture taken by another
+  process rather than the window rendering itself, and it was used to check the
+  main window and the Devices page in both appearances.
+- The accessibility tree is checked over the real AT-SPI bus. The application is
+  started with `PIPEWIRE_EFFECTS_UI_STATE` set, its unique name is found on the
+  accessibility bus, and `org.a11y.atspi.Accessible.GetRoleName` plus the `Name`
+  property are read for every object down the tree. On the development machine
+  this exposed the window (`PipeWire Effects`), the navigation (`Effects`,
+  `Presets`, `Devices` tabs), the header controls (`Bypass the effect chain`,
+  `Main menu`, `Minimize`, `Maximize`, `Close`), every `switch` by name, the
+  destination `combo box`, the `list item` rows, and the parameter `slider`s named
+  after their labels (`Sibilance`, `Threshold`, `Ratio`, `Attack`, `Release`) with
+  their value text (`5600 Hz`, `-15.0 dB`, `1.35:1`, `5.0 ms`, `100.0 ms`). Orca
+  itself is not installed, so the screen reader was not driven end to end; the
+  interface it consumes was inspected directly.
+- `make install DESTDIR=<staging> PREFIX=/usr` installs the binary, the desktop
+  entry, both icon sets and the built-in preset into a staging tree, and
+  `make uninstall` removes exactly what it installed; the staging tree was
+  produced, listed, checked with `desktop-file-validate`, and removed again. The
+  `PKGBUILD` was not built here because its source is the GitHub release tarball
+  and this environment has no network, and `flatpak-builder` is not installed.
 
 ## 12. Performance
 
@@ -434,6 +480,42 @@ installed into the system here.
   through a −20 dB gain stage was measured at −20.00 dB at the input and
   −40.00 dB at the output, with 16 384 frames captured and processed, 4 096
   underrun samples from the initial fill, and no overruns or trims.
+
+### CPU baseline
+
+`cargo run --release -p pwe-dsp --example benchmark` times each effect and the
+full twenty-effect chain on the machine it runs on: a 48 kHz stereo stream, a
+per-block wall clock over 2 000 blocks, and the tone-generation cost subtracted
+so the numbers are the effects. On the development machine (Intel iGPU, four
+cores, `rustc 1.99.1`, release profile with thin LTO) a representative run gave:
+
+| Workload | 1024 frames per block | 128 frames per block |
+|---|---|---|
+| All twenty effects | 646 µs/block · 33.0× realtime · 3.03 % of one core | 81 µs/block · 32.9× realtime · 3.04 % of one core |
+| Reverberation (heaviest) | 93 µs/block | 11.5 µs/block |
+| Mid/side equalizer | 85 µs/block | 10.6 µs/block |
+| Equalizer | 78 µs/block | 9.8 µs/block |
+| Gain (lightest) | 8 µs/block | 0.9 µs/block |
+
+The whole chain uses about 3 % of one core and leaves roughly thirty times the
+deadline free at both quantum sizes, which is the headroom the realtime callback
+needs for scheduling jitter. Repeated runs on the loaded development machine
+measured between 25× and 33× realtime, or about 3 % to 4 % of one core, so the
+figures are a range rather than a single number. These are wall-clock figures from
+one machine, not a portable claim; re-run the example to reproduce them.
+
+### GPU acceleration
+
+No GPU backend is implemented, and the numbers above are the reason. The entire
+chain costs about 3 % of a single core, so off-loading any of it would add a
+transfer, a synchronisation point and a dispatch to a callback whose budget is
+21 ms (2.7 ms at 128 frames), while the effects are recursive per-sample filters
+with a serial dependency that does not parallelise. The only workload that could
+benefit is FFT convolution, which is out of scope because the project carries no
+FFT dependency. The machine does expose an Intel iGPU through a Mesa Vulkan ICD
+(`intel_icd.json`, `libvulkan.so.1.4.363`), so a Vulkan compute backend is
+technically available; it is deliberately not added, and the workspace carries no
+GPU dependency.
 
 ## 13. Interface review
 
@@ -537,3 +619,18 @@ enabled, showed the switch already on, which is what confirmed that the settings
 document is read and applied at startup. The interface at 720x620 was captured
 again after the sidebar gained the pipeline switch and still collapses without
 clipping.
+
+A further pass reviewed the changes made in the increment that fixed the
+De-esser's live parameters, the reverb pre-delay and the translation template, on
+the same headless Wayland session, in both appearances. The captures found two
+defects that no test could see, and both are fixed: the equalizer's band markers
+were drawn in a fixed near-white that is invisible on the light appearance (they
+are drawn from the widget's own foreground colour now and are visible in both),
+and the error banner could not be dismissed by hand because its button was never
+shown even though a click handler was wired to it (the banner carries a
+*Dismiss* button now). The input pipeline was captured again and read −36.8 dB on
+both meters, which is the real microphone feeding the chain. The De-esser,
+compressor, expander, reverberation and equalizer editors were captured after the
+change: each renders its groups and its controls, and the De-esser's *Sibilance*,
+*Attack* and *Release* rows are the ones the live-parameter fix made effective.
+No clipping, overlap, truncation or missing glyph was found.

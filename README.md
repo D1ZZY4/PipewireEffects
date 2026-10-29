@@ -262,7 +262,14 @@ drift between them is corrected.
 cargo test --workspace
 ```
 
-311 tests, none of which need an audio device or a display; the two icon lookups
+A reproducible CPU baseline, which prints microseconds per block and the realtime
+factor for each effect and for the full twenty-effect chain:
+
+```sh
+cargo run --release -p pwe-dsp --example benchmark
+```
+
+317 tests, none of which need an audio device or a display; the two icon lookups
 skip themselves when no display is available. They cover biquad designs against
 their analytic magnitude response, the effects against measured signal levels and
 numerical bounds, the ring buffer and trimming policy with a real producer and

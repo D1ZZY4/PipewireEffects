@@ -96,9 +96,9 @@ pipeline that quietly glitches is worse than one that reports it.
    becomes part of the preset format and must not change later.
 3. Implement the `pwe_core::Effect` trait. Read parameters once per block with
    `Knob`; never allocate in `process`.
-4. Add an `EffectDescriptor` to `EFFECTS` in `crates/dsp/src/registry.rs`, and a
-   case to `specs_for`. That is the only registration step; the interface picks
-   the effect up automatically.
+4. Add an `EffectDescriptor` to `EFFECTS` in `crates/dsp/src/registry.rs`, giving
+   it the effect's `specs` function. That is the only registration step; the
+   interface picks the effect up automatically.
 5. Add behavioural tests to `crates/dsp/tests/`, in a file named for what it
    tests.
 
@@ -119,7 +119,11 @@ Every user-facing string goes through gettext. The catalog lives in `po/`, and
   shipped without updating the catalog.
 - Effect labels, parameter labels, parameter groups and choice labels are
   declared as plain English in the DSP crate and translated when they are read,
-  so an effect author does not call gettext.
+  so an effect author does not call gettext. A label written as a literal
+  argument to `ParamSpec::float`, `ParamSpec::boolean`, `ParamSpec::choice` or
+  `.group` is extracted from that call; a label that lives in a `const` table or
+  a `match` arm is not, and must be wrapped in `pwe_core::i18n::mark`, which
+  returns its argument unchanged and exists only so `xgettext` sees it.
 
 Regenerate the template after adding or changing a string:
 
