@@ -2,5 +2,25 @@
 <gresources>
   <gresource prefix="/io/github/D1ZZY4/PipewireEffects/icons">
     <file>hicolor/scalable/apps/io.github.D1ZZY4.PipewireEffects.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-autogain-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-bass_enhancer-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-compressor-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-crossfeed-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-crosstalk-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-crusher-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-crystalizer-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-deesser-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-delay-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-equalizer-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-exciter-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-expander-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-filter-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-gain-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-gate-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-limiter-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-maximizer-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-midside_equalizer-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-reverb-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-stereo_tools-symbolic.svg</file>
   </gresource>
 </gresources>

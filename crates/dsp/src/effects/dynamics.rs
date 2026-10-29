@@ -16,6 +16,24 @@ pub fn soft_knee_reduction_db(level_db: f32, threshold_db: f32, knee_db: f32, ra
     }
 }
 
+pub fn soft_knee_expansion_db(level_db: f32, threshold_db: f32, knee_db: f32, ratio: f32) -> f32 {
+    if !level_db.is_finite() {
+        return 0.0;
+    }
+    let under = level_db - threshold_db;
+    let slope = ratio.max(1.0) - 1.0;
+    if knee_db <= 0.0 {
+        if under < 0.0 { under * slope } else { 0.0 }
+    } else if under >= 0.5 * knee_db {
+        0.0
+    } else if under <= -0.5 * knee_db {
+        under * slope
+    } else {
+        let shifted = under - 0.5 * knee_db;
+        -slope * shifted * shifted / (2.0 * knee_db)
+    }
+}
+
 pub fn ballistics(attack_ms: f32, release_ms: f32, rate: u32) -> (f32, f32) {
     let rate = rate.max(1) as f32;
     let attack = 1.0 - (-1.0 / ((attack_ms.max(0.01) / 1000.0) * rate)).exp();
@@ -37,6 +55,29 @@ mod tests {
         let reduction = soft_knee_reduction_db(0.0, -18.0, 0.0, 4.0);
         let expected = -18.0 * 0.75;
         assert!((reduction - expected).abs() < 1.0e-4, "{reduction}");
+    }
+
+    #[test]
+    fn expansion_leaves_the_loud_half_alone() {
+        assert_eq!(soft_knee_expansion_db(-6.0, -18.0, 6.0, 4.0), 0.0);
+        assert_eq!(soft_knee_expansion_db(-18.0, -18.0, 0.0, 4.0), 0.0);
+    }
+
+    #[test]
+    fn expansion_matches_the_ratio_below_the_threshold() {
+        let gain = soft_knee_expansion_db(-30.0, -18.0, 0.0, 4.0);
+        assert!((gain + 36.0).abs() < 1.0e-4, "{gain}");
+    }
+
+    #[test]
+    fn the_expansion_knee_is_continuous() {
+        let threshold = -18.0;
+        let knee = 6.0;
+        let ratio = 4.0;
+        let below = soft_knee_expansion_db(threshold - knee * 0.5 - 1.0e-4, threshold, knee, ratio);
+        let above = soft_knee_expansion_db(threshold - knee * 0.5 + 1.0e-4, threshold, knee, ratio);
+        assert!((below - above).abs() < 1.0e-3, "{below} {above}");
+        assert!((soft_knee_expansion_db(threshold, threshold, knee, ratio) + 2.25).abs() < 1.0e-2);
     }
 
     #[test]

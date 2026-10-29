@@ -1,0 +1,214 @@
+use pwe_core::{AudioBuffer, AudioFormat, Effect, ParamSet, ParamSpec, ParamUnit, math};
+
+use crate::biquad::{Biquad, Coefficients, FilterKind};
+use crate::effects::util::MAX_CHANNELS;
+use crate::knob::Knob;
+
+const RESONANCE: f32 = std::f32::consts::FRAC_1_SQRT_2;
+
+pub fn specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::float("amount", "Amount", ParamUnit::Decibel)
+            .range(-24.0, 24.0, 0.0)
+            .step(0.1)
+            .group("Exciter")
+            .build(),
+        ParamSpec::float("harmonics", "Drive", ParamUnit::None)
+            .range(0.1, 10.0, 8.5)
+            .step(0.1)
+            .group("Exciter")
+            .build(),
+        ParamSpec::float("blend", "Blend", ParamUnit::None)
+            .range(-10.0, 10.0, 0.0)
+            .step(0.1)
+            .group("Exciter")
+            .build(),
+        ParamSpec::float("scope", "Scope", ParamUnit::Hertz)
+            .range(2_000.0, 12_000.0, 7_500.0)
+            .logarithmic()
+            .group("Band")
+            .build(),
+        ParamSpec::float("ceil", "Ceiling", ParamUnit::Hertz)
+            .range(10_000.0, 20_000.0, 16_000.0)
+            .logarithmic()
+            .group("Band")
+            .build(),
+        ParamSpec::boolean("ceil_active", "Ceiling active", false).group("Band"),
+        ParamSpec::boolean("listen", "Harmonics only", false).group("Output"),
+    ]
+}
+
+pub struct Exciter {
+    amount: Knob,
+    harmonics: Knob,
+    blend: Knob,
+    scope: Knob,
+    ceil: Knob,
+    ceil_active: Knob,
+    listen: Knob,
+    high_pass: [Biquad; MAX_CHANNELS],
+    low_pass: [Biquad; MAX_CHANNELS],
+    rate: f32,
+    signature: [f32; 2],
+}
+
+impl Exciter {
+    pub fn new(params: ParamSet) -> Self {
+        Self {
+            amount: Knob::new(&params, "amount", 0.0),
+            harmonics: Knob::new(&params, "harmonics", 8.5),
+            blend: Knob::new(&params, "blend", 0.0),
+            scope: Knob::new(&params, "scope", 7_500.0),
+            ceil: Knob::new(&params, "ceil", 16_000.0),
+            ceil_active: Knob::new(&params, "ceil_active", 0.0),
+            listen: Knob::new(&params, "listen", 0.0),
+            high_pass: [Biquad::default(); MAX_CHANNELS],
+            low_pass: [Biquad::default(); MAX_CHANNELS],
+            rate: 48_000.0,
+            signature: [f32::NAN; 2],
+        }
+    }
+
+    fn refresh(&mut self, scope: f32, ceil: f32) {
+        if self.signature == [scope, ceil] {
+            return;
+        }
+        self.signature = [scope, ceil];
+        for channel in 0..MAX_CHANNELS {
+            self.high_pass[channel] = Biquad::new(Coefficients::design(
+                FilterKind::HighPass,
+                self.rate,
+                scope,
+                RESONANCE,
+                0.0,
+            ));
+            self.low_pass[channel] = Biquad::new(Coefficients::design(
+                FilterKind::LowPass,
+                self.rate,
+                ceil,
+                RESONANCE,
+                0.0,
+            ));
+        }
+    }
+}
+
+impl Effect for Exciter {
+    fn id(&self) -> &'static str {
+        "exciter"
+    }
+
+    fn prepare(&mut self, format: AudioFormat) {
+        self.rate = format.rate().max(1) as f32;
+        self.signature = [f32::NAN; 2];
+        self.reset();
+    }
+
+    fn reset(&mut self) {
+        for stage in &mut self.high_pass {
+            stage.reset();
+        }
+        for stage in &mut self.low_pass {
+            stage.reset();
+        }
+    }
+
+    fn process(&mut self, buffer: &mut AudioBuffer) {
+        let scope = self.scope.value();
+        self.refresh(scope, self.ceil.value());
+        let amount = math::db_to_gain(self.amount.value());
+        let drive = self.harmonics.value().max(0.1);
+        let blend = ((self.blend.value() + 10.0) / 20.0).clamp(0.0, 1.0);
+        let active = self.ceil_active.flag();
+        let listen = self.listen.flag();
+        let channels = buffer.channels().min(MAX_CHANNELS);
+
+        for channel in 0..channels {
+            let high_pass = &mut self.high_pass[channel];
+            let low_pass = &mut self.low_pass[channel];
+            for sample in buffer.channel_mut(channel) {
+                let input = *sample;
+                let mut band = high_pass.process(input);
+                if active {
+                    band = low_pass.process(band);
+                }
+                let driven = band * drive;
+                let saturated = driven / (1.0 + driven.abs());
+                let generated = saturated * (1.0 - blend) + band * blend;
+                *sample = math::sanitize(if listen {
+                    generated
+                } else {
+                    input + amount * generated
+                });
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn settings(pairs: &[(&str, f32)]) -> ParamSet {
+        let params = ParamSet::new(specs());
+        for (key, value) in pairs {
+            params.set_f32(key, *value).unwrap();
+        }
+        params
+    }
+
+    fn tone(frequency: f32, frames: usize) -> AudioBuffer {
+        let mut buffer = AudioBuffer::new(2, frames);
+        buffer.configure(2, frames).unwrap();
+        for channel in 0..2 {
+            let plan = buffer.channel_mut(channel);
+            for (index, sample) in plan.iter_mut().enumerate() {
+                *sample = 0.4 * (std::f32::consts::TAU * frequency * index as f32 / 48_000.0).sin();
+            }
+        }
+        buffer
+    }
+
+    fn settled(pairs: &[(&str, f32)], frequency: f32) -> AudioBuffer {
+        let mut effect = Exciter::new(settings(pairs));
+        effect.prepare(AudioFormat::new(48_000, 2));
+        let mut buffer = tone(frequency, 4_096);
+        for _ in 0..8 {
+            buffer = tone(frequency, 4_096);
+            effect.process(&mut buffer);
+        }
+        buffer
+    }
+
+    #[test]
+    fn a_signal_below_the_scope_is_nearly_unchanged() {
+        let processed = settled(&[("amount", 0.0), ("harmonics", 8.5)], 200.0);
+        assert!(processed.peak() < 0.45, "{}", processed.peak());
+    }
+
+    #[test]
+    fn the_scope_band_produces_more_energy() {
+        let dry = settled(&[("amount", -24.0)], 6_000.0).rms();
+        let excited = settled(&[("amount", 0.0)], 6_000.0).rms();
+        assert!(excited > dry * 1.05, "{excited} against {dry}");
+    }
+
+    #[test]
+    fn monitoring_the_harmonics_removes_the_fundamental() {
+        let processed = settled(&[("listen", 1.0)], 6_000.0);
+        assert!(processed.peak() > 0.0);
+        assert!(processed.peak() < 1.0, "{}", processed.peak());
+    }
+
+    #[test]
+    fn the_ceiling_band_can_be_bounded() {
+        let processed = settled(&[("ceil_active", 1.0), ("ceil", 10_000.0)], 18_000.0);
+        assert!(processed.peak() < 0.6, "{}", processed.peak());
+    }
+
+    #[test]
+    fn extreme_settings_stay_finite_and_bounded() {
+        let processed = settled(&[("amount", 24.0), ("harmonics", 10.0)], 6_000.0);
+        assert!(processed.peak().is_finite() && processed.peak() < 8.0);
+    }
+}
