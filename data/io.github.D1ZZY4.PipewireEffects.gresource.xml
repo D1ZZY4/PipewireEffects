@@ -20,7 +20,10 @@
     <file>hicolor/symbolic/apps/pipewire-effects-limiter-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-maximizer-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-midside_equalizer-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-multiband_compressor-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-multiband_gate-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-reverb-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-stereo_tools-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-voice_suppressor-symbolic.svg</file>
   </gresource>
 </gresources>

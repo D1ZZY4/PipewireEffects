@@ -22,7 +22,7 @@ applications can record from.
 
 ## Effects
 
-Twenty effects, each with real processing and a generated control surface:
+Twenty-three effects, each with real processing and a generated control surface:
 
 | Effect | What it does |
 |---|---|
@@ -33,6 +33,8 @@ Twenty effects, each with real processing and a generated control surface:
 | **Limiter** | Instantaneous-attack peak limiter with a hard ceiling and release |
 | **Maximizer** | Peak maximiser that lifts quiet material towards a ceiling, then clamps it |
 | **Gate** | Noise gate with range, attack, hold and release |
+| **Multiband compressor** | Up to four Linkwitz-Riley bands, each with its own threshold, ratio, knee, attack, release and makeup |
+| **Multiband gate** | Up to four bands, each gated on its own threshold, range, attack, hold and release |
 | **Expander** | Downward expander with a soft knee, attack, release and makeup |
 | **De-esser** | Split or wideband sibilance reduction |
 | **Auto gain** | EBU R128 loudness normalisation towards a target loudness |
@@ -43,6 +45,7 @@ Twenty effects, each with real processing and a generated control surface:
 | **Stereo tools** | Width, balance and a Haas stereo base |
 | **Crossfeed** | Leaks each channel into the other so headphones sound like speakers |
 | **Crosstalk canceller** | Delayed reciprocal mix with a head-transfer correction and a phantom-centre mode |
+| **Voice suppressor** | Attenuates centred voice by comparing the two channels in the frequency domain, with an inverted mode |
 | **Gain** | A gain stage with mute |
 | **Delay** | Independent left/right delay with feedback and ping-pong |
 | **Reverberation** | Freeverb-style room with pre-delay, damping and width |
@@ -272,7 +275,7 @@ factor for each effect and for the full twenty-effect chain:
 cargo run --release -p pwe-dsp --example benchmark
 ```
 
-318 tests, none of which need an audio device or a display; the two icon lookups
+337 tests, none of which need an audio device or a display; the two icon lookups
 skip themselves when no display is available. They cover biquad designs against
 their analytic magnitude response, the effects against measured signal levels and
 numerical bounds, the ring buffer and trimming policy with a real producer and
@@ -330,7 +333,9 @@ Working, and honest about the gaps:
 - A device you pick by hand is remembered, but a *change* of the system default
   is only followed while the application runs.
 - The plugin-based, neural and spectral effects of EasyEffects are not
-  implemented. `docs/feature-matrix.md` lists every one with its status.
+  implemented. `docs/feature-matrix.md` lists every one with its status and,
+  for the ones that need a third-party library, records that the library is
+  installed here and the code was simply not written.
 
 ## Translations
 

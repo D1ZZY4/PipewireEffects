@@ -18,10 +18,10 @@ classification is:
 
 | Class | Items |
 |---|---|
-| REQUIRED | Twenty effects; the virtual sink and the virtual source; the output and the input pipeline; the destination device; per-effect enable, ordering and global bypass; presets (built-in, user, import, export, EasyEffects conversion); live meters; diagnostics; persistence of the device, the preset and the bypass; the GTK4/libadwaita interface; the desktop entry and icon |
+| REQUIRED | Twenty-three effects; the virtual sink and the virtual source; the output and the input pipeline; the destination device; per-effect enable, ordering and global bypass; presets (built-in, user, import, export, EasyEffects conversion); live meters; diagnostics; persistence of the device, the preset and the bypass; the GTK4/libadwaita interface; the desktop entry and icon |
 | PRESERVE | Preset JSON schema v1 and its reader; the easyeffects conversion vocabulary and its warning list; the existing module boundaries and the realtime rules; the repository identity, licence and documentation |
-| EXCLUDED | LV2/LADSPA hosting, the convolver, the spectrum analyser, pitch shift, autotune, bass loudness, the multiband compressor and gate, the loudness processor, the voice suppressor, the echo canceller, the speech processor, deep noise removal and RNNoise. Reasons: each needs a third-party plugin, an FFT or phase-vocoder library, or a neural model and a runtime that cannot be verified here; the per-row reason says which |
-| BLOCKED | Deep noise removal and RNNoise noise reduction (require ONNX/RNNoise models and a runtime that cannot be verified here); the community preset browser (requires network access). Preset autoload per application and the blocklist are not implemented and are recorded as unfinished, not as excluded |
+| EXCLUDED | LV2/LADSPA hosting; the spectrum analyser; pitch shift, autotune, harmonizer and bass loudness; the loudness compensator; the convolver; the echo canceller, the speech processor, deep noise removal and RNNoise; preset autoload per application and the blocklist; the community preset browser. This is a scope decision, not an environment limit: the reference libraries for several of these (fftw3, lilv, speexdsp, soundtouch, rnnoise, webrtc-audio-processing) are installed on the development machine, so the per-row reason records what was not written rather than a missing dependency |
+| BLOCKED | Deep noise removal (DeepFilterNet and DPDFNet): the ONNX models and runtime are not present and cannot be fetched here. The community preset browser (requires network access) |
 
 The application is therefore complete for the two pipelines it implements -
 output and input, on a virtual sink and a virtual source - and is **not** at full
@@ -55,18 +55,18 @@ Reference evidence refers to files under `references/`.
 | Reverb | `src/reverb.cpp` | Room simulation | `crates/dsp/src/effects/reverb.rs` | Partial | Freeverb-style 8 comb + 4 all-pass network per channel, room size, damping, pre-delay, width, wet/dry. Tested: tail present, tail decays, dry setting transparent, rate retuning, bounded output. |
 | Gain | - (per-plugin gain in the reference) | Input/output gain per plugin | `crates/dsp/src/effects/gain.rs` | Implemented | Gain and mute as a chain stage. Tested: −6 dB halves amplitude, mute silences. |
 | Autotune | `src/autotune.cpp` | Pitch correction (x42 plugin) | - | Not implemented | Requires a pitch-detection and pitch-shifting engine; a native implementation would be a project of its own. |
-| Bass loudness | `src/bass_loudness.cpp` | MDA plugin wrapper | - | Not implemented | Third-party plugin. |
-| Convolver | `src/convolver.cpp` | FFT convolution with IRS files | - | Not implemented | Needs an FFT dependency, impulse-response management and a file browser. |
-| Deep noise remover | `src/deepfilternet.cpp` | DeepFilterNet model | - | Not implemented | Requires an ONNX runtime and model downloads. |
-| Echo canceller | `src/echo_canceller.cpp` | WebRTC AEC | - | Not implemented | Requires webrtc-audio-processing. |
-| Voice suppressor | `src/voice_suppressor.cpp` | Voice removal | - | Not implemented | Requires a vocal-detection model. |
+| Bass loudness | `src/bass_loudness.cpp` | MDA plugin wrapper | - | Not implemented | A small equal-loudness curve; not written. |
+| Convolver | `src/convolver.cpp` | FFT convolution with IRS files | `crates/dsp/src/fft.rs` | Not implemented | The FFT primitive exists here; partitioned convolution, impulse-response storage and the file browser were not written. |
+| Deep noise remover | `src/deepfilternet.cpp` | DeepFilterNet model | - | Not implemented | Needs an ONNX runtime and model files that are not present and cannot be fetched here. |
+| Echo canceller | `src/echo_canceller.cpp` | SpeexDSP / WebRTC AEC | - | Not implemented | `webrtc-audio-processing` 1.3 and `speexdsp` 1.2.1 are both installed, so this is not environment-blocked; a binding and the delay and alignment handling were not written. |
 | Level meter (as an effect) | `src/level_meter.cpp` | Per-plugin metering | `crates/core/src/meter.rs` | Partial | Global input and output meters (peak + RMS) instead of a per-effect meter node. |
 | Loudness | `src/loudness.cpp` | EBU R128 metering | `crates/dsp/src/r128.rs` | Partial | The R128 measurement itself now exists and drives Auto gain; a separate volume-matching *Loudness* effect that reports momentary and short-term loudness is not implemented, and a per-effect loudness meter is not shown in the interface. |
-| Multiband compressor | `src/multiband_compressor.cpp` | Per-band compression | - | Not implemented | Deferred; the crossover infrastructure would be shared with the crystalizer. |
-| Multiband gate | `src/multiband_gate.cpp` | Per-band gating | - | Not implemented | Deferred. |
-| Pitch shift | `src/pitch.cpp` | SoundTouch pitch shifting | - | Not implemented | Requires a phase vocoder or SoundTouch. |
-| Noise reduction | `src/rnnoise.cpp` | RNNoise | - | Not implemented | Requires the RNNoise model and runtime. |
-| Speech processor | `src/speex.cpp` | SpeexDSP | - | Not implemented | Requires speexdsp. |
+| Multiband compressor | `src/multiband_compressor.cpp` | Per-band compression | `crates/dsp/src/effects/multiband_compressor.rs` | Partial | Up to four Linkwitz-Riley bands with a per-band threshold, ratio, knee, attack, release, makeup and enable, plus a global mix and three split frequencies. The reference splits up to eight bands and adds sidechain modes, lookahead, boost and solo/mute. Tested: a unity ratio is transparent, loud material is reduced, makeup lifts the result, a disabled band passes through. |
+| Multiband gate | `src/multiband_gate.cpp` | Per-band gating | `crates/dsp/src/effects/multiband_gate.rs` | Partial | Up to four Linkwitz-Riley bands with a per-band threshold, range, attack, hold, release, makeup and enable. The reference splits up to eight bands and adds hysteresis, solo/mute and sidechain modes. Tested: a loud signal stays open, a quiet signal is closed by the range, a disabled band is not gated. |
+| Voice suppressor | `src/voice_suppressor.cpp` | Voice removal | `crates/dsp/src/effects/voice_suppressor.rs` | Partial | STFT with a 1024-point FFT and 75 percent overlap; a bin is treated as voice when its inter-channel correlation and phase difference cross the thresholds, inside the start and end frequencies, with an inverted mode that keeps the voice instead. Real and inverted modes are tested. The reference's minimum-kurtosis and maximum-instantaneous-frequency gates are reported and not applied. |
+| Pitch shift | `src/pitch.cpp` | SoundTouch pitch shifting | - | Not implemented | SoundTouch 2.4.1 is installed, so this is not environment-blocked; a native phase vocoder or a SoundTouch binding was not written. |
+| Noise reduction | `src/rnnoise.cpp` | RNNoise | - | Not implemented | librnnoise is present on the development machine; the model loading and a binding were not written. |
+| Speech processor | `src/speex.cpp` | SpeexDSP | - | Not implemented | speexdsp 1.2.1 is installed; a binding and the preprocessor wiring were not written. |
 | LV2/LADSPA hosting | `src/lv2_wrapper.cpp`, `src/ladspa_wrapper.cpp` | Arbitrary plugin loading | - | Not applicable | Deliberately excluded: the project is a self-contained Rust application. |
 
 ## 2. Pipeline and application features
@@ -111,15 +111,15 @@ Reference evidence refers to files under `references/`.
 | Area | Count | Location |
 |---|---|---|
 | Core primitives (buffers, parameters, chain, meters, math, pipeline kinds, gettext lookup) | 35 | `crates/core/src/**` |
-| DSP (biquads, twenty effects, registry, R128 measurement) | 118 | `crates/dsp/src/**`, `crates/dsp/tests/` |
+| DSP (biquads, the FFT, the Linkwitz-Riley crossover, twenty-three effects, registry, R128 measurement) | 134 | `crates/dsp/src/**`, `crates/dsp/tests/` |
 | Engine (config, devices, target resolution, metadata, processor, stream properties, byte conversion, registry filtering) | 29 | `crates/engine/src/**` |
-| Presets (schema, coercion, storage, built-ins, reference conversion for both sections) | 103 | `crates/presets/src/**` |
+| Presets (schema, coercion, storage, built-ins, reference conversion for both sections) | 106 | `crates/presets/src/**` |
 | Settings (model, atomic store, autostart entry) | 9 | `crates/settings/src/**` |
 | Interface (formatting, icons, response axis, state model, banners, device labels) | 20 | `crates/ui/src/**` |
 | Command line (parsing, help, exported presets) | 4 | `crates/app/src/cli.rs` |
 | Live PipeWire integration (ignored by default) | 4 | `crates/engine/tests/live_pipewire.rs` |
 
-`cargo test --workspace` therefore runs 318 tests. None of them need an audio
+`cargo test --workspace` therefore runs 337 tests. None of them need an audio
 device. Two of the interface tests look up icons in the live icon theme and skip
 themselves when no display is available. The four live tests are `#[ignore]`d and
 are run explicitly against a running daemon.
@@ -161,8 +161,10 @@ the parameter sliders' value text; see `docs/architecture.md` section 11.
   graph and would not be a Rust implementation of the effect.
 - **No neural models.** Noise suppression and voice removal need model files and
   an inference runtime, which cannot be verified in this environment.
-- **No FFT.** Convolution and spectrum display are the only features that need
-  one; both are out of this increment rather than faked.
+- **A hand-written FFT, not a dependency.** `crates/dsp/src/fft.rs` is an
+  iterative radix-2 transform, checked against a bin-centred tone, a forward and
+  inverse round trip and Parseval. It exists because the voice suppressor and the
+  spectrum need one; it replaced the earlier choice to defer both.
 
 ## 5. Reference preset conversion
 
@@ -192,6 +194,9 @@ reference setting has no equivalent here.
 | `crossfeed` | `fcut`, `feed` | `cutoff`, `feed` | `input-gain`, `output-gain` |
 | `crosstalk_canceller` | `delay-us`, `decay-db`, `phantom-center-only` | `delay`, `decay`, `phantom_center` | `input-gain`, `output-gain` |
 | `midside_equalizer` | `mid.bandN.{frequency,gain,q,type}`, `side.bandN.{…}`, `output-gain` | `mid_bandN_gain`, `side_bandN_gain`, shared `bandwidth`, `output_gain` | `input-gain`, `num-bands`, `mode`, `decramp`, `split-channels`, `balance`, `pitch-mid`, `pitch-side`; per-band `mode`, `slope` and `width`, and bands that are muted, non-soloed or not bell or shelf |
+| `multiband_compressor` | `bandN.{enable-band,split-frequency,compressor-enable,attack-threshold,ratio,knee,attack-time,release-time,makeup}` | `bands`, `splitN`, `bandN_{enabled,threshold,ratio,knee,attack,release,makeup}` | every other global and per-band key (the sidechain block, `compression-mode`, `boost-*`, `stereo-split`, `input-to-*`); a document with more than four enabled bands is reported and the extra bands are dropped |
+| `multiband_gate` | `bandN.{enable-band,split-frequency,gate-enable,curve-threshold,reduction,attack-time,release-time,makeup}` | `bands`, `splitN`, `bandN_{enabled,threshold,range,attack,release,makeup}` | the hysteresis block (`curve-zone`, `hysteresis`, `hysteresis-threshold`, `hysteresis-zone`), the sidechain block, `gate-mode`, `stereo-split`, `input-to-*`; a reverse reduction is refused and the band is left closed |
+| `voice_suppressor` | `freq-start`, `freq-end`, `correlation`, `phase-difference`, `inverted-mode` | `start`, `end`, `correlation`, `phase`, `inverted` | `maximum-instantaneous-frequency`, `minimum-kurtosis` |
 | any other instance | - | - | the whole instance is named in the warning list |
 
 Two of these conversions are rescalings rather than transfers and are recorded

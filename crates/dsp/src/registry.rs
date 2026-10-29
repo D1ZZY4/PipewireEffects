@@ -89,6 +89,22 @@ pub const EFFECTS: &[EffectDescriptor] = &[
         build: |params| Box::new(effects::Gate::new(params)),
     },
     EffectDescriptor {
+        id: "multiband_compressor",
+        label: mark("Multiband compressor"),
+        summary: mark("Split the spectrum and compress each band separately"),
+        category: EffectCategory::Dynamics,
+        specs: effects::multiband_compressor_specs,
+        build: |params| Box::new(effects::MultibandCompressor::new(params)),
+    },
+    EffectDescriptor {
+        id: "multiband_gate",
+        label: mark("Multiband gate"),
+        summary: mark("Split the spectrum and gate each band separately"),
+        category: EffectCategory::Dynamics,
+        specs: effects::multiband_gate_specs,
+        build: |params| Box::new(effects::MultibandGate::new(params)),
+    },
+    EffectDescriptor {
         id: "expander",
         label: mark("Expander"),
         summary: mark("Downward expander that widens the dynamic range below a threshold"),
@@ -183,6 +199,14 @@ pub const EFFECTS: &[EffectDescriptor] = &[
         category: EffectCategory::Tone,
         specs: effects::gain_specs,
         build: |params| Box::new(effects::Gain::new(params)),
+    },
+    EffectDescriptor {
+        id: "voice_suppressor",
+        label: mark("Voice suppressor"),
+        summary: mark("Attenuates centred voice by comparing the two channels"),
+        category: EffectCategory::Tone,
+        specs: effects::voice_suppressor_specs,
+        build: |params| Box::new(effects::VoiceSuppressor::new(params)),
     },
     EffectDescriptor {
         id: "delay",

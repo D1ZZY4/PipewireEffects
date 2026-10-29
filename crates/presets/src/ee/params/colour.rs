@@ -136,5 +136,51 @@ pub(super) fn exciter(
     params
 }
 
+const VOICE_SUPPRESSOR_KEYS: &[&str] = &[
+    "bypass",
+    "freq-start",
+    "freq-end",
+    "correlation",
+    "phase-difference",
+    "inverted-mode",
+    "maximum-instantaneous-frequency",
+    "minimum-kurtosis",
+];
+
+pub(super) fn voice_suppressor(
+    parameters: &Map<String, Value>,
+    warnings: &mut Vec<String>,
+) -> BTreeMap<String, PresetValue> {
+    skipped(
+        parameters,
+        VOICE_SUPPRESSOR_KEYS,
+        "voice suppressor",
+        warnings,
+    );
+    let mut params = BTreeMap::new();
+    put(
+        &mut params,
+        "start",
+        number(parameters, "freq-start", 200.0),
+    );
+    put(&mut params, "end", number(parameters, "freq-end", 8_000.0));
+    put(
+        &mut params,
+        "correlation",
+        number(parameters, "correlation", 0.5),
+    );
+    put(
+        &mut params,
+        "phase",
+        number(parameters, "phase-difference", 30.0),
+    );
+    put(
+        &mut params,
+        "inverted",
+        flag(parameters, "inverted-mode", false),
+    );
+    params
+}
+
 #[cfg(test)]
 mod tests;

@@ -2,6 +2,7 @@ mod colour;
 mod dynamics;
 mod equalizer;
 mod midside;
+mod multiband;
 mod time;
 mod tone;
 
@@ -25,6 +26,7 @@ pub(super) fn convert_parameters(
         "crusher" => colour::crusher(parameters, warnings),
         "crossfeed" => colour::crossfeed(parameters, warnings),
         "crosstalk" => colour::crosstalk(parameters, warnings),
+        "voice_suppressor" => colour::voice_suppressor(parameters, warnings),
         "exciter" => colour::exciter(parameters, warnings),
         "expander" => dynamics::expander(parameters, warnings),
         "maximizer" => dynamics::maximizer(parameters, warnings),
@@ -33,6 +35,8 @@ pub(super) fn convert_parameters(
         "compressor" => dynamics::compressor(parameters, warnings),
         "limiter" => dynamics::limiter(parameters, warnings),
         "gate" => dynamics::gate(parameters, warnings),
+        "multiband_compressor" => multiband::multiband_compressor(parameters, warnings),
+        "multiband_gate" => multiband::multiband_gate(parameters, warnings),
         "deesser" => dynamics::deesser(parameters, warnings),
         "autogain" => dynamics::autogain(parameters, warnings),
         "delay" => time::delay(parameters, warnings),

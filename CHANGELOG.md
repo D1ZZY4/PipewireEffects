@@ -13,6 +13,14 @@ keeps working in the next.
 
 ### Added
 
+- A multiband compressor, a multiband gate and a voice suppressor, and the two
+  primitives they need: a hand-written iterative radix-2 FFT
+  (`crates/dsp/src/fft.rs`) and a Linkwitz-Riley crossover
+  (`crates/dsp/src/effects/crossover.rs`). The multiband effects split the
+  spectrum into up to four bands; the voice suppressor attenuates centred voice
+  from the inter-channel correlation and phase difference in the frequency
+  domain. Each maps its EasyEffects preset block and is marked *Partial* in
+  `docs/feature-matrix.md`, which records what differs.
 - Seven more effects: an expander, a maximizer, a bit and sample-rate crusher, an
   exciter, a headphone crossfeed, a cross-talk canceller and a mid/side
   equalizer. Each has its own symbolic icon, its own parameter set and its own

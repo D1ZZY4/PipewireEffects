@@ -23,8 +23,11 @@ crates/dsp/src/effects/gate.rs
 crates/dsp/src/effects/limiter.rs
 crates/dsp/src/effects/maximizer.rs
 crates/dsp/src/effects/midside_equalizer.rs
+crates/dsp/src/effects/multiband_compressor.rs
+crates/dsp/src/effects/multiband_gate.rs
 crates/dsp/src/effects/reverb.rs
 crates/dsp/src/effects/stereo_tools.rs
+crates/dsp/src/effects/voice_suppressor.rs
 crates/engine/src/config.rs
 crates/engine/src/error.rs
 crates/engine/src/processor.rs
@@ -38,6 +41,7 @@ crates/presets/src/ee/params.rs
 crates/presets/src/ee/params/colour.rs
 crates/presets/src/ee/params/dynamics.rs
 crates/presets/src/ee/params/equalizer.rs
+crates/presets/src/ee/params/multiband.rs
 crates/presets/src/ee/params/time.rs
 crates/presets/src/ee/params/tone.rs
 crates/presets/src/error.rs

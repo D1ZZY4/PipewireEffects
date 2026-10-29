@@ -15,7 +15,7 @@ pwe-core  ◄── pwe-settings ───────────────�
 | Crate | Owns | Does not know about |
 |---|---|---|
 | `pwe-core` | Audio buffers, parameter specifications, the effect contract, the chain, meters, realtime-safe helpers, the pipeline kinds | PipeWire, GTK, files |
-| `pwe-dsp` | The twenty effects, the R128 loudness measurement, the biquad designs and the effect registry | Threads, devices, presets |
+| `pwe-dsp` | The FFT, the Linkwitz-Riley crossover, the biquad design, the twenty-three effects, the R128 loudness measurement and the effect registry | Threads, devices, presets |
 | `pwe-presets` | The preset schema, name validation and the preset directory | Which effects exist |
 | `pwe-settings` | The settings document, its atomic store and the autostart entry | The engine, the interface, the effects |
 | `pwe-engine` | PipeWire streams, the virtual sink and source, the destination device, the realtime processor, counters | GTK, presets, settings |
