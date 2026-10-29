@@ -11,6 +11,7 @@ pub enum ParamUnit {
     Ratio,
     Samples,
     Seconds,
+    Lufs,
 }
 
 impl ParamUnit {
@@ -25,6 +26,7 @@ impl ParamUnit {
             Self::Ratio => ":1",
             Self::Samples => "smp",
             Self::Seconds => "s",
+            Self::Lufs => "LUFS",
         }
     }
 }
@@ -184,6 +186,7 @@ impl ParamSpec {
                     ParamUnit::Ratio => format!("{raw:.2}:1"),
                     ParamUnit::Samples => format!("{raw:.0} smp"),
                     ParamUnit::Decibel => format!("{raw:+.1} dB"),
+                    ParamUnit::Lufs => format!("{raw:.1} LUFS"),
                     ParamUnit::None => format!("{raw:.2}"),
                 }
             }

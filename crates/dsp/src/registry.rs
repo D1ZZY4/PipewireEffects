@@ -115,7 +115,7 @@ pub const EFFECTS: &[EffectDescriptor] = &[
     EffectDescriptor {
         id: "autogain",
         label: mark("Auto gain"),
-        summary: mark("Slow loudness normalisation towards a target level"),
+        summary: mark("EBU R128 loudness normalisation towards a target level"),
         category: EffectCategory::Dynamics,
         specs: effects::autogain_specs,
         build: |params| Box::new(effects::AutoGain::new(params)),

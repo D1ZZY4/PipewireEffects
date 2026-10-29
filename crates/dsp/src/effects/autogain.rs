@@ -1,12 +1,13 @@
 use pwe_core::{AudioBuffer, AudioFormat, Effect, ParamSet, ParamSpec, ParamUnit, math};
 
-use crate::effects::util::{self, MAX_CHANNELS};
+use crate::effects::util::MAX_CHANNELS;
 use crate::knob::Knob;
+use crate::r128::Loudness;
 
 pub fn specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::float("target", "Target level", ParamUnit::Decibel)
-            .range(-30.0, 0.0, -14.0)
+        ParamSpec::float("target", "Target loudness", ParamUnit::Lufs)
+            .range(-36.0, -5.0, -23.0)
             .step(0.5)
             .group("Level")
             .build(),
@@ -15,8 +16,8 @@ pub fn specs() -> Vec<ParamSpec> {
             .step(0.5)
             .group("Level")
             .build(),
-        ParamSpec::float("silence_threshold", "Silence threshold", ParamUnit::Decibel)
-            .range(-80.0, -30.0, -50.0)
+        ParamSpec::float("silence_threshold", "Silence threshold", ParamUnit::Lufs)
+            .range(-80.0, -40.0, -70.0)
             .step(1.0)
             .group("Level")
             .build(),
@@ -33,6 +34,7 @@ pub struct AutoGain {
     max_gain: Knob,
     silence_threshold: Knob,
     speed: Knob,
+    loudness: Loudness,
     gain_db: f32,
     rate: u32,
 }
@@ -40,10 +42,11 @@ pub struct AutoGain {
 impl AutoGain {
     pub fn new(params: ParamSet) -> Self {
         Self {
-            target: Knob::new(&params, "target", -14.0),
+            target: Knob::new(&params, "target", -23.0),
             max_gain: Knob::new(&params, "max_gain", 20.0),
-            silence_threshold: Knob::new(&params, "silence_threshold", -50.0),
+            silence_threshold: Knob::new(&params, "silence_threshold", -70.0),
             speed: Knob::new(&params, "speed", 1000.0),
+            loudness: Loudness::new(48_000),
             gain_db: 0.0,
             rate: 48_000,
         }
@@ -57,11 +60,13 @@ impl Effect for AutoGain {
 
     fn prepare(&mut self, format: AudioFormat) {
         self.rate = format.rate();
+        self.loudness = Loudness::new(self.rate);
         self.reset();
     }
 
     fn reset(&mut self) {
         self.gain_db = 0.0;
+        self.loudness.reset();
     }
 
     fn process(&mut self, buffer: &mut AudioBuffer) {
@@ -69,16 +74,13 @@ impl Effect for AutoGain {
         if frames == 0 {
             return;
         }
-        let mean_square = util::mean_square(buffer);
-        let level_db = if mean_square <= 0.0 {
-            math::MIN_GAIN
-        } else {
-            10.0 * mean_square.log10()
-        };
+        self.loudness.process(buffer);
 
         let start_db = self.gain_db;
-        if level_db > self.silence_threshold.value() {
-            let wanted = (self.target.value() - level_db).clamp(0.0, self.max_gain.value());
+        if let Some(measured) = self.loudness.integrated()
+            && measured > self.silence_threshold.value()
+        {
+            let wanted = (self.target.value() - measured).clamp(0.0, self.max_gain.value());
             let block_ms = frames as f32 / self.rate.max(1) as f32 * 1000.0;
             let alpha = 1.0 - (-block_ms / self.speed.value().max(1.0)).exp();
             self.gain_db += (wanted - self.gain_db) * alpha;
@@ -112,10 +114,57 @@ mod tests {
             let plan = buffer.channel_mut(channel);
             for (index, sample) in plan.iter_mut().enumerate() {
                 *sample =
-                    amplitude * (std::f32::consts::TAU * 440.0 * index as f32 / 48_000.0).sin();
+                    amplitude * (std::f32::consts::TAU * 997.0 * index as f32 / 48_000.0).sin();
             }
         }
         buffer
+    }
+
+    fn feed(effect: &mut AutoGain, amplitude: f32, blocks: usize) {
+        for _ in 0..blocks {
+            let mut buffer = tone(amplitude, 4800);
+            effect.process(&mut buffer);
+        }
+    }
+
+    fn measured(amplitude: f32, blocks: usize) -> f32 {
+        let mut loudness = Loudness::new(48_000);
+        for _ in 0..blocks {
+            let buffer = tone(amplitude, 4800);
+            loudness.process(&buffer);
+        }
+        loudness.integrated().expect("a level was measured")
+    }
+
+    #[test]
+    fn a_full_scale_sine_measures_about_zero_lufs() {
+        let value = measured(1.0, 40);
+        assert!(value.abs() < 0.6, "{value}");
+    }
+
+    #[test]
+    fn the_standard_calibration_holds() {
+        let amplitude = 10f32.powf(-23.0 / 20.0);
+        let value = measured(amplitude, 40);
+        assert!((value + 23.0).abs() < 0.4, "{value}");
+    }
+
+    #[test]
+    fn a_ten_decibel_step_moves_the_measurement_by_ten() {
+        let loud = measured(0.5, 40);
+        let quiet = measured(0.5 / 10f32.powf(10.0 / 20.0), 40);
+        assert!((loud - quiet - 10.0).abs() < 0.3, "{loud} {quiet}");
+    }
+
+    #[test]
+    fn silence_is_not_measured() {
+        let mut loudness = Loudness::new(48_000);
+        let mut silent = AudioBuffer::new(2, 4800);
+        silent.configure(2, 4800).unwrap();
+        for _ in 0..40 {
+            loudness.process(&silent);
+        }
+        assert!(loudness.integrated().is_none());
     }
 
     #[test]
@@ -124,11 +173,7 @@ mod tests {
         params.set_f32("speed", 100.0).unwrap();
         let mut effect = AutoGain::new(params);
         effect.prepare(AudioFormat::new(48_000, 2));
-        for _ in 0..200 {
-            let mut buffer = tone(0.01, 1024);
-            effect.process(&mut buffer);
-            let _ = buffer;
-        }
+        feed(&mut effect, 0.01, 400);
         assert!(effect.gain_db > 5.0, "{}", effect.gain_db);
         assert!(effect.gain_db <= 20.0);
     }
@@ -140,10 +185,7 @@ mod tests {
         params.set_f32("max_gain", 6.0).unwrap();
         let mut effect = AutoGain::new(params);
         effect.prepare(AudioFormat::new(48_000, 2));
-        for _ in 0..500 {
-            let mut buffer = tone(0.0001, 1024);
-            effect.process(&mut buffer);
-        }
+        feed(&mut effect, 0.0001, 400);
         assert!(effect.gain_db <= 6.001, "{}", effect.gain_db);
     }
 
@@ -152,8 +194,8 @@ mod tests {
         let params = ParamSet::new(specs());
         let mut effect = AutoGain::new(params);
         effect.prepare(AudioFormat::new(48_000, 2));
-        let mut silent = AudioBuffer::new(2, 1024);
-        silent.configure(2, 1024).unwrap();
+        let mut silent = AudioBuffer::new(2, 4800);
+        silent.configure(2, 4800).unwrap();
         for _ in 0..100 {
             effect.process(&mut silent);
         }
@@ -161,16 +203,12 @@ mod tests {
     }
 
     #[test]
-    fn no_gain_is_applied_when_the_level_already_matches() {
+    fn no_gain_is_applied_when_the_loudness_already_matches() {
         let params = ParamSet::new(specs());
-        params.set_f32("target", -6.0).unwrap();
+        params.set_f32("target", -23.0).unwrap();
         let mut effect = AutoGain::new(params);
         effect.prepare(AudioFormat::new(48_000, 2));
-        let amplitude = 10f32.powf(-6.0 / 20.0) * std::f32::consts::SQRT_2;
-        for _ in 0..50 {
-            let mut buffer = tone(amplitude, 1024);
-            effect.process(&mut buffer);
-        }
+        feed(&mut effect, 10f32.powf(-23.0 / 20.0), 60);
         assert!(effect.gain_db.abs() < 0.5, "{}", effect.gain_db);
     }
 }
