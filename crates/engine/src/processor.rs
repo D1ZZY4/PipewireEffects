@@ -13,6 +13,7 @@ pub struct Processor {
     chain: EffectChain,
     commands: Arc<ArrayQueue<ChainCommand>>,
     retired: Arc<ArrayQueue<Box<dyn Effect>>>,
+    held: Vec<Box<dyn Effect>>,
     shared: Arc<Shared>,
     rate: Arc<AtomicU32>,
     format: AudioFormat,
@@ -40,6 +41,7 @@ impl Processor {
             chain: EffectChain::new(crate::config::MAX_EFFECTS, format),
             commands,
             retired,
+            held: Vec::with_capacity(crate::engine::RETIRE_QUEUE_CAPACITY),
             shared,
             rate,
             format,
@@ -108,7 +110,9 @@ impl Processor {
     }
 
     pub fn drain_commands(&mut self) {
+        self.flush_held();
         let retired = &self.retired;
+        let held = &mut self.held;
         let mut budget = 128;
         while budget > 0 {
             let Some(command) = self.commands.pop() else {
@@ -116,8 +120,19 @@ impl Processor {
             };
             budget -= 1;
             self.chain.apply(command, |effect| {
-                let _ = retired.push(effect);
+                if let Err(effect) = retired.push(effect) {
+                    held.push(effect);
+                }
             });
+        }
+    }
+
+    fn flush_held(&mut self) {
+        while let Some(effect) = self.held.pop() {
+            if let Err(effect) = self.retired.push(effect) {
+                self.held.push(effect);
+                break;
+            }
         }
     }
 
