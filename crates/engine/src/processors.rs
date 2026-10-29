@@ -68,14 +68,14 @@ impl PlaybackState {
         let Some(bytes) = data.data() else {
             return;
         };
-        let capacity_frames = bytes.len() / 4 / *channels;
-        if capacity_frames == 0 {
+        let available_frames = (bytes.len() / 4 / *channels).min(scratch.len() / *channels);
+        if available_frames == 0 {
             return;
         }
         let frames = if requested == 0 {
-            capacity_frames
+            available_frames
         } else {
-            requested.min(capacity_frames)
+            requested.min(available_frames)
         };
         let wanted = frames * *channels;
         let destination = &mut scratch[..wanted];
