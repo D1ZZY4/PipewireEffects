@@ -281,7 +281,7 @@ impl Ui {
         }
         self.set_status(snapshot.bypassed);
         self.devices_view.update(&snapshot, &stats, state);
-        self.preferences_view.update(&stats, &snapshot.warnings);
+        self.preferences_view.update(&snapshot, state, &stats);
         if let Some(error) = error {
             self.banner.set_title(&error);
             self.banner.set_revealed(true);

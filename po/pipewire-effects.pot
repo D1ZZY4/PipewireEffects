@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PipeWire Effects 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/D1ZZY4/PipewireEffects/issues\n"
-"POT-Creation-Date: 2026-10-30 06:22+0700\n"
+"POT-Creation-Date: 2026-10-30 06:46+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -615,7 +615,7 @@ msgstr ""
 msgid "Amount"
 msgstr ""
 
-#: crates/dsp/src/effects/crystalizer.rs:23 crates/ui/src/format.rs:65
+#: crates/dsp/src/effects/crystalizer.rs:23 crates/ui/src/format.rs:74
 msgid "Effect"
 msgstr ""
 
@@ -1229,152 +1229,169 @@ msgstr ""
 msgid "Quit"
 msgstr ""
 
-#: crates/ui/src/devices.rs:33
-msgid "Engine"
+#: crates/ui/src/devices.rs:37 crates/ui/src/diagnostics.rs:44
+msgid "Pipeline"
 msgstr ""
 
-#: crates/ui/src/devices.rs:36
-msgid "Status"
+#: crates/ui/src/devices.rs:40 crates/ui/src/diagnostics.rs:39
+msgid "State"
 msgstr ""
 
-#: crates/ui/src/devices.rs:37
+#: crates/ui/src/devices.rs:41
 msgid "Connecting"
 msgstr ""
 
-#: crates/ui/src/devices.rs:38
+#: crates/ui/src/devices.rs:45
 msgid "Reconnect"
 msgstr ""
 
-#: crates/ui/src/devices.rs:42
+#: crates/ui/src/devices.rs:49
 msgid "Rebuild the streams against the audio server"
 msgstr ""
 
-#: crates/ui/src/devices.rs:50
+#: crates/ui/src/devices.rs:57
 msgid "Format"
 msgstr ""
 
-#: crates/ui/src/devices.rs:51
-msgid "unknown"
+#: crates/ui/src/devices.rs:58 crates/ui/src/devices.rs:171
+msgid "Waiting for the graph"
 msgstr ""
 
-#: crates/ui/src/devices.rs:54 crates/ui/src/devices.rs:171
-msgid "Virtual sink"
+#: crates/ui/src/devices.rs:61 crates/ui/src/diagnostics.rs:46
+msgid "Quantum"
 msgstr ""
 
-#: crates/ui/src/devices.rs:59
-msgid "Copy the node name"
-msgstr ""
-
-#: crates/ui/src/devices.rs:75
+#: crates/ui/src/devices.rs:70
 msgid "Routing"
 msgstr ""
 
-#: crates/ui/src/devices.rs:85
-msgid "Destination"
-msgstr ""
-
-#: crates/ui/src/devices.rs:87 crates/ui/src/devices.rs:228
+#: crates/ui/src/devices.rs:73 crates/ui/src/devices.rs:242
 msgid "Output device"
 msgstr ""
 
-#: crates/ui/src/devices.rs:88
-msgid "The hardware device that receives the effect chain"
+#: crates/ui/src/devices.rs:74
+msgid "Automatic"
+msgstr ""
+
+#: crates/ui/src/devices.rs:91
+msgid "Node name"
 msgstr ""
 
 #: crates/ui/src/devices.rs:107
-msgid "Microphone"
+msgid "Microphone input"
 msgstr ""
 
 #: crates/ui/src/devices.rs:110
-msgid "Process microphone input"
+msgid "Process the microphone"
 msgstr ""
 
 #: crates/ui/src/devices.rs:112
-msgid "Runs the input chain and publishes it as the PipeWire Effects Source"
+msgid "Runs the input chain and publishes the result as a virtual source"
 msgstr ""
 
-#: crates/ui/src/devices.rs:152
-msgid "{0} · {1} pipeline"
-msgstr ""
-
-#: crates/ui/src/devices.rs:159
-msgid "waiting for the graph"
-msgstr ""
-
-#: crates/ui/src/devices.rs:162
-msgid "{0} Hz · {1} channels · {2} frames per buffer"
-msgstr ""
-
-#: crates/ui/src/devices.rs:172
+#: crates/ui/src/devices.rs:125 crates/ui/src/devices.rs:194
 msgid "Virtual source"
 msgstr ""
 
-#: crates/ui/src/devices.rs:183
-msgid ""
-"Pick PipeWire Effects Sink as the output in an application, or make it the "
-"default sink."
+#: crates/ui/src/devices.rs:162
+msgid "{0} pipeline"
 msgstr ""
 
-#: crates/ui/src/devices.rs:186
-msgid ""
-"Pick PipeWire Effects Source as the input in an application, or make it the "
-"default source."
+#: crates/ui/src/devices.rs:174
+msgid "{0} · {1} channels"
 msgstr ""
 
-#: crates/ui/src/devices.rs:218
+#: crates/ui/src/devices.rs:185
+msgid "{0} frames · {1}"
+msgstr ""
+
+#: crates/ui/src/devices.rs:193
+msgid "Virtual sink"
+msgstr ""
+
+#: crates/ui/src/devices.rs:205
+msgid "Route an application to this sink, or make it the default output."
+msgstr ""
+
+#: crates/ui/src/devices.rs:208
+msgid ""
+"Record from this source in an application, or make it the default input."
+msgstr ""
+
+#: crates/ui/src/devices.rs:232
 msgid "No {0} device is available"
 msgstr ""
 
-#: crates/ui/src/devices.rs:220
-msgid "Following the system default, {0}"
+#: crates/ui/src/devices.rs:234
+msgid "System default · {0}"
 msgstr ""
 
-#: crates/ui/src/devices.rs:229
+#: crates/ui/src/devices.rs:243
 msgid "Input device"
 msgstr ""
 
-#: crates/ui/src/devices.rs:252
+#: crates/ui/src/devices.rs:266
 msgid "System default"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:24
+#: crates/ui/src/devices.rs:288 crates/ui/src/devices.rs:302
+msgid "Copy"
+msgstr ""
+
+#: crates/ui/src/devices.rs:291
+msgid "Copy this name to the clipboard"
+msgstr ""
+
+#: crates/ui/src/devices.rs:299
+msgid "Copied"
+msgstr ""
+
+#: crates/ui/src/diagnostics.rs:45
+msgid "Sample rate"
+msgstr ""
+
+#: crates/ui/src/diagnostics.rs:47
+msgid "Ring occupancy"
+msgstr ""
+
+#: crates/ui/src/diagnostics.rs:48
 msgid "Captured frames"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:25
+#: crates/ui/src/diagnostics.rs:49
 msgid "Processed frames"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:26
-msgid "Underrun samples"
+#: crates/ui/src/diagnostics.rs:50
+msgid "Underruns"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:27
-msgid "Overrun samples"
+#: crates/ui/src/diagnostics.rs:51
+msgid "Overruns"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:28
+#: crates/ui/src/diagnostics.rs:52
 msgid "Drift trims"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:29
-msgid "Buffer occupancy"
-msgstr ""
-
-#: crates/ui/src/diagnostics.rs:31
-msgid "Messages"
-msgstr ""
-
-#: crates/ui/src/diagnostics.rs:32 crates/ui/src/diagnostics.rs:81
-msgid "None"
-msgstr ""
-
-#: crates/ui/src/diagnostics.rs:36
+#: crates/ui/src/diagnostics.rs:55
 msgid "Engine counters"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:38
-msgid "Audio counters and engine messages for the pipeline in view"
+#: crates/ui/src/diagnostics.rs:56
+msgid "Live values for the pipeline in view"
+msgstr ""
+
+#: crates/ui/src/diagnostics.rs:73
+msgid "Engine"
+msgstr ""
+
+#: crates/ui/src/diagnostics.rs:77
+msgid "Messages"
+msgstr ""
+
+#: crates/ui/src/diagnostics.rs:79
+msgid "No messages"
 msgstr ""
 
 #: crates/ui/src/dialogs.rs:51 crates/ui/src/dialogs.rs:83
@@ -1437,32 +1454,28 @@ msgstr ""
 msgid "Show or hide the effect chain"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:24
-msgid "Desktop"
+#: crates/ui/src/preferences.rs:23
+msgid "Behaviour"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:26
+#: crates/ui/src/preferences.rs:25
 msgid "Start on login"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:28
+#: crates/ui/src/preferences.rs:27
 msgid "Begins processing as soon as you sign in, without a window"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:45
-msgid "Developer"
+#: crates/ui/src/preferences.rs:44
+msgid "Troubleshooting"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:47
+#: crates/ui/src/preferences.rs:46
 msgid "Developer mode"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:49
-msgid "Adds engine counters and diagnostic messages for troubleshooting"
-msgstr ""
-
-#: crates/ui/src/preferences.rs:55
-msgid "Diagnostics"
+#: crates/ui/src/preferences.rs:47
+msgid "Shows the engine counters and diagnostic messages below"
 msgstr ""
 
 #: crates/ui/src/presets_ui.rs:18

@@ -11,15 +11,19 @@ use crate::format;
 use crate::pages::WorkspaceActions;
 
 pub struct DevicesView {
+    pipeline_group: adw::PreferencesGroup,
     state_row: adw::ActionRow,
-    rate_row: adw::ActionRow,
-    node_row: adw::ActionRow,
-    routing_row: adw::ActionRow,
+    state_icon: gtk::Image,
+    format_row: adw::ActionRow,
+    quantum_row: adw::ActionRow,
     reconnect: gtk::Button,
     devices: adw::ComboRow,
     device_names: RefCell<Vec<String>>,
     updating: Rc<Cell<bool>>,
+    node_row: adw::ActionRow,
+    hint: gtk::Label,
     microphone: adw::SwitchRow,
+    source_row: adw::ActionRow,
     destination: RefCell<String>,
     status: RefCell<String>,
     toggles: Rc<Cell<bool>>,
@@ -29,12 +33,15 @@ impl DevicesView {
     pub fn new(actions: WorkspaceActions) -> (adw::PreferencesPage, Self) {
         let page = adw::PreferencesPage::new();
 
-        let engine = adw::PreferencesGroup::new();
-        engine.set_title(t("Engine"));
+        let pipeline_group = adw::PreferencesGroup::new();
+        pipeline_group.set_title(t("Pipeline"));
 
         let state_row = adw::ActionRow::new();
-        state_row.set_title(t("Status"));
+        state_row.set_title(t("State"));
         state_row.set_subtitle(t("Connecting"));
+        let state_icon = gtk::Image::new();
+        state_icon.set_valign(gtk::Align::Center);
+        state_row.add_prefix(&state_icon);
         let reconnect = gtk::Button::with_label(t("Reconnect"));
         reconnect.add_css_class("flat");
         reconnect.set_valign(gtk::Align::Center);
@@ -46,46 +53,25 @@ impl DevicesView {
         }
         state_row.add_suffix(&reconnect);
 
-        let rate_row = adw::ActionRow::new();
-        rate_row.set_title(t("Format"));
-        rate_row.set_subtitle(t("unknown"));
+        let format_row = adw::ActionRow::new();
+        format_row.set_title(t("Format"));
+        format_row.set_subtitle(t("Waiting for the graph"));
 
-        let node_row = adw::ActionRow::new();
-        node_row.set_title(t("Virtual sink"));
-        node_row.set_subtitle("pipewire-effects-sink");
-        let copy = gtk::Button::from_icon_name(format::ICON_COPY);
-        copy.add_css_class("flat");
-        copy.set_valign(gtk::Align::Center);
-        copy.set_tooltip_text(Some(t("Copy the node name")));
-        {
-            let node = node_row.clone();
-            copy.connect_clicked(move |button| {
-                let name = node.widget_name().to_string();
-                button.display().clipboard().set_text(&name);
-                button.set_icon_name(format::ICON_COPIED);
-                let button = button.clone();
-                glib::timeout_add_local_once(std::time::Duration::from_millis(900), move || {
-                    button.set_icon_name(format::ICON_COPY);
-                });
-            });
-        }
-        node_row.add_suffix(&copy);
+        let quantum_row = adw::ActionRow::new();
+        quantum_row.set_title(t("Quantum"));
+        quantum_row.set_subtitle("—");
 
-        let routing_row = adw::ActionRow::new();
-        routing_row.set_title(t("Routing"));
-        routing_row.set_subtitle_lines(3);
+        pipeline_group.add(&state_row);
+        pipeline_group.add(&format_row);
+        pipeline_group.add(&quantum_row);
+        page.add(&pipeline_group);
 
-        engine.add(&state_row);
-        engine.add(&rate_row);
-        engine.add(&node_row);
-        engine.add(&routing_row);
-        page.add(&engine);
+        let routing = adw::PreferencesGroup::new();
+        routing.set_title(t("Routing"));
 
-        let output = adw::PreferencesGroup::new();
-        output.set_title(t("Destination"));
         let devices = adw::ComboRow::new();
         devices.set_title(t("Output device"));
-        devices.set_subtitle(t("The hardware device that receives the effect chain"));
+        devices.set_subtitle(t("Automatic"));
         let updating = Rc::new(Cell::new(false));
         let flag = Rc::clone(&updating);
         let names = Rc::new(RefCell::new(Vec::<String>::new()));
@@ -100,16 +86,30 @@ impl DevicesView {
                 on_target(name.clone());
             }
         });
-        output.add(&devices);
-        page.add(&output);
+        routing.add(&devices);
+
+        let node_row = copyable_row(t("Node name"));
+        routing.add(&node_row);
+
+        let hint = gtk::Label::new(None);
+        hint.set_wrap(true);
+        hint.set_xalign(0.0);
+        hint.add_css_class("caption");
+        hint.add_css_class("dim-label");
+        hint.set_margin_start(12);
+        hint.set_margin_end(12);
+        hint.set_margin_top(6);
+        hint.set_margin_bottom(6);
+        routing.add(&hint);
+        page.add(&routing);
 
         let monitoring = adw::PreferencesGroup::new();
-        monitoring.set_title(t("Microphone"));
+        monitoring.set_title(t("Microphone input"));
         let toggles = Rc::new(Cell::new(false));
         let microphone = adw::SwitchRow::new();
-        microphone.set_title(t("Process microphone input"));
+        microphone.set_title(t("Process the microphone"));
         microphone.set_subtitle(t(
-            "Runs the input chain and publishes it as the PipeWire Effects Source",
+            "Runs the input chain and publishes the result as a virtual source",
         ));
         {
             let flag = Rc::clone(&toggles);
@@ -122,18 +122,26 @@ impl DevicesView {
             });
         }
         monitoring.add(&microphone);
+        let source_row = copyable_row(t("Virtual source"));
+        source_row.set_subtitle("pipewire-effects-source");
+        source_row.set_widget_name("pipewire-effects-source");
+        monitoring.add(&source_row);
         page.add(&monitoring);
 
         let view = Self {
+            pipeline_group,
             state_row,
-            rate_row,
-            node_row,
-            routing_row,
+            state_icon,
+            format_row,
+            quantum_row,
             reconnect,
             devices,
             device_names: RefCell::new(Vec::new()),
             updating,
+            node_row,
+            hint,
             microphone,
+            source_row,
             destination: RefCell::new(String::new()),
             status: RefCell::new(String::new()),
             toggles,
@@ -144,26 +152,40 @@ impl DevicesView {
     pub fn set_running(&self, running: bool) {
         self.toggles.set(true);
         self.microphone.set_active(running);
+        self.source_row.set_visible(running);
         self.toggles.set(false);
     }
 
     pub fn update(&self, snapshot: &Snapshot, stats: &StatsSnapshot, state: EngineState) {
         let kind = snapshot.kind;
-        let status = tr("{0} · {1} pipeline", &[state.label(), kind.label()]);
+        self.pipeline_group
+            .set_title(&tr("{0} pipeline", &[kind.label()]));
+        let status = format!("{} · {}", state.label(), kind.label());
         if *self.status.borrow() != status {
-            self.status_row(&status, state == EngineState::Failed);
+            self.state_row.set_subtitle(state.label());
+            apply_state(&self.state_icon, state);
             *self.status.borrow_mut() = status;
         }
         self.reconnect.set_visible(state == EngineState::Failed);
-        self.rate_row.set_subtitle(&if snapshot.sample_rate == 0 {
-            t("waiting for the graph").to_owned()
+        self.format_row.set_subtitle(&if snapshot.sample_rate == 0 {
+            t("Waiting for the graph").to_owned()
         } else {
             tr(
-                "{0} Hz · {1} channels · {2} frames per buffer",
+                "{0} · {1} channels",
                 &[
-                    &snapshot.sample_rate.to_string(),
+                    &format::rate_text(snapshot.sample_rate),
                     &snapshot.channels.to_string(),
-                    &stats.buffer_frames.to_string(),
+                ],
+            )
+        });
+        self.quantum_row.set_subtitle(&if stats.buffer_frames == 0 {
+            "—".to_owned()
+        } else {
+            tr(
+                "{0} frames · {1}",
+                &[
+                    &format::grouped(stats.buffer_frames),
+                    &format::duration_text(stats.buffer_frames, snapshot.sample_rate),
                 ],
             )
         });
@@ -178,24 +200,16 @@ impl DevicesView {
         };
         self.node_row.set_subtitle(&node);
         self.node_row.set_widget_name(&node);
-        self.routing_row.set_subtitle(match kind {
-            PipelineKind::Output => t(
-                "Pick PipeWire Effects Sink as the output in an application, or make it the default sink.",
-            ),
-            PipelineKind::Input => t(
-                "Pick PipeWire Effects Source as the input in an application, or make it the default source.",
-            ),
+        self.hint.set_label(match kind {
+            PipelineKind::Output => {
+                t("Route an application to this sink, or make it the default output.")
+            }
+            PipelineKind::Input => {
+                t("Record from this source in an application, or make it the default input.")
+            }
         });
         self.sync_devices(snapshot);
         self.sync_destination(snapshot);
-    }
-
-    fn status_row(&self, status: &str, failed: bool) {
-        self.state_row.remove_css_class("error");
-        self.state_row.set_subtitle(status);
-        if failed {
-            self.state_row.add_css_class("error");
-        }
     }
 
     fn sync_destination(&self, snapshot: &Snapshot) {
@@ -217,7 +231,7 @@ impl DevicesView {
         let subtitle = if snapshot.target.is_empty() {
             tr("No {0} device is available", &[noun])
         } else if snapshot.automatic {
-            tr("Following the system default, {0}", &[&described])
+            tr("System default · {0}", &[&described])
         } else {
             described
         };
@@ -266,6 +280,34 @@ impl DevicesView {
         self.updating.set(false);
         *self.device_names.borrow_mut() = names;
     }
+}
+
+fn copyable_row(title: &str) -> adw::ActionRow {
+    let row = adw::ActionRow::new();
+    row.set_title(title);
+    let copy = gtk::Button::with_label(t("Copy"));
+    copy.add_css_class("flat");
+    copy.set_valign(gtk::Align::Center);
+    copy.set_tooltip_text(Some(t("Copy this name to the clipboard")));
+    let source = row.clone();
+    copy.connect_clicked(move |button| {
+        let name = source.widget_name().to_string();
+        if name.is_empty() {
+            return;
+        }
+        button.display().clipboard().set_text(&name);
+        button.set_label(t("Copied"));
+        let button = button.clone();
+        glib::timeout_add_local_once(std::time::Duration::from_millis(1200), move || {
+            button.set_label(t("Copy"));
+        });
+    });
+    row.add_suffix(&copy);
+    row
+}
+
+fn apply_state(icon: &gtk::Image, state: EngineState) {
+    crate::widgets::apply_state(icon, state);
 }
 
 pub fn device_labels(devices: &[(String, String)]) -> Vec<String> {

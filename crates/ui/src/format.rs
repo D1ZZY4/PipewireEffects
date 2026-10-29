@@ -20,6 +20,11 @@ pub const ICON_SAVE: &str = "document-save-symbolic";
 pub const ICON_IMPORT: &str = "document-open-symbolic";
 pub const ICON_EXPORT: &str = "document-send-symbolic";
 
+pub const ICON_STATE_OK: &str = "object-select-symbolic";
+pub const ICON_STATE_WORKING: &str = "content-loading-symbolic";
+pub const ICON_STATE_ERROR: &str = "dialog-error-symbolic";
+pub const ICON_STATE_STOPPED: &str = "media-playback-stop-symbolic";
+
 pub const CHROME_ICONS: &[&str] = &[
     ICON_BYPASS,
     ICON_MENU,
@@ -42,6 +47,10 @@ pub const CHROME_ICONS: &[&str] = &[
     ICON_SAVE,
     ICON_IMPORT,
     ICON_EXPORT,
+    ICON_STATE_OK,
+    ICON_STATE_WORKING,
+    ICON_STATE_ERROR,
+    ICON_STATE_STOPPED,
 ];
 
 pub fn missing_icons(theme: &gtk::IconTheme) -> Vec<&'static str> {
@@ -123,6 +132,50 @@ pub fn normalized_db(db: f32) -> f64 {
     ((db.clamp(-60.0, 0.0) + 60.0) / 60.0) as f64
 }
 
+pub fn rate_text(rate: u32) -> String {
+    let kilohertz = f64::from(rate) / 1000.0;
+    if (kilohertz.fract()).abs() < 1.0e-9 {
+        format!("{kilohertz:.0} kHz")
+    } else {
+        format!("{kilohertz:.1} kHz")
+    }
+}
+
+pub fn grouped(value: u64) -> String {
+    let digits = value.to_string();
+    let length = digits.len();
+    let mut text = String::with_capacity(length + length / 3);
+    for (index, character) in digits.chars().enumerate() {
+        if index > 0 && (length - index).is_multiple_of(3) {
+            text.push('\u{202f}');
+        }
+        text.push(character);
+    }
+    text
+}
+
+pub fn duration_text(frames: u64, rate: u32) -> String {
+    if rate == 0 {
+        return String::new();
+    }
+    let milliseconds = frames as f64 / f64::from(rate) * 1000.0;
+    if milliseconds < 10.0 {
+        format!("{milliseconds:.1} ms")
+    } else {
+        format!("{milliseconds:.0} ms")
+    }
+}
+
+pub fn state_icon(state: pwe_engine::EngineState) -> (&'static str, &'static str) {
+    use pwe_engine::EngineState;
+    match state {
+        EngineState::Running => (ICON_STATE_OK, "success"),
+        EngineState::Starting => (ICON_STATE_WORKING, "warning"),
+        EngineState::Failed => (ICON_STATE_ERROR, "error"),
+        EngineState::Stopped => (ICON_STATE_STOPPED, "dim-label"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -138,6 +191,29 @@ mod tests {
         assert!((normalized_db(0.0) - 1.0).abs() < 1.0e-6);
         assert!((normalized_db(-60.0)).abs() < 1.0e-6);
         assert!((normalized_db(-120.0)).abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn rate_text_drops_a_trailing_zero_fraction() {
+        assert_eq!(rate_text(48_000), "48 kHz");
+        assert_eq!(rate_text(44_100), "44.1 kHz");
+        assert_eq!(rate_text(96_000), "96 kHz");
+    }
+
+    #[test]
+    fn grouped_inserts_a_separator_every_three_digits() {
+        assert_eq!(grouped(0), "0");
+        assert_eq!(grouped(999), "999");
+        assert_eq!(grouped(1_000), "1\u{202f}000");
+        assert_eq!(grouped(180_224), "180\u{202f}224");
+        assert_eq!(grouped(1_234_567), "1\u{202f}234\u{202f}567");
+    }
+
+    #[test]
+    fn duration_text_reports_milliseconds() {
+        assert_eq!(duration_text(256, 48_000), "5.3 ms");
+        assert_eq!(duration_text(4_800, 48_000), "100 ms");
+        assert_eq!(duration_text(512, 0), "");
     }
 
     #[test]

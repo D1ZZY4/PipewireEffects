@@ -115,11 +115,11 @@ Reference evidence refers to files under `references/`.
 | Engine (config, devices, target resolution, metadata, processor, stream properties, byte conversion, registry filtering) | 29 | `crates/engine/src/**` |
 | Presets (schema, coercion, storage, built-ins, reference conversion for both sections) | 106 | `crates/presets/src/**` |
 | Settings (model, atomic store, autostart entry) | 9 | `crates/settings/src/**` |
-| Interface (formatting, icons, response axis, state model, banners, device labels) | 20 | `crates/ui/src/**` |
+| Interface (formatting, icons, response axis, state model, banners, device labels) | 23 | `crates/ui/src/**` |
 | Command line (parsing, help, exported presets) | 4 | `crates/app/src/cli.rs` |
 | Live PipeWire integration (ignored by default) | 4 | `crates/engine/tests/live_pipewire.rs` |
 
-`cargo test --workspace` therefore runs 337 tests. None of them need an audio
+`cargo test --workspace` therefore runs 340 tests. None of them need an audio
 device. Two of the interface tests look up icons in the live icon theme and skip
 themselves when no display is available. The four live tests are `#[ignore]`d and
 are run explicitly against a running daemon.

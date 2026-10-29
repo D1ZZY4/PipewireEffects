@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use pwe_core::i18n::t;
-use pwe_engine::StatsSnapshot;
+use pwe_engine::{EngineState, Snapshot, StatsSnapshot};
 
 use crate::diagnostics::Diagnostics;
 use crate::pages::WorkspaceActions;
@@ -11,8 +11,7 @@ use crate::pages::WorkspaceActions;
 pub struct PreferencesView {
     autostart: adw::SwitchRow,
     developer: adw::SwitchRow,
-    diagnostics_group: adw::PreferencesGroup,
-    diagnostics: Diagnostics,
+    diagnostics: Rc<Diagnostics>,
     toggles: Rc<Cell<bool>>,
 }
 
@@ -20,8 +19,8 @@ impl PreferencesView {
     pub fn new(actions: WorkspaceActions) -> (adw::PreferencesPage, Self) {
         let page = adw::PreferencesPage::new();
 
-        let desktop = adw::PreferencesGroup::new();
-        desktop.set_title(t("Desktop"));
+        let behaviour = adw::PreferencesGroup::new();
+        behaviour.set_title(t("Behaviour"));
         let autostart = adw::SwitchRow::new();
         autostart.set_title(t("Start on login"));
         autostart.set_subtitle(t(
@@ -38,32 +37,28 @@ impl PreferencesView {
                 on_autostart(row.is_active());
             });
         }
-        desktop.add(&autostart);
-        page.add(&desktop);
+        behaviour.add(&autostart);
+        page.add(&behaviour);
 
-        let developer_group = adw::PreferencesGroup::new();
-        developer_group.set_title(t("Developer"));
+        let troubleshooting = adw::PreferencesGroup::new();
+        troubleshooting.set_title(t("Troubleshooting"));
         let developer = adw::SwitchRow::new();
         developer.set_title(t("Developer mode"));
-        developer.set_subtitle(t(
-            "Adds engine counters and diagnostic messages for troubleshooting",
-        ));
-        developer_group.add(&developer);
-        page.add(&developer_group);
+        developer.set_subtitle(t("Shows the engine counters and diagnostic messages below"));
+        troubleshooting.add(&developer);
+        page.add(&troubleshooting);
 
-        let diagnostics_group = adw::PreferencesGroup::new();
-        diagnostics_group.set_title(t("Diagnostics"));
-        let diagnostics = Diagnostics::new();
-        diagnostics_group.add(diagnostics.row());
-        diagnostics_group.set_visible(false);
-        page.add(&diagnostics_group);
+        let diagnostics = Rc::new(Diagnostics::new());
+        diagnostics.set_visible(false);
+        page.add(diagnostics.counters());
+        page.add(diagnostics.messages());
 
         {
-            let group = diagnostics_group.clone();
             let flag = Rc::clone(&toggles);
             let on_developer_mode = Rc::clone(&actions.on_developer_mode);
+            let diagnostics = Rc::clone(&diagnostics);
             developer.connect_active_notify(move |row| {
-                group.set_visible(row.is_active());
+                diagnostics.set_visible(row.is_active());
                 if flag.get() {
                     return;
                 }
@@ -74,7 +69,6 @@ impl PreferencesView {
         let view = Self {
             autostart,
             developer,
-            diagnostics_group,
             diagnostics,
             toggles,
         };
@@ -90,16 +84,17 @@ impl PreferencesView {
     pub fn set_developer_mode(&self, enabled: bool) {
         self.toggles.set(true);
         self.developer.set_active(enabled);
-        self.diagnostics_group.set_visible(enabled);
+        self.diagnostics.set_visible(enabled);
         self.toggles.set(false);
     }
 
     pub fn expand_diagnostics(&self) {
-        self.diagnostics_group.set_visible(true);
+        self.diagnostics.set_visible(true);
         self.diagnostics.expand();
     }
 
-    pub fn update(&self, stats: &StatsSnapshot, warnings: &[String]) {
-        self.diagnostics.update(stats, warnings);
+    pub fn update(&self, snapshot: &Snapshot, state: EngineState, stats: &StatsSnapshot) {
+        self.diagnostics
+            .update(snapshot, state, stats, &snapshot.warnings);
     }
 }
