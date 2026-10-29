@@ -38,7 +38,7 @@ impl Crossfeed {
 
 fn coefficient(cutoff: f32, rate: u32) -> f32 {
     let rate = rate.max(1) as f32;
-    let cutoff = cutoff.clamp(1.0, rate * 0.45);
+    let cutoff = cutoff.clamp(1.0, (rate * 0.45).max(1.0));
     (1.0 - (-std::f32::consts::TAU * cutoff / rate).exp()).clamp(0.0, 1.0)
 }
 

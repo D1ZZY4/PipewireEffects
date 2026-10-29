@@ -70,7 +70,7 @@ impl Coefficients {
 
     pub fn design(kind: FilterKind, rate: f32, frequency: f32, q: f32, gain_db: f32) -> Self {
         let nyquist = 0.5 * rate;
-        let frequency = frequency.clamp(1.0, nyquist * 0.999);
+        let frequency = frequency.clamp(1.0, (nyquist * 0.999).max(1.0));
         let q = q.clamp(0.05, 40.0);
         let omega = TAU * frequency / rate;
         let sin = omega.sin();
