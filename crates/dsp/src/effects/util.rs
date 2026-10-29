@@ -13,44 +13,6 @@ pub fn apply_gain(buffer: &mut AudioBuffer, gain: f32) {
     }
 }
 
-pub fn apply_gains(buffer: &mut AudioBuffer, gains: &[f32; MAX_CHANNELS]) {
-    for (index, channel) in buffer.channels_mut().enumerate() {
-        let gain = gains.get(index).copied().unwrap_or(1.0);
-        if (gain - 1.0).abs() < f32::EPSILON {
-            continue;
-        }
-        for sample in channel.iter_mut() {
-            *sample = math::sanitize(*sample * gain);
-        }
-    }
-}
-
-pub fn linked_peak(buffer: &AudioBuffer) -> f32 {
-    let mut peak = 0.0f32;
-    for index in 0..buffer.channels().min(MAX_CHANNELS) {
-        for sample in buffer.channel(index) {
-            peak = peak.max(sample.abs());
-        }
-    }
-    peak
-}
-
-pub fn channel_peaks(buffer: &AudioBuffer) -> [f32; MAX_CHANNELS] {
-    let mut peaks = [0.0f32; MAX_CHANNELS];
-    for (index, slot) in peaks
-        .iter_mut()
-        .enumerate()
-        .take(buffer.channels().min(MAX_CHANNELS))
-    {
-        let mut peak = 0.0f32;
-        for sample in buffer.channel(index) {
-            peak = peak.max(sample.abs());
-        }
-        *slot = peak;
-    }
-    peaks
-}
-
 pub fn mean_square(buffer: &AudioBuffer) -> f32 {
     let mut sum = 0.0f64;
     let mut count = 0usize;
@@ -67,16 +29,6 @@ pub fn mean_square(buffer: &AudioBuffer) -> f32 {
     }
 }
 
-pub fn soft_clip(sample: f32, ceiling: f32) -> f32 {
-    if sample > ceiling {
-        ceiling
-    } else if sample < -ceiling {
-        -ceiling
-    } else {
-        sample
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -90,13 +42,6 @@ mod tests {
     }
 
     #[test]
-    fn linked_peak_takes_the_loudest_channel() {
-        let buffer = stereo([0.2, -0.8]);
-        assert!((linked_peak(&buffer) - 0.8).abs() < 1.0e-6);
-        assert_eq!(channel_peaks(&buffer)[1], 0.8);
-    }
-
-    #[test]
     fn gain_scales_every_channel() {
         let mut buffer = stereo([1.0, -1.0]);
         apply_gain(&mut buffer, 0.5);
@@ -105,9 +50,8 @@ mod tests {
     }
 
     #[test]
-    fn soft_clip_respects_the_ceiling() {
-        assert_eq!(soft_clip(2.0, 0.9), 0.9);
-        assert_eq!(soft_clip(-2.0, 0.9), -0.9);
-        assert_eq!(soft_clip(0.1, 0.9), 0.1);
+    fn mean_square_matches_the_signal_power() {
+        let buffer = stereo([0.5, -0.5]);
+        assert!((mean_square(&buffer) - 0.25).abs() < 1.0e-6);
     }
 }

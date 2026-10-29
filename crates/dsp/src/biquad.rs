@@ -209,10 +209,6 @@ impl Biquad {
         self.coefficients = coefficients;
     }
 
-    pub fn coefficients(&self) -> Coefficients {
-        self.coefficients
-    }
-
     pub fn reset(&mut self) {
         self.x1 = 0.0;
         self.x2 = 0.0;

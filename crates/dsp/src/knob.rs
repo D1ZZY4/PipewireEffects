@@ -31,10 +31,6 @@ impl Knob {
     pub fn index(&self) -> usize {
         self.value().max(0.0) as usize
     }
-
-    pub fn default_value(&self) -> f32 {
-        self.fallback
-    }
 }
 
 #[cfg(test)]

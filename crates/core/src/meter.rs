@@ -39,25 +39,18 @@ impl LevelMeter {
         self.peak_decay = 1.0 - one_pole_alpha(1200.0, rate);
     }
 
-    pub fn reset(&mut self) {
-        self.channels = [ChannelLevel::default(); MAX_CHANNELS];
-    }
-
     pub fn process(&mut self, buffer: &AudioBuffer) {
         let channels = buffer.channels().min(MAX_CHANNELS);
         let rms_coefficient = self.rms_coefficient;
         let peak_decay = self.peak_decay;
         for index in 0..channels {
-            let level = &mut self.channels[index];
             for sample in buffer.channel(index) {
-                let value = sanitize(*sample);
-                let magnitude = value.abs();
-                level.peak = if magnitude >= level.peak {
-                    magnitude
-                } else {
-                    level.peak * peak_decay
-                };
-                level.mean_square += (value * value - level.mean_square) * rms_coefficient;
+                Self::advance(
+                    &mut self.channels[index],
+                    sanitize(*sample),
+                    rms_coefficient,
+                    peak_decay,
+                );
             }
         }
     }
@@ -109,14 +102,6 @@ impl LevelMeter {
     pub fn rms_db(&self, channel: usize) -> f32 {
         gain_to_db(self.rms(channel))
     }
-
-    pub fn true_peak_db(&self) -> f32 {
-        self.peak_db(0).max(self.peak_db(1))
-    }
-
-    pub fn loudness_db(&self) -> f32 {
-        self.rms_db(0).max(self.rms_db(1))
-    }
 }
 
 #[cfg(test)]
@@ -145,7 +130,7 @@ mod tests {
         }
         assert!((meter.peak(0) - 0.5).abs() < 0.02, "peak {}", meter.peak(0));
         assert!((meter.rms(0) - 0.3535).abs() < 0.02, "rms {}", meter.rms(0));
-        assert!((meter.true_peak_db() - -6.02).abs() < 0.5);
+        assert!((meter.peak_db(0) - -6.02).abs() < 0.5);
     }
 
     #[test]
@@ -159,6 +144,6 @@ mod tests {
             meter.process(&silent);
         }
         assert!(meter.peak_db(0) < -100.0);
-        assert!(meter.loudness_db() < -100.0);
+        assert!(meter.rms_db(0) < -100.0);
     }
 }
