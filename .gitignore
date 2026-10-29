@@ -3,6 +3,9 @@
 build-dir
 .flatpak-builder
 
+# Read-only EasyEffects reference checkout
+/references
+
 # Editor and OS noise
 *.swp
 *.swo
@@ -15,6 +18,6 @@ build-dir
 # Rustfmt / clippy scratch
 **/*.rs.bk
 
-# Rendered audio produced by `pipewire-effects render`
+# Audio written by test and tooling runs
 *.wav
 !data/**/*.wav
