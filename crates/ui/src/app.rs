@@ -115,18 +115,17 @@ fn activate(application: &adw::Application, holder: &Rc<RefCell<Holder>>, option
         }
         return;
     }
-    let mut state = holder.state.take();
-    if state.is_none() {
-        match State::new() {
-            Ok(created) => state = Some(created),
+    let mut state = match holder.state.take() {
+        Some(existing) => existing,
+        None => match State::new() {
+            Ok(created) => created,
             Err(error) => {
                 show_fatal(application, &error.to_string());
                 application.quit();
                 return;
             }
-        }
-    }
-    let mut state = state.expect("the state was just created");
+        },
+    };
     apply_startup(&mut state, options);
     let ui = Ui::build(application, state);
     ui.window.present();
