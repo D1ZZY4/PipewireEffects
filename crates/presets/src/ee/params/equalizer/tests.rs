@@ -1,6 +1,6 @@
 use serde_json::{Map, Value, json};
 
-use super::{DEFAULT_BANDWIDTH, Folding, fold, gain_id};
+use super::{Folding, fold, gain_id};
 
 fn fold_value(value: Value) -> (Folding, Vec<String>) {
     let parameters = value.as_object().cloned().unwrap_or_default();
@@ -16,7 +16,7 @@ fn a_bell_band_reaches_the_fixed_bands_around_it() {
     }));
     assert!(warnings.is_empty(), "{warnings:?}");
     assert!((folding.gains[5] - 6.0).abs() < 1.0e-6);
-    assert!((folding.bandwidth - 1.5).abs() < 1.0e-6);
+    assert_eq!(folding.bandwidth, Some(1.5));
 }
 
 #[test]
@@ -165,8 +165,22 @@ fn too_many_bands_are_reported() {
 }
 
 #[test]
-fn the_bandwidth_falls_back_when_no_quality_is_stored() {
+fn the_bandwidth_is_absent_when_no_quality_is_stored() {
     let (folding, _) = fold_value(json!({ "band0": { "frequency": 1000.0, "gain": 1.0 } }));
-    assert!((folding.bandwidth - DEFAULT_BANDWIDTH).abs() < 1.0e-9);
+    assert!(folding.bandwidth.is_none());
     assert_eq!(gain_id(99), "band10_gain");
+}
+
+#[test]
+fn a_band_below_the_lowest_fixed_band_is_reported() {
+    let (folding, warnings) = fold_value(json!({
+        "left": { "band0": { "frequency": 10.0, "gain": 6.0, "type": "Bell" } }
+    }));
+    assert!(folding.gains.iter().all(|gain| *gain == 0.0));
+    assert!(
+        warnings
+            .iter()
+            .any(|warning| warning.contains("outside the ten fixed bands")),
+        "{warnings:?}"
+    );
 }

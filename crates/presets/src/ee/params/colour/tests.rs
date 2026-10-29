@@ -12,7 +12,7 @@ fn convert(value: Value) -> (BTreeMap<String, PresetValue>, Vec<String>) {
     (params, warnings)
 }
 
-fn float(params: &BTreeMap<String, PresetValue>, key: &str) -> f64 {
+fn as_float(params: &BTreeMap<String, PresetValue>, key: &str) -> f64 {
     match params.get(key) {
         Some(PresetValue::Float(value)) => *value,
         _ => f64::NAN,
@@ -37,26 +37,26 @@ fn the_reference_labels_and_keys_reach_the_parameters() {
         warnings.iter().all(|warning| !warning.contains("crusher:")),
         "{warnings:?}"
     );
-    assert_eq!(float(&params, "mode"), 1.0);
-    assert_eq!(float(&params, "bits"), 6.0);
-    assert!((float(&params, "mix") - 25.0).abs() < 1.0e-9);
-    assert!((float(&params, "anti_aliasing") - 75.0).abs() < 1.0e-9);
-    assert_eq!(float(&params, "samples"), 4.0);
-    assert_eq!(float(&params, "lfo_depth"), 30.0);
-    assert!((float(&params, "lfo_rate") - 2.5).abs() < 1.0e-9);
-    assert_eq!(float(&params, "dc"), -3.0);
+    assert_eq!(as_float(&params, "mode"), 1.0);
+    assert_eq!(as_float(&params, "bits"), 6.0);
+    assert!((as_float(&params, "mix") - 25.0).abs() < 1.0e-9);
+    assert!((as_float(&params, "anti_aliasing") - 75.0).abs() < 1.0e-9);
+    assert_eq!(as_float(&params, "samples"), 4.0);
+    assert_eq!(as_float(&params, "lfo_depth"), 30.0);
+    assert!((as_float(&params, "lfo_rate") - 2.5).abs() < 1.0e-9);
+    assert_eq!(as_float(&params, "dc"), -3.0);
 }
 
 #[test]
 fn a_boolean_survives_as_a_flag() {
     let (params, _) = convert(json!({ "lfo-active": false }));
-    assert_eq!(float(&params, "lfo_active"), 0.0);
+    assert_eq!(as_float(&params, "lfo_active"), 0.0);
 }
 
 #[test]
 fn an_unknown_mode_is_reported() {
     let (params, warnings) = convert(json!({ "mode": "Square" }));
-    assert_eq!(float(&params, "mode"), 0.0);
+    assert_eq!(as_float(&params, "mode"), 0.0);
     assert!(warnings.iter().any(|warning| warning.contains("Square")));
 }
 
@@ -75,8 +75,8 @@ fn the_crossfeed_cutoff_and_feed_are_transferred() {
     let mut warnings = Vec::new();
     let params = crossfeed(&object, &mut warnings);
     assert!(warnings.is_empty(), "{warnings:?}");
-    assert_eq!(float(&params, "cutoff"), 500.0);
-    assert_eq!(float(&params, "feed"), 9.5);
+    assert_eq!(as_float(&params, "cutoff"), 500.0);
+    assert_eq!(as_float(&params, "feed"), 9.5);
 }
 
 #[test]
@@ -84,6 +84,6 @@ fn a_crossfeed_default_is_the_reference_default() {
     let object = json!({}).as_object().cloned().unwrap_or_default();
     let mut warnings = Vec::new();
     let params = crossfeed(&object, &mut warnings);
-    assert_eq!(float(&params, "cutoff"), 700.0);
-    assert_eq!(float(&params, "feed"), 4.5);
+    assert_eq!(as_float(&params, "cutoff"), 700.0);
+    assert_eq!(as_float(&params, "feed"), 4.5);
 }

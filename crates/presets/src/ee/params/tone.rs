@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 
-use pwe_core::i18n::tr;
+use pwe_core::i18n::{t, tr};
 use serde_json::{Map, Value};
 
 use crate::model::PresetValue;
 
-use super::equalizer::{fold, gain_id};
+use super::equalizer::{DEFAULT_BANDWIDTH, fold, gain_id};
 use super::{level_percent, number, put, skipped, skipped_with_bands, text};
 
 const FILTER_KEYS: &[&str] = &["bypass", "type", "frequency", "quality", "gain", "slope"];
@@ -46,7 +46,11 @@ pub(super) fn equalizer(
     for (band, gain) in folded.gains.iter().enumerate() {
         put(&mut params, gain_id(band), f64::from(*gain));
     }
-    put(&mut params, "bandwidth", folded.bandwidth);
+    put(
+        &mut params,
+        "bandwidth",
+        folded.bandwidth.unwrap_or(DEFAULT_BANDWIDTH),
+    );
     let gain = number(parameters, "input-gain", 0.0) + number(parameters, "output-gain", 0.0);
     put(&mut params, "output_gain", gain);
     params
@@ -114,14 +118,14 @@ fn filter_mode(parameters: &Map<String, Value>, warnings: &mut Vec<String>) -> f
         "High-shelf" | "High Shelf" => 7.0,
         "Ladder-pass" => {
             warnings.push(
-                "filter: the reference 'Ladder-pass' type is a resonant ladder low pass and was mapped to a plain low pass"
+                t("filter: the reference 'Ladder-pass' type is a resonant ladder low pass and was mapped to a plain low pass")
                     .to_owned(),
             );
             0.0
         }
         "Ladder-rejection" => {
             warnings.push(
-                "filter: the reference 'Ladder-rejection' type is a resonant ladder band rejection and was mapped to a notch"
+                t("filter: the reference 'Ladder-rejection' type is a resonant ladder band rejection and was mapped to a notch")
                     .to_owned(),
             );
             3.0
@@ -176,7 +180,7 @@ mod tests {
         (params, warnings)
     }
 
-    fn float(params: &BTreeMap<String, PresetValue>, key: &str) -> f64 {
+    fn as_float(params: &BTreeMap<String, PresetValue>, key: &str) -> f64 {
         match params.get(key) {
             Some(PresetValue::Float(value)) => *value,
             _ => f64::NAN,
@@ -198,7 +202,7 @@ mod tests {
             ("High-shelf", 7.0),
         ] {
             let (params, warnings) = convert(filter, json!({ "type": label }));
-            assert!((float(&params, "mode") - mode).abs() < 1.0e-6, "{label}");
+            assert!((as_float(&params, "mode") - mode).abs() < 1.0e-6, "{label}");
             assert!(warnings.is_empty(), "{label}: {warnings:?}");
         }
     }
@@ -206,14 +210,14 @@ mod tests {
     #[test]
     fn an_unknown_filter_type_is_reported_and_falls_back() {
         let (params, warnings) = convert(filter, json!({ "type": "Oval" }));
-        assert_eq!(float(&params, "mode"), 0.0);
+        assert_eq!(as_float(&params, "mode"), 0.0);
         assert!(warnings.iter().any(|warning| warning.contains("Oval")));
     }
 
     #[test]
     fn the_ladder_types_keep_the_closest_family() {
         let (pass, warnings) = convert(filter, json!({ "type": "Ladder-pass" }));
-        assert_eq!(float(&pass, "mode"), 0.0);
+        assert_eq!(as_float(&pass, "mode"), 0.0);
         assert!(
             warnings
                 .iter()
@@ -221,7 +225,7 @@ mod tests {
             "{warnings:?}"
         );
         let (rejection, warnings) = convert(filter, json!({ "type": "Ladder-rejection" }));
-        assert_eq!(float(&rejection, "mode"), 3.0);
+        assert_eq!(as_float(&rejection, "mode"), 3.0);
         assert!(
             warnings
                 .iter()
@@ -233,14 +237,14 @@ mod tests {
     #[test]
     fn a_missing_quality_becomes_the_butterworth_value() {
         let (params, _) = convert(filter, json!({ "frequency": 500.0 }));
-        assert!((float(&params, "q") - std::f64::consts::FRAC_1_SQRT_2).abs() < 1.0e-9);
-        assert_eq!(float(&params, "order"), 1.0);
+        assert!((as_float(&params, "q") - std::f64::consts::FRAC_1_SQRT_2).abs() < 1.0e-9);
+        assert_eq!(as_float(&params, "order"), 1.0);
     }
 
     #[test]
     fn a_steep_slope_is_reported_and_capped() {
         let (params, warnings) = convert(filter, json!({ "slope": "x8" }));
-        assert_eq!(float(&params, "order"), 4.0);
+        assert_eq!(as_float(&params, "order"), 4.0);
         assert!(warnings.iter().any(|warning| warning.contains("x8")));
     }
 
@@ -250,17 +254,17 @@ mod tests {
             equalizer,
             json!({ "input-gain": -2.5, "output-gain": 1.5, "left": {} }),
         );
-        assert!((float(&params, "output_gain") + 1.0).abs() < 1.0e-9);
+        assert!((as_float(&params, "output_gain") + 1.0).abs() < 1.0e-9);
     }
 
     #[test]
     fn the_bass_enhancer_amount_is_a_level_not_a_percentage() {
         let (params, _) = convert(bass_enhancer, json!({ "amount": 0.0 }));
-        assert!((float(&params, "amount") - 100.0).abs() < 0.1);
+        assert!((as_float(&params, "amount") - 100.0).abs() < 0.1);
         let (absent, _) = convert(bass_enhancer, json!({ "scope": 120.0 }));
-        assert!((float(&absent, "amount") - 100.0).abs() < 0.1);
+        assert!((as_float(&absent, "amount") - 100.0).abs() < 0.1);
         let (silent, _) = convert(bass_enhancer, json!({ "amount": -100.0 }));
-        assert_eq!(float(&silent, "amount"), 0.0);
+        assert_eq!(as_float(&silent, "amount"), 0.0);
     }
 
     #[test]
@@ -270,7 +274,7 @@ mod tests {
             json!({ "output-gain": -1.0, "adaptive-intensity": true }),
         );
         assert!(!params.contains_key("amount"));
-        assert_eq!(float(&params, "gain"), -1.0);
+        assert_eq!(as_float(&params, "gain"), -1.0);
         assert!(
             warnings
                 .iter()
@@ -298,10 +302,10 @@ mod tests {
     #[test]
     fn a_unity_side_level_keeps_the_stereo_image() {
         let (params, _) = convert(stereo_tools, json!({ "side-level": 0.0 }));
-        assert!((float(&params, "stereo_width") - 100.0).abs() < 0.1);
+        assert!((as_float(&params, "stereo_width") - 100.0).abs() < 0.1);
         let (wider, _) = convert(stereo_tools, json!({ "side-level": 6.0 }));
-        assert!((float(&wider, "stereo_width") - 199.5).abs() < 0.6);
+        assert!((as_float(&wider, "stereo_width") - 199.5).abs() < 0.6);
         let (narrow, _) = convert(stereo_tools, json!({ "side-level": -6.0 }));
-        assert!((float(&narrow, "stereo_width") - 50.1).abs() < 0.6);
+        assert!((as_float(&narrow, "stereo_width") - 50.1).abs() < 0.6);
     }
 }

@@ -8,7 +8,7 @@ const TARGETS: [f32; 10] = [
     31.25, 62.5, 125.0, 250.0, 500.0, 1_000.0, 2_000.0, 4_000.0, 8_000.0, 16_000.0,
 ];
 
-const DEFAULT_BANDWIDTH: f64 = 1.414;
+pub(super) const DEFAULT_BANDWIDTH: f64 = 1.414;
 const MIN_BANDWIDTH: f64 = 0.3;
 const MAX_BANDWIDTH: f64 = 6.0;
 
@@ -29,7 +29,7 @@ const BAND_IDS: [&str; 10] = [
 
 pub(super) struct Folding {
     pub gains: [f32; 10],
-    pub bandwidth: f64,
+    pub bandwidth: Option<f64>,
 }
 
 pub(super) fn fold(
@@ -117,8 +117,15 @@ pub(super) fn fold(
             &[effect, &ignored.into_iter().collect::<Vec<&str>>().join(", ")],
         ));
     }
+    let (gains, unassigned) = nearest_gains(&collected);
+    if unassigned > 0 {
+        warnings.push(tr(
+            "{0}: {1} bands fell outside the ten fixed bands and were skipped",
+            &[effect, &unassigned.to_string()],
+        ));
+    }
     Folding {
-        gains: nearest_gains(&collected),
+        gains,
         bandwidth: bandwidth(&qualities),
     }
 }
@@ -171,37 +178,38 @@ fn carries_gain(kind: &str) -> bool {
     )
 }
 
-fn nearest_gains(collected: &[(f32, f32)]) -> [f32; 10] {
+fn nearest_gains(collected: &[(f32, f32)]) -> ([f32; 10], usize) {
     let mut gains = [0.0f32; 10];
+    let mut assigned = vec![false; collected.len()];
     for (position, target) in TARGETS.iter().enumerate() {
-        let mut best: Option<(f32, f32)> = None;
-        for (frequency, gain) in collected {
+        let mut best: Option<(f32, usize)> = None;
+        for (index, (frequency, _)) in collected.iter().enumerate() {
             let distance = (frequency / target).ln().abs();
             if best.is_none_or(|(closest, _)| distance < closest) {
-                best = Some((distance, *gain));
+                best = Some((distance, index));
             }
         }
-        if let Some((distance, gain)) = best
+        if let Some((distance, index)) = best
             && distance < 1.0
         {
-            gains[position] = gain;
+            gains[position] = collected[index].1;
+            assigned[index] = true;
         }
     }
-    gains
+    let unassigned = assigned.iter().filter(|flag| !**flag).count();
+    (gains, unassigned)
 }
 
-fn bandwidth(qualities: &[f64]) -> f64 {
+fn bandwidth(qualities: &[f64]) -> Option<f64> {
     if qualities.is_empty() {
-        return DEFAULT_BANDWIDTH;
+        return None;
     }
     let mut sorted = qualities.to_vec();
     sorted.sort_by(|left, right| left.partial_cmp(right).unwrap_or(Ordering::Equal));
     let middle = sorted[sorted.len() / 2];
-    if middle.is_finite() {
-        middle.clamp(MIN_BANDWIDTH, MAX_BANDWIDTH)
-    } else {
-        DEFAULT_BANDWIDTH
-    }
+    middle
+        .is_finite()
+        .then(|| middle.clamp(MIN_BANDWIDTH, MAX_BANDWIDTH))
 }
 
 #[cfg(test)]

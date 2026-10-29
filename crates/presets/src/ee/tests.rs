@@ -52,7 +52,7 @@ fn reverse_engineered() -> (Preset, Vec<String>) {
     convert(&value, "Imported").unwrap()
 }
 
-fn float(params: &BTreeMap<String, PresetValue>, key: &str) -> f64 {
+fn as_float(params: &BTreeMap<String, PresetValue>, key: &str) -> f64 {
     match params.get(key) {
         Some(PresetValue::Float(value)) => *value,
         _ => f64::NAN,
@@ -88,8 +88,8 @@ fn supported_effects_are_mapped_in_order() {
 fn the_maximizer_threshold_is_transferred() {
     let (preset, _) = sample();
     let params = params_of(&preset, "maximizer");
-    assert!((float(&params, "threshold") + 2.5).abs() < 1.0e-6);
-    assert!((float(&params, "release") - 25.0).abs() < 1.0e-6);
+    assert!((as_float(&params, "threshold") + 2.5).abs() < 1.0e-6);
+    assert!((as_float(&params, "release") - 25.0).abs() < 1.0e-6);
 }
 
 #[test]
@@ -104,10 +104,10 @@ fn the_filter_mode_and_order_are_translated() {
 fn equalizer_bands_are_folded_onto_the_fixed_grid() {
     let (preset, _) = sample();
     let params = &preset.output.effects[1].params;
-    assert!((float(params, "band2_gain") - 1.8).abs() < 1.0e-6);
-    assert!((float(params, "band10_gain") - 0.5).abs() < 1.0e-6);
-    assert!((float(params, "output_gain") + 2.5).abs() < 1.0e-6);
-    assert!((float(params, "bandwidth") - 1.414).abs() < 1.0e-6);
+    assert!((as_float(params, "band2_gain") - 1.8).abs() < 1.0e-6);
+    assert!((as_float(params, "band10_gain") - 0.5).abs() < 1.0e-6);
+    assert!((as_float(params, "output_gain") + 2.5).abs() < 1.0e-6);
+    assert!((as_float(params, "bandwidth") - 1.414).abs() < 1.0e-6);
 }
 
 #[test]
@@ -118,7 +118,7 @@ fn the_equalizer_quality_becomes_the_shared_bandwidth() {
     )
     .unwrap();
     let (preset, _) = convert(&value, "Imported").unwrap();
-    assert!((float(&preset.output.effects[0].params, "bandwidth") - 2.5).abs() < 1.0e-6);
+    assert!((as_float(&preset.output.effects[0].params, "bandwidth") - 2.5).abs() < 1.0e-6);
 }
 
 #[test]
@@ -174,44 +174,44 @@ fn a_per_plugin_gain_without_an_equivalent_is_reported() {
 fn the_gate_uses_the_curve_threshold_and_reduction() {
     let (preset, _) = reverse_engineered();
     let params = params_of(&preset, "gate");
-    assert!((float(&params, "threshold") + 30.0).abs() < 1.0e-6);
-    assert!((float(&params, "range") - 40.0).abs() < 1.0e-6);
-    assert!((float(&params, "attack") - 10.0).abs() < 1.0e-6);
-    assert!((float(&params, "mix") - 100.0).abs() < 0.1);
+    assert!((as_float(&params, "threshold") + 30.0).abs() < 1.0e-6);
+    assert!((as_float(&params, "range") - 40.0).abs() < 1.0e-6);
+    assert!((as_float(&params, "attack") - 10.0).abs() < 1.0e-6);
+    assert!((as_float(&params, "mix") - 100.0).abs() < 0.1);
 }
 
 #[test]
 fn the_delay_uses_the_left_and_right_times() {
     let (preset, _) = reverse_engineered();
     let params = params_of(&preset, "delay");
-    assert!((float(&params, "delay_left") - 120.0).abs() < 1.0e-6);
-    assert!((float(&params, "delay_right") - 250.0).abs() < 1.0e-6);
-    assert!((float(&params, "mix") - 100.0).abs() < 0.1);
-    assert_eq!(float(&params, "feedback"), 0.0);
+    assert!((as_float(&params, "delay_left") - 120.0).abs() < 1.0e-6);
+    assert!((as_float(&params, "delay_right") - 250.0).abs() < 1.0e-6);
+    assert!((as_float(&params, "mix") - 100.0).abs() < 0.1);
+    assert_eq!(as_float(&params, "feedback"), 0.0);
 }
 
 #[test]
 fn the_reverb_keeps_its_decay_and_mix() {
     let (preset, _) = reverse_engineered();
     let params = params_of(&preset, "reverb");
-    assert!((float(&params, "room_size") - 60.0).abs() < 1.0e-6);
-    assert!((float(&params, "pre_delay") - 22.0).abs() < 1.0e-6);
-    assert!((float(&params, "wet") + 12.0).abs() < 1.0e-6);
+    assert!((as_float(&params, "room_size") - 60.0).abs() < 1.0e-6);
+    assert!((as_float(&params, "pre_delay") - 22.0).abs() < 1.0e-6);
+    assert!((as_float(&params, "wet") + 12.0).abs() < 1.0e-6);
 }
 
 #[test]
 fn the_wide_deesser_mode_is_not_lost() {
     let (preset, _) = reverse_engineered();
     let params = params_of(&preset, "deesser");
-    assert_eq!(float(&params, "mode"), 1.0);
-    assert!((float(&params, "frequency") - 5600.0).abs() < 1.0e-6);
+    assert_eq!(as_float(&params, "mode"), 1.0);
+    assert!((as_float(&params, "frequency") - 5600.0).abs() < 1.0e-6);
 }
 
 #[test]
 fn a_unity_side_level_keeps_the_stereo_image() {
     let (preset, _) = reverse_engineered();
     let params = params_of(&preset, "stereo_tools");
-    assert!((float(&params, "stereo_width") - 100.0).abs() < 0.1);
+    assert!((as_float(&params, "stereo_width") - 100.0).abs() < 0.1);
 }
 
 #[test]

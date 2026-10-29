@@ -36,7 +36,6 @@ const AUTOGAIN_KEYS: &[&str] = &["bypass", "target", "silence-threshold"];
 
 const EXPANDER_KEYS: &[&str] = &[
     "bypass",
-    "dry",
     "wet",
     "mode",
     "attack",
@@ -84,7 +83,11 @@ pub(super) fn compressor(
     put(&mut params, "release", number(parameters, "release", 100.0));
     put(&mut params, "makeup", number(parameters, "makeup", 0.0));
     put(&mut params, "mix", mix_percent(parameters, "wet", 0.0));
-    put(&mut params, "detector", detector(parameters, warnings));
+    put(
+        &mut params,
+        "detector",
+        detector(parameters, "compressor", warnings),
+    );
     params
 }
 
@@ -143,7 +146,7 @@ pub(super) fn expander(
     put(
         &mut params,
         "detector",
-        expander_detector(parameters, warnings),
+        detector(parameters, "expander", warnings),
     );
     expander_mode(parameters, warnings);
     params
@@ -213,7 +216,7 @@ fn mode(parameters: &Map<String, Value>, warnings: &mut Vec<String>) -> f64 {
     }
 }
 
-fn detector(parameters: &Map<String, Value>, warnings: &mut Vec<String>) -> f64 {
+fn detector(parameters: &Map<String, Value>, effect: &str, warnings: &mut Vec<String>) -> f64 {
     let mode = parameters
         .get("sidechain")
         .and_then(|sidechain| sidechain.get("mode"))
@@ -223,26 +226,8 @@ fn detector(parameters: &Map<String, Value>, warnings: &mut Vec<String>) -> f64 
         Some("RMS") => 1.0,
         Some(other) => {
             warnings.push(tr(
-                "compressor: the sidechain mode '{0}' has no equivalent here and was mapped to peak",
-                &[other],
-            ));
-            0.0
-        }
-    }
-}
-
-fn expander_detector(parameters: &Map<String, Value>, warnings: &mut Vec<String>) -> f64 {
-    let mode = parameters
-        .get("sidechain")
-        .and_then(|sidechain| sidechain.get("mode"))
-        .and_then(Value::as_str);
-    match mode {
-        None | Some("Peak") => 0.0,
-        Some("RMS") => 1.0,
-        Some(other) => {
-            warnings.push(tr(
-                "expander: the sidechain mode '{0}' has no equivalent here and was mapped to peak",
-                &[other],
+                "{0}: the sidechain mode '{1}' has no equivalent here and was mapped to peak",
+                &[effect, other],
             ));
             0.0
         }
