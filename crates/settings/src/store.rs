@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use pwe_core::i18n::tr;
 
@@ -27,14 +27,6 @@ impl SettingsStore {
 
     pub fn with_path(path: PathBuf) -> Self {
         Self { path }
-    }
-
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-
-    pub fn exists(&self) -> bool {
-        self.path.is_file()
     }
 
     pub fn load(&self) -> Settings {
@@ -116,7 +108,6 @@ mod tests {
         settings.process_input = true;
         settings.autostart = true;
         store.save(&settings).expect("should save");
-        assert!(store.exists());
         assert_eq!(store.load(), settings);
     }
 

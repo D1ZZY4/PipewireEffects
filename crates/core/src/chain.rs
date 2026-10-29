@@ -38,10 +38,6 @@ impl EffectChain {
         self.slots.is_empty()
     }
 
-    pub fn is_bypassed(&self) -> bool {
-        self.bypassed
-    }
-
     pub fn set_bypassed(&mut self, bypassed: bool) {
         self.bypassed = bypassed;
     }
@@ -72,12 +68,6 @@ impl EffectChain {
         self.format = format;
         for slot in &mut self.slots {
             slot.effect.prepare(format);
-        }
-    }
-
-    pub fn reset(&mut self) {
-        for slot in &mut self.slots {
-            slot.effect.reset();
         }
     }
 

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PipeWire Effects 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/D1ZZY4/PipewireEffects/issues\n"
-"POT-Creation-Date: 2026-10-30 04:50+0700\n"
+"POT-Creation-Date: 2026-10-30 05:14+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -87,24 +87,20 @@ msgstr ""
 msgid "{0} needs a value"
 msgstr ""
 
-#: crates/core/src/error.rs:18
+#: crates/core/src/error.rs:17
 msgid "unknown parameter '{0}'"
 msgstr ""
 
-#: crates/core/src/error.rs:21
+#: crates/core/src/error.rs:20
 msgid "invalid value for '{0}': {1}"
 msgstr ""
 
-#: crates/core/src/error.rs:27
+#: crates/core/src/error.rs:26
 msgid "buffer needs {0} frames but can hold {1}"
 msgstr ""
 
-#: crates/core/src/error.rs:34
+#: crates/core/src/error.rs:33
 msgid "effect chain is full ({0} slots)"
-msgstr ""
-
-#: crates/core/src/error.rs:40
-msgid "index {0} is out of range for a chain of {1} effects"
 msgstr ""
 
 #: crates/core/src/param/spec.rs:195
@@ -788,31 +784,19 @@ msgstr ""
 msgid "Stereo base"
 msgstr ""
 
-#: crates/engine/src/error.rs:20
+#: crates/engine/src/error.rs:17
 msgid "PipeWire error: {0}"
 msgstr ""
 
-#: crates/engine/src/error.rs:23
+#: crates/engine/src/error.rs:20
 msgid "the {0} stream is not available"
 msgstr ""
 
-#: crates/engine/src/error.rs:26
-msgid "no audio device matches '{0}'"
-msgstr ""
-
-#: crates/engine/src/error.rs:32
-msgid "'{0}' is not a usable PipeWire node name"
-msgstr ""
-
-#: crates/engine/src/error.rs:35
-msgid "the engine is already running"
-msgstr ""
-
-#: crates/engine/src/error.rs:36
+#: crates/engine/src/error.rs:22
 msgid "the engine is not connected to PipeWire"
 msgstr ""
 
-#: crates/engine/src/error.rs:41
+#: crates/engine/src/error.rs:27
 msgid "the engine thread could not be started: {0}"
 msgstr ""
 
@@ -977,55 +961,51 @@ msgstr ""
 msgid "filter: the slope '{0}' was reduced to order 4"
 msgstr ""
 
-#: crates/presets/src/error.rs:19
+#: crates/presets/src/error.rs:18
 msgid "file system error: {0}"
 msgstr ""
 
-#: crates/presets/src/error.rs:21
+#: crates/presets/src/error.rs:20
 msgid "malformed preset: {0}"
 msgstr ""
 
-#: crates/presets/src/error.rs:24
+#: crates/presets/src/error.rs:23
 msgid "'{0}' is not a valid preset name"
 msgstr ""
 
-#: crates/presets/src/error.rs:27
+#: crates/presets/src/error.rs:26
 msgid "invalid parameter value: {0}"
 msgstr ""
 
-#: crates/presets/src/error.rs:29
+#: crates/presets/src/error.rs:28
 msgid "no preset named '{0}'"
 msgstr ""
 
-#: crates/presets/src/error.rs:34
+#: crates/presets/src/error.rs:33
 msgid "preset schema version {0} is newer than the supported version {1}"
-msgstr ""
-
-#: crates/presets/src/error.rs:39
-msgid "the preset has no '{0}' section"
 msgstr ""
 
 #: crates/presets/src/model.rs:55
 msgid "parameter '{0}' is not a finite number"
 msgstr ""
 
-#: crates/presets/src/store.rs:89
+#: crates/presets/src/store.rs:85
 msgid "{0} is unreadable: {1}"
 msgstr ""
 
-#: crates/presets/src/store.rs:105
+#: crates/presets/src/store.rs:101
 msgid "{0} was skipped: '{1}' is not a valid preset name"
 msgstr ""
 
-#: crates/presets/src/store.rs:114
+#: crates/presets/src/store.rs:110
 msgid "{0} declares the name '{1}'"
 msgstr ""
 
-#: crates/presets/src/store.rs:135
+#: crates/presets/src/store.rs:131
 msgid "{0} was skipped: {1}"
 msgstr ""
 
-#: crates/settings/src/store.rs:51 crates/settings/src/store.rs:62
+#: crates/settings/src/store.rs:43 crates/settings/src/store.rs:54
 msgid "{0} was ignored: {1}"
 msgstr ""
 
@@ -1033,7 +1013,7 @@ msgstr ""
 msgid "{0} is running without a window"
 msgstr ""
 
-#: crates/ui/src/app.rs:153 crates/ui/src/state.rs:273
+#: crates/ui/src/app.rs:153 crates/ui/src/state.rs:269
 msgid "'{0}' could not be loaded: {1}"
 msgstr ""
 
@@ -1111,111 +1091,111 @@ msgstr ""
 msgid "Quit"
 msgstr ""
 
-#: crates/ui/src/devices.rs:34
+#: crates/ui/src/devices.rs:33
 msgid "Engine"
 msgstr ""
 
-#: crates/ui/src/devices.rs:37
+#: crates/ui/src/devices.rs:36
 msgid "Status"
 msgstr ""
 
-#: crates/ui/src/devices.rs:38
+#: crates/ui/src/devices.rs:37
 msgid "Connecting"
 msgstr ""
 
-#: crates/ui/src/devices.rs:39
+#: crates/ui/src/devices.rs:38
 msgid "Reconnect"
 msgstr ""
 
-#: crates/ui/src/devices.rs:43
+#: crates/ui/src/devices.rs:42
 msgid "Rebuild the streams against the audio server"
 msgstr ""
 
-#: crates/ui/src/devices.rs:51
+#: crates/ui/src/devices.rs:50
 msgid "Format"
 msgstr ""
 
-#: crates/ui/src/devices.rs:52
+#: crates/ui/src/devices.rs:51
 msgid "unknown"
 msgstr ""
 
-#: crates/ui/src/devices.rs:55 crates/ui/src/devices.rs:177
+#: crates/ui/src/devices.rs:54 crates/ui/src/devices.rs:171
 msgid "Virtual sink"
 msgstr ""
 
-#: crates/ui/src/devices.rs:60
+#: crates/ui/src/devices.rs:59
 msgid "Copy the node name"
 msgstr ""
 
-#: crates/ui/src/devices.rs:76
+#: crates/ui/src/devices.rs:75
 msgid "Routing"
 msgstr ""
 
-#: crates/ui/src/devices.rs:86
+#: crates/ui/src/devices.rs:85
 msgid "Destination"
 msgstr ""
 
-#: crates/ui/src/devices.rs:88 crates/ui/src/devices.rs:234
+#: crates/ui/src/devices.rs:87 crates/ui/src/devices.rs:228
 msgid "Output device"
 msgstr ""
 
-#: crates/ui/src/devices.rs:89
+#: crates/ui/src/devices.rs:88
 msgid "The hardware device that receives the effect chain"
 msgstr ""
 
-#: crates/ui/src/devices.rs:108
+#: crates/ui/src/devices.rs:107
 msgid "Microphone"
 msgstr ""
 
-#: crates/ui/src/devices.rs:111
+#: crates/ui/src/devices.rs:110
 msgid "Process microphone input"
 msgstr ""
 
-#: crates/ui/src/devices.rs:113
+#: crates/ui/src/devices.rs:112
 msgid "Runs the input chain and publishes it as the PipeWire Effects Source"
 msgstr ""
 
-#: crates/ui/src/devices.rs:158
+#: crates/ui/src/devices.rs:152
 msgid "{0} · {1} pipeline"
 msgstr ""
 
-#: crates/ui/src/devices.rs:165
+#: crates/ui/src/devices.rs:159
 msgid "waiting for the graph"
 msgstr ""
 
-#: crates/ui/src/devices.rs:168
+#: crates/ui/src/devices.rs:162
 msgid "{0} Hz · {1} channels · {2} frames per buffer"
 msgstr ""
 
-#: crates/ui/src/devices.rs:178
+#: crates/ui/src/devices.rs:172
 msgid "Virtual source"
 msgstr ""
 
-#: crates/ui/src/devices.rs:189
+#: crates/ui/src/devices.rs:183
 msgid ""
 "Pick PipeWire Effects Sink as the output in an application, or make it the "
 "default sink."
 msgstr ""
 
-#: crates/ui/src/devices.rs:192
+#: crates/ui/src/devices.rs:186
 msgid ""
 "Pick PipeWire Effects Source as the input in an application, or make it the "
 "default source."
 msgstr ""
 
-#: crates/ui/src/devices.rs:224
+#: crates/ui/src/devices.rs:218
 msgid "No {0} device is available"
 msgstr ""
 
-#: crates/ui/src/devices.rs:226
+#: crates/ui/src/devices.rs:220
 msgid "Following the system default, {0}"
 msgstr ""
 
-#: crates/ui/src/devices.rs:235
+#: crates/ui/src/devices.rs:229
 msgid "Input device"
 msgstr ""
 
-#: crates/ui/src/devices.rs:258
+#: crates/ui/src/devices.rs:252
 msgid "System default"
 msgstr ""
 
@@ -1319,31 +1299,31 @@ msgstr ""
 msgid "Show or hide the effect chain"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:25
+#: crates/ui/src/preferences.rs:24
 msgid "Desktop"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:27
+#: crates/ui/src/preferences.rs:26
 msgid "Start on login"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:29
+#: crates/ui/src/preferences.rs:28
 msgid "Begins processing as soon as you sign in, without a window"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:46
+#: crates/ui/src/preferences.rs:45
 msgid "Developer"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:48
+#: crates/ui/src/preferences.rs:47
 msgid "Developer mode"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:50
+#: crates/ui/src/preferences.rs:49
 msgid "Adds engine counters and diagnostic messages for troubleshooting"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:56
+#: crates/ui/src/preferences.rs:55
 msgid "Diagnostics"
 msgstr ""
 
@@ -1488,7 +1468,7 @@ msgid ""
 "the preset carries an input chain; turn on microphone processing to run it"
 msgstr ""
 
-#: crates/ui/src/state.rs:253
+#: crates/ui/src/state.rs:249
 msgid "the settings could not be saved: {0}"
 msgstr ""
 

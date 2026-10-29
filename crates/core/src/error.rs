@@ -8,7 +8,6 @@ pub enum CoreError {
     InvalidValue { id: String, detail: String },
     BufferCapacity { needed: usize, available: usize },
     ChainFull { capacity: usize },
-    InvalidIndex { index: usize, len: usize },
 }
 
 impl fmt::Display for CoreError {
@@ -32,14 +31,6 @@ impl fmt::Display for CoreError {
                 f,
                 "{}",
                 tr("effect chain is full ({0} slots)", &[&capacity.to_string()])
-            ),
-            Self::InvalidIndex { index, len } => write!(
-                f,
-                "{}",
-                tr(
-                    "index {0} is out of range for a chain of {1} effects",
-                    &[&index.to_string(), &len.to_string()],
-                )
             ),
         }
     }

@@ -9,7 +9,6 @@ use crate::diagnostics::Diagnostics;
 use crate::pages::WorkspaceActions;
 
 pub struct PreferencesView {
-    page: adw::PreferencesPage,
     autostart: adw::SwitchRow,
     developer: adw::SwitchRow,
     diagnostics_group: adw::PreferencesGroup,
@@ -73,7 +72,6 @@ impl PreferencesView {
         }
 
         let view = Self {
-            page: page.clone(),
             autostart,
             developer,
             diagnostics_group,
@@ -81,10 +79,6 @@ impl PreferencesView {
             toggles,
         };
         (page, view)
-    }
-
-    pub fn page(&self) -> &adw::PreferencesPage {
-        &self.page
     }
 
     pub fn set_autostart(&self, enabled: bool) {
@@ -98,10 +92,6 @@ impl PreferencesView {
         self.developer.set_active(enabled);
         self.diagnostics_group.set_visible(enabled);
         self.toggles.set(false);
-    }
-
-    pub fn developer_mode(&self) -> bool {
-        self.developer.is_active()
     }
 
     pub fn expand_diagnostics(&self) {

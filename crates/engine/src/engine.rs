@@ -54,12 +54,6 @@ impl EngineHandle {
         MAX_EFFECTS
     }
 
-    pub fn started(&self) -> bool {
-        self.thread
-            .as_ref()
-            .is_some_and(|thread| !thread.is_finished())
-    }
-
     pub fn send(&self, command: EngineCommand) -> EngineResult<()> {
         self.commands
             .send(command)

@@ -54,13 +54,6 @@ impl Settings {
     pub fn preset(&self) -> Option<&str> {
         (!self.preset.is_empty()).then_some(self.preset.as_str())
     }
-
-    pub fn runs(&self, kind: PipelineKind) -> bool {
-        match kind {
-            PipelineKind::Output => true,
-            PipelineKind::Input => self.process_input,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -75,13 +68,6 @@ mod tests {
         assert!(!settings.process_input);
         assert!(!settings.autostart);
         assert!(!settings.developer_mode);
-    }
-
-    #[test]
-    fn the_input_pipeline_is_opt_in() {
-        let settings = Settings::default();
-        assert!(settings.runs(PipelineKind::Output));
-        assert!(!settings.runs(PipelineKind::Input));
     }
 
     #[test]

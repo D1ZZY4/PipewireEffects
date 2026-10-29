@@ -60,10 +60,6 @@ impl PresetStore {
         }
     }
 
-    pub fn user_dir(&self) -> &Path {
-        &self.user_dir
-    }
-
     pub fn list(&self) -> (Vec<PresetInfo>, Vec<String>) {
         let mut infos: Vec<PresetInfo> = builtin::names()
             .into_iter()

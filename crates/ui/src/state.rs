@@ -243,10 +243,6 @@ impl State {
         Ok(())
     }
 
-    pub fn settings_store(&self) -> &SettingsStore {
-        &self.settings_store
-    }
-
     pub fn persist(&self) {
         if let Err(error) = self.settings_store.save(&self.settings) {
             self.warn(&tr(

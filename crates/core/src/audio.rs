@@ -108,10 +108,6 @@ impl AudioBuffer {
             .map(move |planar| &mut planar[..frames])
     }
 
-    pub fn clear(&mut self) {
-        self.data.fill(0.0);
-    }
-
     pub fn peak(&self) -> f32 {
         let mut peak = 0.0f32;
         for channel in self.active_channels() {

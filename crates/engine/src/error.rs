@@ -6,9 +6,6 @@ use pwe_core::i18n::{t, tr};
 pub enum EngineError {
     PipeWire(pipewire::Error),
     StreamUnavailable(&'static str),
-    NoDevice(String),
-    InvalidName(String),
-    AlreadyRunning,
     NotConnected,
     ThreadSpawn(String),
 }
@@ -22,17 +19,6 @@ impl fmt::Display for EngineError {
             Self::StreamUnavailable(which) => {
                 write!(f, "{}", tr("the {0} stream is not available", &[which]))
             }
-            Self::NoDevice(target) => {
-                write!(f, "{}", tr("no audio device matches '{0}'", &[target]))
-            }
-            Self::InvalidName(name) => {
-                write!(
-                    f,
-                    "{}",
-                    tr("'{0}' is not a usable PipeWire node name", &[name])
-                )
-            }
-            Self::AlreadyRunning => write!(f, "{}", t("the engine is already running")),
             Self::NotConnected => write!(f, "{}", t("the engine is not connected to PipeWire")),
             Self::ThreadSpawn(detail) => {
                 write!(

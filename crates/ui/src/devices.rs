@@ -11,7 +11,6 @@ use crate::format;
 use crate::pages::WorkspaceActions;
 
 pub struct DevicesView {
-    page: adw::PreferencesPage,
     state_row: adw::ActionRow,
     rate_row: adw::ActionRow,
     node_row: adw::ActionRow,
@@ -126,7 +125,6 @@ impl DevicesView {
         page.add(&monitoring);
 
         let view = Self {
-            page: page.clone(),
             state_row,
             rate_row,
             node_row,
@@ -141,10 +139,6 @@ impl DevicesView {
             toggles,
         };
         (page, view)
-    }
-
-    pub fn page(&self) -> &adw::PreferencesPage {
-        &self.page
     }
 
     pub fn set_running(&self, running: bool) {

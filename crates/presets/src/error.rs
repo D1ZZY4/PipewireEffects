@@ -10,7 +10,6 @@ pub enum PresetError {
     InvalidValue(String),
     NotFound(String),
     UnsupportedVersion { found: u32, supported: u32 },
-    MissingSection(&'static str),
 }
 
 impl fmt::Display for PresetError {
@@ -35,9 +34,6 @@ impl fmt::Display for PresetError {
                     &[&found.to_string(), &supported.to_string()],
                 )
             ),
-            Self::MissingSection(section) => {
-                write!(f, "{}", tr("the preset has no '{0}' section", &[section]))
-            }
         }
     }
 }

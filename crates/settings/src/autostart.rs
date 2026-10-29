@@ -27,10 +27,6 @@ pub fn entry(exec: &str) -> String {
     )
 }
 
-pub fn is_enabled() -> bool {
-    autostart_path().is_file()
-}
-
 pub fn set_enabled(enabled: bool, exec: &str) -> SettingsResult<()> {
     let path = autostart_path();
     if !enabled {

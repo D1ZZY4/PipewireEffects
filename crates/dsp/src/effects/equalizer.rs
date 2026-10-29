@@ -107,10 +107,6 @@ impl Equalizer {
         }
     }
 
-    pub fn gain_values(&self) -> [f32; BAND_COUNT] {
-        std::array::from_fn(|band| self.gains[band].value())
-    }
-
     fn refresh(&mut self) {
         let bandwidth = self.bandwidth.value();
         for channel in 0..MAX_CHANNELS {
