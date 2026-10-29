@@ -780,6 +780,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pwe-settings"
+version = "0.1.0"
+dependencies = [
+ "pwe-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "pwe-ui"
 version = "0.1.0"
 dependencies = [
@@ -789,6 +798,7 @@ dependencies = [
  "pwe-dsp",
  "pwe-engine",
  "pwe-presets",
+ "pwe-settings",
 ]
 
 [[package]]

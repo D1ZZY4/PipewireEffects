@@ -6,6 +6,7 @@ members = [
     "crates/dsp",
     "crates/engine",
     "crates/presets",
+    "crates/settings",
     "crates/ui",
 ]
 default-members = ["crates/app"]
@@ -24,6 +25,7 @@ pwe-core = { path = "crates/core", version = "0.1.0" }
 pwe-dsp = { path = "crates/dsp", version = "0.1.0" }
 pwe-engine = { path = "crates/engine", version = "0.1.0" }
 pwe-presets = { path = "crates/presets", version = "0.1.0" }
+pwe-settings = { path = "crates/settings", version = "0.1.0" }
 pwe-ui = { path = "crates/ui", version = "0.1.0" }
 
 crossbeam-queue = "0.3"
