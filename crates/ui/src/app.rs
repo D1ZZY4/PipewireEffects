@@ -74,7 +74,7 @@ pub fn run(options: Options) -> std::process::ExitCode {
         activate(application, &active, &options);
     });
 
-    let result = application.run();
+    let result = application.run_with_args::<&str>(&["pipewire-effects"]);
     holder.borrow_mut().ui.take();
     if let Some(state) = holder.borrow_mut().state.as_mut() {
         for kind in pwe_core::ALL_PIPELINES {
