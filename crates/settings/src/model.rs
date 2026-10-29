@@ -33,6 +33,7 @@ pub struct Settings {
     pub preset: String,
     pub process_input: bool,
     pub autostart: bool,
+    pub developer_mode: bool,
 }
 
 impl Settings {
@@ -73,6 +74,7 @@ mod tests {
         assert!(settings.preset().is_none());
         assert!(!settings.process_input);
         assert!(!settings.autostart);
+        assert!(!settings.developer_mode);
     }
 
     #[test]

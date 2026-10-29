@@ -7,7 +7,9 @@ pub struct Diagnostics {
     captured: adw::ActionRow,
     processed: adw::ActionRow,
     underruns: adw::ActionRow,
+    overruns: adw::ActionRow,
     trims: adw::ActionRow,
+    occupancy: adw::ActionRow,
     warnings: adw::ActionRow,
 }
 
@@ -22,19 +24,25 @@ impl Diagnostics {
         let captured = counter_row(t("Captured frames"));
         let processed = counter_row(t("Processed frames"));
         let underruns = counter_row(t("Underrun samples"));
+        let overruns = counter_row(t("Overrun samples"));
         let trims = counter_row(t("Drift trims"));
+        let occupancy = counter_row(t("Buffer occupancy"));
         let warnings = adw::ActionRow::new();
         warnings.set_title(t("Messages"));
         warnings.set_subtitle(t("None"));
         warnings.set_subtitle_lines(4);
 
         let expander = adw::ExpanderRow::new();
-        expander.set_title(t("Diagnostics"));
-        expander.set_subtitle(t("Audio counters and engine messages"));
+        expander.set_title(t("Engine counters"));
+        expander.set_subtitle(t(
+            "Audio counters and engine messages for the pipeline in view",
+        ));
         expander.add_row(&captured);
         expander.add_row(&processed);
         expander.add_row(&underruns);
+        expander.add_row(&overruns);
         expander.add_row(&trims);
+        expander.add_row(&occupancy);
         expander.add_row(&warnings);
 
         Self {
@@ -42,7 +50,9 @@ impl Diagnostics {
             captured,
             processed,
             underruns,
+            overruns,
             trims,
+            occupancy,
             warnings,
         }
     }
@@ -62,7 +72,11 @@ impl Diagnostics {
             .set_subtitle(&stats.processed_frames.to_string());
         self.underruns
             .set_subtitle(&stats.underrun_samples.to_string());
+        self.overruns
+            .set_subtitle(&stats.overrun_samples.to_string());
         self.trims.set_subtitle(&stats.trim_events.to_string());
+        self.occupancy
+            .set_subtitle(&stats.ring_occupancy.to_string());
         self.warnings.set_subtitle(&if warnings.is_empty() {
             t("None").to_owned()
         } else {
@@ -76,69 +90,4 @@ fn counter_row(title: &str) -> adw::ActionRow {
     row.set_title(title);
     row.set_subtitle("0");
     row
-}
-
-pub fn device_labels(devices: &[(String, String)]) -> Vec<String> {
-    let mut seen: Vec<&str> = Vec::new();
-    devices
-        .iter()
-        .map(|(name, description)| {
-            let description = if description.is_empty() {
-                name.as_str()
-            } else {
-                description.as_str()
-            };
-            let repeated = devices
-                .iter()
-                .filter(|(_, other)| other.as_str() == description)
-                .count()
-                > 1;
-            if !repeated {
-                return description.to_owned();
-            }
-            let position = seen
-                .iter()
-                .filter(|candidate| **candidate == description)
-                .count()
-                + 1;
-            seen.push(description);
-            format!("{description} ({position})")
-        })
-        .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn pair(name: &str, description: &str) -> (String, String) {
-        (name.to_owned(), description.to_owned())
-    }
-
-    #[test]
-    fn unique_descriptions_are_used_as_labels() {
-        let labels = device_labels(&[
-            pair("alsa_output.a", "Built-in Audio"),
-            pair("bluez.1", "Headset"),
-        ]);
-        assert_eq!(labels, vec!["Built-in Audio", "Headset"]);
-    }
-
-    #[test]
-    fn repeated_descriptions_are_numbered() {
-        let labels = device_labels(&[
-            pair("alsa_output.a", "Built-in Audio Pro"),
-            pair("alsa_output.b", "Built-in Audio Pro"),
-        ]);
-        assert_eq!(
-            labels,
-            vec!["Built-in Audio Pro (1)", "Built-in Audio Pro (2)"]
-        );
-    }
-
-    #[test]
-    fn a_missing_description_falls_back_to_the_name() {
-        let labels = device_labels(&[pair("node.one", "")]);
-        assert_eq!(labels, vec!["node.one"]);
-    }
 }

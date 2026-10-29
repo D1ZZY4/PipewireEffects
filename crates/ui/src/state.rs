@@ -186,6 +186,14 @@ impl State {
         Ok(())
     }
 
+    pub fn set_developer_mode(&mut self, enabled: bool) {
+        if self.settings.developer_mode == enabled {
+            return;
+        }
+        self.settings.developer_mode = enabled;
+        self.persist();
+    }
+
     pub fn restart(&mut self, kind: PipelineKind) -> EngineResult<()> {
         let chain = self.chain_mut(kind);
         if let Some(engine) = chain.engine_mut() {

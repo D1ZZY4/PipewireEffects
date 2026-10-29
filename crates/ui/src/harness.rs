@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
+use adw::prelude::*;
 use gtk::glib;
-use gtk::prelude::*;
 
 use crate::Ui;
 use crate::dialogs;
@@ -118,9 +118,19 @@ fn apply(ui: &Rc<Ui>, state: &str) {
             ui.set_pipeline(pwe_core::PipelineKind::Input);
             ui.add_effect("gate");
         }
-        "devices" => {
-            ui.settings_view.expand_diagnostics();
-            ui.stack.set_visible_child_name("devices");
+        "devices" => activate(ui, "win.devices"),
+        "preferences" => activate(ui, "win.preferences"),
+        "developer" => {
+            ui.state.borrow_mut().set_developer_mode(true);
+            ui.sync_desktop_switches();
+            ui.preferences_view.expand_diagnostics();
+            activate(ui, "win.preferences");
+            let ui = Rc::clone(ui);
+            glib::timeout_add_local_once(std::time::Duration::from_millis(700), move || {
+                if let Some(page) = ui.preferences_dialog.visible_page() {
+                    scroll_to_bottom(page.upcast_ref());
+                }
+            });
         }
         "picker" => open_picker(ui, false),
         "picker-tone" => open_picker(ui, true),
@@ -198,7 +208,11 @@ fn scroll_to_bottom(widget: &gtk::Widget) -> bool {
 }
 
 fn reveal_about(ui: &Rc<Ui>) {
-    if let Err(error) = WidgetExt::activate_action(&ui.window, "app.about", None) {
-        eprintln!("{STATE_VARIABLE}: the about action could not be activated: {error}");
+    activate(ui, "app.about");
+}
+
+fn activate(ui: &Rc<Ui>, action: &str) {
+    if let Err(error) = WidgetExt::activate_action(&ui.window, action, None) {
+        eprintln!("{STATE_VARIABLE}: the {action} action could not be activated: {error}");
     }
 }

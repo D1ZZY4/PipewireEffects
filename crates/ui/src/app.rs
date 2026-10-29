@@ -165,10 +165,11 @@ fn schedule_smoke_test(ui: &Rc<Ui>) {
             failures.push("the window is not visible".to_owned());
         }
         ui.add_effect("equalizer");
-        if ui.chain_list.first_child().is_none() {
+        let pane = &ui.panes[ui.active().index()];
+        if pane.list.first_child().is_none() {
             failures.push("the chain list stayed empty".to_owned());
         }
-        if ui.editor_host.first_child().is_none() {
+        if pane.editor_host.first_child().is_none() {
             failures.push("the editor stayed empty".to_owned());
         }
         let loaded = ui.state.borrow_mut().load_preset("Default");

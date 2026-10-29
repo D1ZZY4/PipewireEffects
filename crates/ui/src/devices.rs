@@ -1,5 +1,3 @@
-mod parts;
-
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -11,9 +9,8 @@ use pwe_engine::{EngineState, Snapshot, StatsSnapshot};
 
 use crate::format;
 use crate::pages::WorkspaceActions;
-use crate::settings::parts::Diagnostics;
 
-pub struct SettingsView {
+pub struct DevicesView {
     page: adw::PreferencesPage,
     state_row: adw::ActionRow,
     rate_row: adw::ActionRow,
@@ -24,14 +21,12 @@ pub struct SettingsView {
     device_names: RefCell<Vec<String>>,
     updating: Rc<Cell<bool>>,
     microphone: adw::SwitchRow,
-    autostart: adw::SwitchRow,
-    diagnostics: Diagnostics,
     destination: RefCell<String>,
     status: RefCell<String>,
     toggles: Rc<Cell<bool>>,
 }
 
-impl SettingsView {
+impl DevicesView {
     pub fn new(actions: WorkspaceActions) -> (adw::PreferencesPage, Self) {
         let page = adw::PreferencesPage::new();
 
@@ -57,7 +52,7 @@ impl SettingsView {
         rate_row.set_subtitle(t("unknown"));
 
         let node_row = adw::ActionRow::new();
-        node_row.set_title(t("Node"));
+        node_row.set_title(t("Virtual sink"));
         node_row.set_subtitle("pipewire-effects-sink");
         let copy = gtk::Button::from_icon_name(format::ICON_COPY);
         copy.add_css_class("flat");
@@ -90,7 +85,7 @@ impl SettingsView {
         let output = adw::PreferencesGroup::new();
         output.set_title(t("Destination"));
         let devices = adw::ComboRow::new();
-        devices.set_title(t("Play processed audio on"));
+        devices.set_title(t("Output device"));
         devices.set_subtitle(t("The hardware device that receives the effect chain"));
         let updating = Rc::new(Cell::new(false));
         let flag = Rc::clone(&updating);
@@ -130,33 +125,6 @@ impl SettingsView {
         monitoring.add(&microphone);
         page.add(&monitoring);
 
-        let desktop = adw::PreferencesGroup::new();
-        desktop.set_title(t("Desktop"));
-        let autostart = adw::SwitchRow::new();
-        autostart.set_title(t("Start on login"));
-        autostart.set_subtitle(t(
-            "Begins processing as soon as you sign in, without a window",
-        ));
-        {
-            let flag = Rc::clone(&toggles);
-            let on_autostart = Rc::clone(&actions.on_autostart);
-            autostart.connect_active_notify(move |row| {
-                if flag.get() {
-                    return;
-                }
-                on_autostart(row.is_active());
-            });
-        }
-        desktop.add(&autostart);
-        page.add(&desktop);
-
-        let advanced = adw::PreferencesGroup::new();
-        advanced.set_title(t("Advanced"));
-
-        let diagnostics = Diagnostics::new();
-        advanced.add(diagnostics.row());
-        page.add(&advanced);
-
         let view = Self {
             page: page.clone(),
             state_row,
@@ -168,8 +136,6 @@ impl SettingsView {
             device_names: RefCell::new(Vec::new()),
             updating,
             microphone,
-            autostart,
-            diagnostics,
             destination: RefCell::new(String::new()),
             status: RefCell::new(String::new()),
             toggles,
@@ -181,19 +147,9 @@ impl SettingsView {
         &self.page
     }
 
-    pub fn expand_diagnostics(&self) {
-        self.diagnostics.expand();
-    }
-
     pub fn set_running(&self, running: bool) {
         self.toggles.set(true);
         self.microphone.set_active(running);
-        self.toggles.set(false);
-    }
-
-    pub fn set_autostart(&self, enabled: bool) {
-        self.toggles.set(true);
-        self.autostart.set_active(enabled);
         self.toggles.set(false);
     }
 
@@ -236,7 +192,6 @@ impl SettingsView {
                 "Pick PipeWire Effects Source as the input in an application, or make it the default source.",
             ),
         });
-        self.diagnostics.update(stats, &snapshot.warnings);
         self.sync_devices(snapshot);
         self.sync_destination(snapshot);
     }
@@ -276,8 +231,8 @@ impl SettingsView {
             return;
         }
         self.devices.set_title(match snapshot.kind {
-            PipelineKind::Output => t("Play processed audio on"),
-            PipelineKind::Input => t("Capture microphone audio from"),
+            PipelineKind::Output => t("Output device"),
+            PipelineKind::Input => t("Input device"),
         });
         self.devices.set_subtitle(&subtitle);
         *self.destination.borrow_mut() = subtitle;
@@ -297,11 +252,11 @@ impl SettingsView {
             .collect();
         let mut names = vec![pwe_engine::AUTO_TARGET.to_owned()];
         names.extend(matching.iter().map(|(name, _)| name.clone()));
-        if matching.is_empty() || *self.device_names.borrow() == names {
+        if *self.device_names.borrow() == names {
             return;
         }
         let mut labels = vec![t("System default").to_owned()];
-        labels.extend(parts::device_labels(&matching));
+        labels.extend(device_labels(&matching));
         let selected = if snapshot.automatic {
             0
         } else {
@@ -316,5 +271,70 @@ impl SettingsView {
         self.devices.set_selected(selected as u32);
         self.updating.set(false);
         *self.device_names.borrow_mut() = names;
+    }
+}
+
+pub fn device_labels(devices: &[(String, String)]) -> Vec<String> {
+    let mut seen: Vec<&str> = Vec::new();
+    devices
+        .iter()
+        .map(|(name, description)| {
+            let description = if description.is_empty() {
+                name.as_str()
+            } else {
+                description.as_str()
+            };
+            let repeated = devices
+                .iter()
+                .filter(|(_, other)| other.as_str() == description)
+                .count()
+                > 1;
+            if !repeated {
+                return description.to_owned();
+            }
+            let position = seen
+                .iter()
+                .filter(|candidate| **candidate == description)
+                .count()
+                + 1;
+            seen.push(description);
+            format!("{description} ({position})")
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pair(name: &str, description: &str) -> (String, String) {
+        (name.to_owned(), description.to_owned())
+    }
+
+    #[test]
+    fn unique_descriptions_are_used_as_labels() {
+        let labels = device_labels(&[
+            pair("alsa_output.a", "Built-in Audio"),
+            pair("bluez.1", "Headset"),
+        ]);
+        assert_eq!(labels, vec!["Built-in Audio", "Headset"]);
+    }
+
+    #[test]
+    fn repeated_descriptions_are_numbered() {
+        let labels = device_labels(&[
+            pair("alsa_output.a", "Built-in Audio Pro"),
+            pair("alsa_output.b", "Built-in Audio Pro"),
+        ]);
+        assert_eq!(
+            labels,
+            vec!["Built-in Audio Pro (1)", "Built-in Audio Pro (2)"]
+        );
+    }
+
+    #[test]
+    fn a_missing_description_falls_back_to_the_name() {
+        let labels = device_labels(&[pair("node.one", "")]);
+        assert_eq!(labels, vec!["node.one"]);
     }
 }

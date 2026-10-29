@@ -9,13 +9,13 @@ use pwe_core::i18n::{t, tr};
 use pwe_engine::EffectSlot;
 
 use crate::chain_view;
+use crate::devices::DevicesView;
 use crate::dialogs;
 use crate::editor;
 use crate::harness;
-use crate::meter::LevelDisplay;
-use crate::pages::Workspace;
+use crate::pages::{ChainPane, Workspace, page_name, pipeline_of};
+use crate::preferences::PreferencesView;
 use crate::presets_ui;
-use crate::settings::SettingsView;
 use crate::state::State;
 
 type ChainSignature = (PipelineKind, (usize, bool, Option<EffectSlot>));
@@ -24,18 +24,15 @@ pub struct Ui {
     pub state: Rc<RefCell<State>>,
     pub window: adw::ApplicationWindow,
     pub toast: adw::ToastOverlay,
-    pub chain_list: gtk::ListBox,
-    pub chain_placeholder: gtk::Widget,
-    pub editor_host: gtk::Box,
+    pub panes: [ChainPane; 2],
     pub preset_list: gtk::ListBox,
-    pub add_button: gtk::Button,
     pub bypass: gtk::ToggleButton,
     pub banner: adw::Banner,
-    pub meter_in: LevelDisplay,
-    pub meter_out: LevelDisplay,
-    pub settings_view: SettingsView,
+    pub devices_view: DevicesView,
+    pub preferences_view: PreferencesView,
+    pub devices_dialog: adw::PreferencesDialog,
+    pub preferences_dialog: adw::PreferencesDialog,
     pub stack: adw::ViewStack,
-    pub pipeline_buttons: [gtk::ToggleButton; 2],
     pipeline_guard: Cell<bool>,
     signature: RefCell<ChainSignature>,
 }
@@ -50,25 +47,21 @@ impl Ui {
             state,
             window: workspace.window,
             toast: workspace.toast,
-            chain_list: workspace.chain_list,
-            chain_placeholder: workspace.chain_placeholder,
-            editor_host: workspace.editor_host,
+            panes: workspace.panes,
             preset_list: workspace.preset_list,
-            add_button: workspace.add_button,
             bypass: workspace.bypass,
             banner: workspace.banner,
-            meter_in: workspace.meter_in,
-            meter_out: workspace.meter_out,
-            settings_view: workspace.settings_view,
+            devices_view: workspace.devices_view,
+            preferences_view: workspace.preferences_view,
+            devices_dialog: workspace.devices_dialog,
+            preferences_dialog: workspace.preferences_dialog,
             stack: workspace.stack,
-            pipeline_buttons: workspace.pipeline_buttons,
             pipeline_guard: Cell::new(false),
             signature: RefCell::new((PipelineKind::Output, (0, false, None))),
         });
 
         ui.wire(workspace.preset_buttons);
         presets_ui::populate(&ui);
-        ui.sync_pipeline_buttons();
         ui.sync_desktop_switches();
         ui.rebuild_chain();
         ui.rebuild_editor();
@@ -81,40 +74,51 @@ impl Ui {
         self.state.borrow().active()
     }
 
+    fn pane(&self) -> &ChainPane {
+        &self.panes[self.active().index()]
+    }
+
     pub fn set_pipeline(self: &Rc<Self>, kind: PipelineKind) {
         if self.pipeline_guard.get() || self.state.borrow().active() == kind {
             return;
         }
         self.state.borrow_mut().set_active(kind);
-        self.sync_pipeline_buttons();
+        self.pipeline_guard.set(true);
+        self.stack.set_visible_child_name(page_name(kind));
+        self.pipeline_guard.set(false);
         self.rebuild_chain();
         self.rebuild_editor();
         self.refresh();
     }
 
-    fn sync_pipeline_buttons(self: &Rc<Self>) {
-        let active = self.active();
-        self.pipeline_guard.set(true);
-        for kind in pwe_core::ALL_PIPELINES {
-            self.pipeline_buttons[kind.index()].set_active(kind == active);
-        }
-        self.pipeline_guard.set(false);
-    }
-
     pub fn sync_desktop_switches(self: &Rc<Self>) {
         let state = self.state.borrow();
-        self.settings_view
+        self.devices_view
             .set_running(state.chain(PipelineKind::Input).running());
-        self.settings_view.set_autostart(state.settings.autostart);
+        self.preferences_view
+            .set_autostart(state.settings.autostart);
+        self.preferences_view
+            .set_developer_mode(state.settings.developer_mode);
     }
 
     fn wire(self: &Rc<Self>, preset_buttons: (gtk::Button, gtk::Button, gtk::Button, gtk::Button)) {
-        let ui = Rc::clone(self);
-        self.add_button.connect_clicked(move |_| {
-            let ui = Rc::clone(&ui);
-            let window = ui.window.clone();
-            dialogs::choose_effect(&window, move |kind| ui.add_effect(kind));
-        });
+        for pane in &self.panes {
+            let ui = Rc::clone(self);
+            pane.add_button.connect_clicked(move |_| {
+                let ui = Rc::clone(&ui);
+                let window = ui.window.clone();
+                dialogs::choose_effect(&window, move |kind| ui.add_effect(kind));
+            });
+
+            let ui = Rc::clone(self);
+            pane.list.connect_row_activated(move |_, row| {
+                let Ok(value) = row.widget_name().parse::<u64>() else {
+                    return;
+                };
+                ui.state.borrow_mut().set_selected(Some(EffectSlot(value)));
+                ui.rebuild_editor();
+            });
+        }
 
         let ui = Rc::clone(self);
         self.bypass.connect_toggled(move |button| {
@@ -126,22 +130,14 @@ impl Ui {
         });
 
         let ui = Rc::clone(self);
-        self.chain_list.connect_row_activated(move |_, row| {
-            let Ok(value) = row.widget_name().parse::<u64>() else {
+        self.stack.connect_visible_child_name_notify(move |stack| {
+            let Some(name) = stack.visible_child_name() else {
                 return;
             };
-            ui.state.borrow_mut().set_selected(Some(EffectSlot(value)));
-            ui.rebuild_editor();
+            if let Some(kind) = pipeline_of(&name) {
+                ui.set_pipeline(kind);
+            }
         });
-
-        for kind in pwe_core::ALL_PIPELINES {
-            let ui = Rc::clone(self);
-            self.pipeline_buttons[kind.index()].connect_toggled(move |button| {
-                if button.is_active() {
-                    ui.set_pipeline(kind);
-                }
-            });
-        }
 
         presets_ui::wire(self, preset_buttons);
 
@@ -159,7 +155,7 @@ impl Ui {
         }
         self.rebuild_chain();
         self.rebuild_editor();
-        self.stack.set_visible_child_name("effects");
+        self.stack.set_visible_child_name(page_name(self.active()));
     }
 
     pub fn toggle_input(self: &Rc<Self>, enabled: bool) {
@@ -179,8 +175,9 @@ impl Ui {
     }
 
     pub fn rebuild_chain(self: &Rc<Self>) {
-        while let Some(child) = self.chain_list.first_child() {
-            self.chain_list.remove(&child);
+        let pane = self.pane();
+        while let Some(child) = pane.list.first_child() {
+            pane.list.remove(&child);
         }
         let (rows, total, running) = {
             let state = self.state.borrow();
@@ -193,19 +190,20 @@ impl Ui {
             (rows, chain.slots.len(), chain.running())
         };
         for (id, kind, enabled) in rows {
-            self.chain_list
-                .append(&chain_view::row(self, id, kind, enabled));
+            pane.list.append(&chain_view::row(self, id, kind, enabled));
         }
-        self.chain_placeholder.set_visible(total == 0);
-        self.chain_list.set_visible(total > 0);
+        pane.placeholder.set_visible(total == 0);
+        pane.list.set_visible(total > 0);
         if !running && total == 0 {
-            self.chain_placeholder
-                .set_tooltip_text(Some(t("Turn on microphone processing in the Devices page")));
+            pane.placeholder.set_tooltip_text(Some(t(
+                "Turn on microphone processing from the main menu, under Devices",
+            )));
         }
         self.restore_selection();
     }
 
     pub fn rebuild_editor(self: &Rc<Self>) {
+        let pane = self.pane();
         let built = {
             let state = self.state.borrow();
             let chain = state.active_chain();
@@ -215,17 +213,18 @@ impl Ui {
                     .map(|slot| (slot.kind, editor::build(self, slot.kind, &slot.params)))
             })
         };
-        while let Some(child) = self.editor_host.first_child() {
-            self.editor_host.remove(&child);
+        while let Some(child) = pane.editor_host.first_child() {
+            pane.editor_host.remove(&child);
         }
         match built {
-            Some((_kind, widget)) => self.editor_host.append(&widget),
-            None => self.editor_host.append(&editor::empty_state(self)),
+            Some((_kind, widget)) => pane.editor_host.append(&widget),
+            None => pane.editor_host.append(&editor::empty_state(self)),
         }
         self.restore_selection();
     }
 
     fn restore_selection(&self) {
+        let pane = self.pane();
         let position = {
             let state = self.state.borrow();
             let chain = state.active_chain();
@@ -234,8 +233,8 @@ impl Ui {
                 .iter()
                 .position(|slot| Some(slot.id) == chain.selected)
         };
-        let row = position.and_then(|index| self.chain_list.row_at_index(index as i32));
-        self.chain_list.select_row(row.as_ref());
+        let row = position.and_then(|index| pane.list.row_at_index(index as i32));
+        pane.list.select_row(row.as_ref());
     }
 
     pub fn show_banner(&self, message: &str) {
@@ -267,9 +266,10 @@ impl Ui {
             )
         };
         self.sync_view_signature();
-        self.meter_in
+        let pane = self.pane();
+        pane.meter_in
             .update(meters.input_peak_db, meters.input_rms_db);
-        self.meter_out
+        pane.meter_out
             .update(meters.output_peak_db, meters.output_rms_db);
         if self.bypass.is_active() != snapshot.bypassed {
             self.bypass.set_active(snapshot.bypassed);
@@ -280,7 +280,8 @@ impl Ui {
             }));
         }
         self.set_status(snapshot.bypassed);
-        self.settings_view.update(&snapshot, &stats, state);
+        self.devices_view.update(&snapshot, &stats, state);
+        self.preferences_view.update(&stats, &snapshot.warnings);
         if let Some(error) = error {
             self.banner.set_title(&error);
             self.banner.set_revealed(true);
@@ -288,10 +289,11 @@ impl Ui {
     }
 
     fn set_status(&self, bypassed: bool) {
+        let list = &self.pane().list;
         if bypassed {
-            self.chain_list.add_css_class("chain-bypassed");
+            list.add_css_class("chain-bypassed");
         } else {
-            self.chain_list.remove_css_class("chain-bypassed");
+            list.remove_css_class("chain-bypassed");
         }
     }
 

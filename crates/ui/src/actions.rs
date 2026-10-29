@@ -38,10 +38,16 @@ pub fn workspace_actions(state: &Rc<RefCell<State>>) -> WorkspaceActions {
             }
         }) as Rc<dyn Fn()>
     };
+    let on_developer_mode = {
+        let state = Rc::clone(state);
+        Rc::new(move |enabled: bool| state.borrow_mut().set_developer_mode(enabled))
+            as Rc<dyn Fn(bool)>
+    };
     WorkspaceActions {
         on_target,
         on_input,
         on_autostart,
         on_reconnect,
+        on_developer_mode,
     }
 }

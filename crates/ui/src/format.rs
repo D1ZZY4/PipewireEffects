@@ -1,9 +1,11 @@
 pub const ICON_BYPASS: &str = "system-shutdown-symbolic";
 pub const ICON_MENU: &str = "open-menu-symbolic";
 pub const ICON_SIDEBAR: &str = "sidebar-show-symbolic";
-pub const ICON_PAGE_EFFECTS: &str = "audio-x-generic-symbolic";
+pub const ICON_PAGE_OUTPUT: &str = "audio-speakers-symbolic";
+pub const ICON_PAGE_INPUT: &str = "audio-input-microphone-symbolic";
 pub const ICON_PAGE_PRESETS: &str = "view-list-symbolic";
-pub const ICON_PAGE_DEVICES: &str = "audio-speakers-symbolic";
+pub const ICON_PAGE_DEVICES: &str = "audio-card-symbolic";
+pub const ICON_PREFERENCES: &str = "preferences-system-symbolic";
 pub const ICON_EMPTY: &str = "applications-multimedia-symbolic";
 pub const ICON_COPY: &str = "edit-copy-symbolic";
 pub const ICON_COPIED: &str = "object-select-symbolic";
@@ -22,9 +24,11 @@ pub const CHROME_ICONS: &[&str] = &[
     ICON_BYPASS,
     ICON_MENU,
     ICON_SIDEBAR,
-    ICON_PAGE_EFFECTS,
+    ICON_PAGE_OUTPUT,
+    ICON_PAGE_INPUT,
     ICON_PAGE_PRESETS,
     ICON_PAGE_DEVICES,
+    ICON_PREFERENCES,
     ICON_EMPTY,
     ICON_COPY,
     ICON_COPIED,
