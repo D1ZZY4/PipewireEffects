@@ -48,7 +48,7 @@ pub fn text_prompt<F>(
     let accept_button = gtk::Button::with_label(accept);
     accept_button.add_css_class("suggested-action");
     accept_button.add_css_class("pill");
-    let cancel = gtk::Button::with_label("Cancel");
+    let cancel = gtk::Button::with_label(t("Cancel"));
     cancel.add_css_class("pill");
     bar.append(&cancel);
     bar.append(&accept_button);
@@ -80,7 +80,7 @@ pub fn confirm<F>(
     F: Fn() + 'static,
 {
     let dialog = adw::AlertDialog::new(Some(title), Some(body));
-    dialog.add_response("cancel", "Cancel");
+    dialog.add_response("cancel", t("Cancel"));
     dialog.add_response("accept", accept);
     dialog.set_response_appearance("accept", adw::ResponseAppearance::Destructive);
     dialog.set_default_response(Some("cancel"));

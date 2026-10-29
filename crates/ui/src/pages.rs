@@ -57,6 +57,7 @@ impl Workspace {
         let header = adw::HeaderBar::new();
         let (bypass, menu_button) = header_controls(&header);
         let banner = adw::Banner::new("");
+        banner.set_button_label(Some(t("Dismiss")));
         banner.set_revealed(false);
 
         let (input_box, meter_in) = LevelDisplay::new(t("Input"), true);
