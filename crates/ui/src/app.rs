@@ -99,8 +99,8 @@ fn activate(application: &adw::Application, holder: &Rc<RefCell<Holder>>, option
     }
     if !options.show_window && holder.activations == 1 {
         match State::new() {
-            Ok(state) => {
-                apply_startup(&state, options);
+            Ok(mut state) => {
+                apply_startup(&mut state, options);
                 holder.state = Some(state);
                 holder.hold = Some(application.hold());
                 println!(
@@ -126,8 +126,8 @@ fn activate(application: &adw::Application, holder: &Rc<RefCell<Holder>>, option
             }
         }
     }
-    let state = state.expect("the state was just created");
-    apply_startup(&state, options);
+    let mut state = state.expect("the state was just created");
+    apply_startup(&mut state, options);
     let ui = Ui::build(application, state);
     ui.window.present();
     if std::env::var_os("PIPEWIRE_EFFECTS_SMOKE_TEST").is_some() {
@@ -136,19 +136,24 @@ fn activate(application: &adw::Application, holder: &Rc<RefCell<Holder>>, option
     holder.ui = Some(ui);
 }
 
-fn apply_startup(state: &State, options: &Options) {
+fn apply_startup(state: &mut State, options: &Options) {
     if let Some(device) = &options.device {
         for kind in pwe_core::ALL_PIPELINES {
             state.chain(kind).set_target_device(device.clone());
         }
     }
-    if let Some(preset) = &options.preset
-        && let Err(error) = state.store.load(preset)
-    {
-        state.warn(&tr(
-            "'{0}' could not be loaded: {1}",
-            &[preset, &error.to_string()],
-        ));
+    if let Some(preset) = &options.preset {
+        match state.load_preset(preset) {
+            Ok(warnings) => {
+                for warning in warnings {
+                    state.warn(&warning);
+                }
+            }
+            Err(error) => state.warn(&tr(
+                "'{0}' could not be loaded: {1}",
+                &[preset, &error.to_string()],
+            )),
+        }
     }
 }
 
