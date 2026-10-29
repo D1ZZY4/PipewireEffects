@@ -174,7 +174,7 @@ impl Reverb {
             dry: Knob::new(&params, "dry", 0.0),
             combs,
             allpasses,
-            pre_delay_buffer: vec![0.0; MAX_PRE_DELAY],
+            pre_delay_buffer: vec![0.0; MAX_PRE_DELAY * 2],
             pre_delay_index: 0,
             rate: 48_000,
             dirty: true,
@@ -249,9 +249,11 @@ impl Effect for Reverb {
             for (channel, slot) in wet_signal.iter_mut().enumerate().take(channels.min(2)) {
                 let input = buffer.channel_mut(channel)[frame];
                 let delayed = if pre_delay > 0 {
-                    let read = (self.pre_delay_index + MAX_PRE_DELAY - pre_delay) % MAX_PRE_DELAY;
+                    let base = channel * MAX_PRE_DELAY;
+                    let read =
+                        base + (self.pre_delay_index + MAX_PRE_DELAY - pre_delay) % MAX_PRE_DELAY;
                     let value = self.pre_delay_buffer[read];
-                    self.pre_delay_buffer[self.pre_delay_index] = input;
+                    self.pre_delay_buffer[base + self.pre_delay_index] = input;
                     value
                 } else {
                     input

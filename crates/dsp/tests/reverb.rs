@@ -86,6 +86,36 @@ fn re_tuning_keeps_the_decay_time_stable() {
 }
 
 #[test]
+fn the_pre_delay_does_not_leak_one_channel_into_the_other() {
+    let params = ParamSet::new(reverb_specs());
+    params.set_f32("pre_delay", 40.0).unwrap();
+    params.set_f32("dry", -60.0).unwrap();
+    params.set_f32("wet", 0.0).unwrap();
+    params.set_f32("width", 100.0).unwrap();
+    let mut effect = Reverb::new(params);
+    effect.prepare(AudioFormat::new(48_000, 2));
+
+    let mut impulse = AudioBuffer::new(2, 1);
+    impulse.configure(2, 1).unwrap();
+    impulse.channel_mut(1)[0] = 1.0;
+    effect.process(&mut impulse);
+
+    let mut left = 0.0f32;
+    let mut right = 0.0f32;
+    for _ in 0..200 {
+        let mut block = silent(1024);
+        effect.process(&mut block);
+        left = left.max(block.channel(0).iter().fold(0.0f32, |m, s| m.max(s.abs())));
+        right = right.max(block.channel(1).iter().fold(0.0f32, |m, s| m.max(s.abs())));
+    }
+    assert!(right > 0.01, "the right channel produced no tail: {right}");
+    assert!(
+        left < 1.0e-4,
+        "the right channel leaked into the left: {left}"
+    );
+}
+
+#[test]
 fn output_stays_finite_with_extreme_settings() {
     let params = ParamSet::new(reverb_specs());
     params.set_f32("room_size", 100.0).unwrap();
