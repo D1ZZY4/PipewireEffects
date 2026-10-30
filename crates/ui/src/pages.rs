@@ -5,7 +5,8 @@ use pwe_core::i18n::t;
 use pwe_core::{ALL_PIPELINES, PipelineKind};
 
 use crate::chrome::{
-    NARROW_LAYOUT, dialog, effects_toggle, header_controls, install, install_dialog, main_menu,
+    dialog, effects_toggle, header_controls, install, install_breakpoint, install_dialog,
+    main_menu, sidebar_toggle,
 };
 use crate::devices::DevicesView;
 use crate::format;
@@ -301,52 +302,4 @@ fn wire_close_buttons(split: &adw::OverlaySplitView, panes: &[ChainPane; 2]) {
             button.set_visible(collapsed);
         }
     });
-}
-
-fn install_breakpoint(
-    window: &adw::ApplicationWindow,
-    split: &adw::OverlaySplitView,
-    switcher: &adw::ViewSwitcher,
-) {
-    let Ok(condition) = adw::BreakpointCondition::parse(NARROW_LAYOUT) else {
-        return;
-    };
-    let breakpoint = adw::Breakpoint::new(condition);
-    breakpoint.add_setter(split, "collapsed", Some(&true.to_value()));
-    breakpoint.add_setter(split, "show-sidebar", Some(&false.to_value()));
-    breakpoint.add_setter(
-        switcher,
-        "policy",
-        Some(&adw::ViewSwitcherPolicy::Narrow.to_value()),
-    );
-    window.add_breakpoint(breakpoint);
-}
-
-fn sidebar_toggle(split: &adw::OverlaySplitView) -> gtk::ToggleButton {
-    let toggle = gtk::ToggleButton::new();
-    toggle.set_icon_name(format::ICON_SIDEBAR);
-    toggle.set_tooltip_text(Some(t("Show or hide the effect chain")));
-    toggle.add_css_class("flat");
-    toggle.update_property(&[
-        gtk::accessible::Property::Label(t("Show or hide the effect chain")),
-        gtk::accessible::Property::Description(t(
-            "Shows or hides the effect chain and preset sidebar",
-        )),
-    ]);
-    toggle.set_active(split.shows_sidebar());
-
-    let view = split.clone();
-    toggle.connect_toggled(move |button| {
-        view.set_show_sidebar(button.is_active());
-    });
-
-    let button = toggle.clone();
-    let split = split.clone();
-    split.connect_show_sidebar_notify(move |view| {
-        if button.is_active() != view.shows_sidebar() {
-            button.set_active(view.shows_sidebar());
-        }
-    });
-
-    toggle
 }
