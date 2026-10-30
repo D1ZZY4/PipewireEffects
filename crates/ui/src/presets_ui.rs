@@ -61,9 +61,8 @@ fn populate_pane(ui: &Rc<Ui>, pane: &crate::pages::ChainPane) {
     let current = ui.state.borrow().loaded_preset().map(str::to_owned);
     for info in &infos {
         let loaded = current.as_deref() == Some(info.name.as_str());
-        let modified = loaded && ui.state.borrow().is_modified(pane.kind);
         pane.preset_list
-            .append(&preset_row(ui, pane.kind, info, loaded, modified));
+            .append(&preset_row(ui, pane.kind, info, loaded));
     }
     if pane.kind == PipelineKind::Input && infos.is_empty() {
         pane.preset_list.append(&message_row(
@@ -82,7 +81,6 @@ fn preset_row(
     kind: PipelineKind,
     info: &pwe_presets::PresetInfo,
     loaded: bool,
-    modified: bool,
 ) -> gtk::ListBoxRow {
     let row = gtk::ListBoxRow::new();
     row.set_widget_name(&info.name);
@@ -114,7 +112,7 @@ fn preset_row(
     container.append(&divider);
     container.append(&status);
     container.append(&spacer);
-    if modified {
+    if loaded {
         container.append(&preset_menu(ui, kind, &info.name));
     }
     container.append(&preset_toggle(ui, kind, &info.name, loaded));

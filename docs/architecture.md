@@ -386,11 +386,11 @@ Decisions and reasons:
 - **A preset can be duplicated.** *Clone* writes a copy of the loaded preset,
   both sections, under a new name in the user directory, without changing the
   live chain.
-- **A modified preset offers an update.** Each preset row shows its name in bold
+- **The loaded preset offers an update.** Each preset row shows its name in bold
   with its origin (`Built in`, `User preset`, `System preset`) beside it on the
-  same line. When the loaded preset's chain has been changed, that row gains a
-  menu with *Update preset*, which writes the changes back, and *Revert changes*,
-  which reloads the stored preset.
+  same line. The loaded preset's row always carries a menu with *Update preset*,
+  which writes the current chain back, and *Revert changes*, which reloads the
+  stored preset.
 
 Built-in presets are compiled in, so a fresh installation has a usable set
 without a system preset directory.

@@ -93,8 +93,8 @@ keeps working in the next.
   loaded preset, both sections, under a new name in the user directory.
 - *Auto-save preset edits* and an *Update interval* in Preferences. When it is
   on, an edit to the loaded preset is written back to the preset after the
-  interval has passed without further changes. A modified loaded preset also
-  offers *Update preset* and *Revert changes* from its own row.
+  interval has passed without further changes. The loaded preset's row always
+  offers *Update preset* and *Revert changes* from its own menu.
 - A selectable processing backend in *Preferences*: `CPU`, `GPU` or `Both`.
   `GPU` runs the elementwise gain stage on a Vulkan compute device through
   `crates/engine/src/gpu` (the `ash` crate, `scale.comp` compiled to
