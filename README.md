@@ -275,10 +275,10 @@ A reproducible CPU baseline, which prints microseconds per block and the realtim
 factor for each effect and for the full twenty-three-effect chain:
 
 ```sh
-cargo run --release -p pwe-dsp --example benchmark
+cargo test --release -p pwe-dsp --test benchmark -- --ignored --nocapture
 ```
 
-343 tests, none of which need an audio device or a display; the two icon lookups
+359 tests, none of which need an audio device or a display; the two icon lookups
 skip themselves when no display is available. They cover biquad designs against
 their analytic magnitude response, the effects against measured signal levels and
 numerical bounds, the ring buffer and trimming policy with a real producer and
@@ -335,6 +335,17 @@ Working, and honest about the gaps:
   correction.
 - A device you pick by hand is remembered, but a *change* of the system default
   is only followed while the application runs.
+- The processing backend is selectable in *Preferences*: `CPU`, `GPU` or
+  `Both`. `GPU` runs the elementwise gain stage on a Vulkan compute device and
+  keeps recursive and spectral effects on the CPU; `Both` also computes a CPU
+  reference per block and replaces a disagreeing result. The choice is persisted,
+  applies to both pipelines, and restarts the running engines. On the development
+  machine a 1024-frame stereo gain block costs 0.17–0.22 µs on the CPU and
+  140–330 µs through the persistent GPU stage depending on load, so the GPU
+  option is a real backend choice,
+  not a throughput claim. The fence wait is capped at half the block duration and
+  a miss is applied on the CPU, so a slow or busy device cannot overrun the audio
+  deadline. Two live tests exercise `GPU` and `Both` end to end.
 - The plugin-based, neural and spectral effects of EasyEffects are not
   implemented. `docs/feature-matrix.md` lists every one with its status and,
   for the ones that need a third-party library, records that the library is

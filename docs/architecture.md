@@ -9,7 +9,7 @@ is not a plan.
 pwe-core  ◄── pwe-dsp  ◄── pwe-engine ◄── pwe-ui ◄── pipewire-effects
     ▲                          ▲            ▲
     └────────── pwe-presets ───┴────────────┘
-pwe-core  ◄── pwe-settings ────────────────►┘
+pwe-core  ◄── pwe-services ────────────────►┘
 ```
 
 | Crate | Owns | Does not know about |
@@ -17,8 +17,8 @@ pwe-core  ◄── pwe-settings ───────────────�
 | `pwe-core` | Audio buffers, parameter specifications, the effect contract, the chain, meters, realtime-safe helpers, the pipeline kinds | PipeWire, GTK, files |
 | `pwe-dsp` | The FFT, the Linkwitz-Riley crossover, the biquad design, the twenty-three effects, the R128 loudness measurement and the effect registry | Threads, devices, presets |
 | `pwe-presets` | The preset schema, name validation and the preset directory | Which effects exist |
-| `pwe-settings` | The settings document, its atomic store and the autostart entry | The engine, the interface, the effects |
-| `pwe-engine` | PipeWire streams, the virtual sink and source, the destination device, the realtime processor, counters | GTK, presets, settings |
+| `pwe-services` | The settings document, its atomic store and the autostart entry | The engine, the interface, the effects |
+| `pwe-engine` | PipeWire streams, the virtual sink and source, the destination device, the realtime processor and the compute backends (`cpu`, `gpu`), counters | GTK, presets, services |
 | `pwe-ui` | GTK4/libadwaita widgets, the chain model, the engine bridge | DSP internals |
 | `pipewire-effects` | Process entry point and the command line | Everything else |
 
@@ -119,6 +119,11 @@ processing buffer; a larger graph quantum is split rather than truncating.
 parameter signature changes. It is arithmetic only: no allocation, no I/O, no
 logging, no system calls.
 
+**The GPU stage is bounded.** When `GPU` or `Both` is selected, the elementwise
+gain stage runs on Vulkan. Its buffers, pipeline and warm-up are prepared
+outside the callback; a block waits for the fence for at most half of that
+block's duration, and a miss is applied on the CPU instead. See section 12.
+
 ### Parameter transfer
 
 `pwe_core::ParamSet` is an `Arc<ParamStore>`. `ParamStore` holds the immutable
@@ -187,9 +192,15 @@ click a repeated sample produces at a buffer boundary.
   zero.
 - **No lookahead in the limiter.** Instantaneous attack guarantees the ceiling
   at the cost of some transient distortion.
-- **The output device is chosen by `priority.session`.** This mirrors what the
-  session manager uses to pick a default device, but it is a heuristic, not a
-  read of the `default.audio.sink` metadata key.
+- **The GPU stage is synchronous.** Each off-loaded block uploads, dispatches,
+  waits and downloads inside the callback. The wait is capped at half the block
+  duration and a miss falls back to the CPU, so the stage can never consume the
+  whole deadline. A device-resident chain would remove the copies and the wait,
+  but would require every effect to keep its state on the device; that is a
+  different architecture, not a flag.
+- **Only elementwise stages are off-loaded.** Recursive filters and spectral
+  effects cannot be moved one block at a time without uploading their state.
+  The setting is honest about the subset it accelerates.
 
 ## 7. The interface
 
@@ -215,11 +226,13 @@ occupying a page.
   split view's 1 px separator switched off in the application stylesheet, so the
   panel is distinct without a drawn line. Its first line carries the chain on/off
   **Effects** toggle, *Add effect* and, while the split view is collapsed, a
-  *back* button that closes the drawer; below it is the effect list, and then a
-  **Presets** section with the preset list and the save, import, export and delete
-  buttons. A pipeline with no preset of its own and no skipped file shows a
-  one-line empty state instead, and skipped files are listed in full in a
-  *Skipped files* row.
+  *back* button that closes the drawer; below it is the effect list, then a
+  divider, and below that the preset actions row (save, import, export, delete,
+  duplicate) sitting above the preset list. A pipeline with no preset of its own
+  and no skipped file shows a one-line empty state instead, and skipped files are
+  listed in full in a *Skipped files* row. Each preset row carries a round check
+  button that loads that preset; the button on the loaded preset is accented and
+  unloads it, which empties the chain and leaves no preset active.
 - **Effects toggle**: the chain on/off, a labelled toggle button at the top of the
   sidebar. It is accented while that pipeline's chain processes audio and plain
   while it is bypassed, which is the state a user reads at a glance. It replaced
@@ -232,16 +245,23 @@ occupying a page.
   name with a copy button, its routing hint, its destination chooser, a
   *Microphone* switch and a *Reconnect* button that appears when the engine has
   failed.
-- **Preferences** (menu): *Start on login* and a *Developer mode* switch. The
-  engine counters and the diagnostic messages are shown in a *Diagnostics* group
-  only while developer mode is on, and the choice is persisted.
+- **Preferences** (menu): *Start on login*; a *Processing backend* chooser with
+  *CPU*, *GPU* and *Both* (the default), which restarts the running pipelines on
+  the selected backend; an *Auto-save preset edits* switch with an *Update
+  interval* chooser; and a *Developer mode* switch. When auto-save is on, an
+  edit to the loaded preset is written back to that preset after the chosen
+  interval has passed without further changes. *Developer mode* adds a
+  *Diagnostics* entry to the main menu; the entry is absent while the switch is
+  off. The Diagnostics dialog carries the engine counters, the detected Vulkan
+  compute devices, the GPU block/fallback/disagreement counters and the
+  diagnostic messages. Every choice is persisted.
 - **Chain rows**: one flat line per effect, in processing order - the effect's
   symbolic icon, its name, an on/off `gtk::Switch` and the row menu. The icon is
   drawn in the theme's foreground colour, not the accent, and dims while the
   effect is disabled, as does the name; the switch carries the accent and is the
   enable control. Clicking the row selects it for the editor; the summary is the
-  row's tooltip, and move up/down and remove are behind a menu button that appears
-  on hover or secondary click. The rows
+  row's tooltip, and move up/down and remove are behind a menu button that is
+  always visible; a secondary click opens the same menu. The rows
   carry no category headers and no position numbers: the visible order is the
   processing order, so *Move up* and *Move down* always move an effect past the
   neighbour that is drawn above or below it. The effect picker applies the same
@@ -360,13 +380,24 @@ Decisions and reasons:
 - **Writes are atomic.** A temporary file is renamed into place.
 - **Only non-default parameters are written**, which keeps saved presets short
   and reviewable.
+- **A preset can be unloaded.** The check button on the loaded preset clears the
+  chain and leaves no preset active, so an empty chain is a first-class state
+  rather than one that can only be reached by removing every effect by hand.
+- **A preset can be duplicated.** *Clone* writes a copy of the loaded preset,
+  both sections, under a new name in the user directory, without changing the
+  live chain.
+- **A modified preset offers an update.** Each preset row shows its name in bold
+  with its origin (`Built in`, `User preset`, `System preset`) beside it on the
+  same line. When the loaded preset's chain has been changed, that row gains a
+  menu with *Update preset*, which writes the changes back, and *Revert changes*,
+  which reloads the stored preset.
 
 Built-in presets are compiled in, so a fresh installation has a usable set
 without a system preset directory.
 
 ## 9. Settings, the command line and packaging
 
-`pwe-settings` owns one document, `$XDG_CONFIG_HOME/pipewire-effects/settings.json`:
+`pwe-services` owns one document, `$XDG_CONFIG_HOME/pipewire-effects/settings.json`:
 
 ```json
 {
@@ -375,7 +406,10 @@ without a system preset directory.
   "preset": "Default",
   "process_input": false,
   "autostart": false,
-  "developer_mode": false
+  "developer_mode": false,
+  "auto_save": false,
+  "auto_save_interval": 10,
+  "audio_backend": "both"
 }
 ```
 
@@ -384,7 +418,7 @@ back to the defaults with a message instead of stopping the application. The
 document is what makes the device choice and the loaded preset survive a restart;
 previously both were lost.
 
-`pwe-settings` also owns the autostart entry. *Start on login* writes
+`pwe-services` also owns the autostart entry. *Start on login* writes
 `$XDG_CONFIG_HOME/autostart/io.github.D1ZZY4.PipewireEffects.desktop` with
 `Exec=pipewire-effects --no-window`, so the processing starts at sign-in without
 a window; launching the application again activates the running instance and
@@ -416,7 +450,7 @@ installed into the system here.
 
 ## 11. Verification
 
-- `cargo test --workspace`: 343 tests, no audio device needed.
+- `cargo test --workspace`: 359 tests, no audio device needed.
   Two of them need a display and skip themselves without one: the bundled icon
   lookup and the icon-theme check.
 - The R128 measurement is checked against the standard's own calibration: a
@@ -458,8 +492,11 @@ installed into the system here.
   tone reaches the chain at and the level reduction of a −20 dB gain stage. The
   input test starts the microphone pipeline and records from
   `pipewire-effects-source` with `pw-cat --record`, then asserts that the
-  virtual source exists and that the recording drove the input chain. Four tests,
-  `#[ignore]`d so they do not run by default.
+  virtual source exists and that the recording drove the input chain. Four of
+  the six live tests are these; `crates/engine/tests/live_gpu.rs` adds one for
+  `GPU` and one for `Both`, described in section 12. All six are `#[ignore]`d so
+  they do not run by default, and they serialise on a process-wide lock because
+  they mutate the shared graph.
 - The command line is parsed without a dependency and covered by tests: the flags
   in both spellings, the rejection of an unknown option, and that the help text
   lists every option.
@@ -531,49 +568,94 @@ installed into the system here.
 
 ### CPU baseline
 
-`cargo run --release -p pwe-dsp --example benchmark` times each effect and the
+`cargo test --release -p pwe-dsp --test benchmark -- --ignored --nocapture` times
+each effect and the
 full twenty-three-effect chain on the machine it runs on: a 48 kHz stereo stream, a
 per-block wall clock over 2 000 blocks, and the tone-generation cost subtracted
-so the numbers are the effects. On the development machine (Intel Core i7-7500U,
-two cores and four threads, `rustc 1.99.1`, release profile with thin LTO) a
-representative run gave:
+so the numbers are the effects. It also fails if the full chain ever needs more
+than half of a block. The verification run (Intel Core i7-7500U, two cores and
+four threads, `rustc 1.99.1`, release profile with thin LTO, concurrent desktop
+load from Firefox and GNOME Shell) gave:
 
-| Workload | 1024 frames per block | 128 frames per block |
-|---|---|---|
-| All twenty-three effects | 1743 µs/block · 12.2× realtime · 8.17 % of one core | 272 µs/block · 9.8× realtime · 10.2 % of one core |
-| Voice suppressor (heaviest) | 418 µs/block | 104 µs/block |
-| Multiband compressor | 285 µs/block | 37 µs/block |
-| Multiband gate | 266 µs/block | 35 µs/block |
-| Reverberation | 101 µs/block | 12.3 µs/block |
-| Equalizer | 81 µs/block | 9.5 µs/block |
-| Gain (lightest) | 1.9 µs/block | 0.04 µs/block |
+| Workload | 1024 frames per block |
+|---|---|
+| All twenty-three effects | 6269 μs/block · 3.4× realtime · 29.4 % of one core |
+| Voice suppressor (heaviest) | 1121 μs/block · 5.3 % of one core |
+| Reverberation | 469 μs/block · 2.2 % of one core |
+| Multiband compressor | 399 μs/block · 1.9 % of one core |
+| Multiband gate | 321 μs/block · 1.5 % of one core |
+| Delay | 220 μs/block · 1.0 % of one core |
+| Equalizer | 101 μs/block · 0.48 % of one core |
+| Gain (lightest) | below the timer resolution |
 
-The whole chain uses between about 8 % and 10 % of one core and leaves roughly
-ten to twelve times the deadline free at both quantum sizes, which is the
-headroom the realtime callback needs for scheduling jitter. The three spectral
-effects added last are the expensive ones: the voice suppressor alone is a
-quarter of the chain at 1024 frames because it runs a 1024-point STFT on every
-block. Repeated runs vary with machine load: two back-to-back runs of the same
-binary measured 12.5x and 12.2x realtime at 1024 frames and 10.0x and 9.8x at 128
-frames, so the figures are a range rather than a single number. At 128 frames the
-cheapest effects measure at or below the timer resolution, so their small-block
-figures are a floor, not a precise cost. These are wall-clock figures from one
-machine, not a portable claim; re-run the example to reproduce them.
+The whole chain still finishes in a third of the 21.3 ms deadline and leaves
+about 3.4× realtime of headroom on a loaded two-core laptop. The three spectral
+effects are the expensive ones: the voice suppressor alone is about a sixth of
+the chain because it runs a 1024-point STFT on every block. These are
+wall-clock figures from one machine under concurrent load, not a portable
+claim; an earlier run on the same machine measured 1743 μs and 12.2× realtime
+when idle, so the range is roughly 1.7–6.3 ms for the full chain. Re-run the
+measurement to reproduce a figure on other hardware, and read it together with
+the load on the machine.
 
-### GPU acceleration
 
-No GPU backend is implemented, and the numbers above are the reason. The entire
-chain costs under a tenth of a single core, so off-loading any of it would add a
-transfer, a synchronisation point and a dispatch to a callback whose budget is
-21 ms (2.7 ms at 128 frames), while the effects are recursive per-sample filters
-with a serial dependency that does not parallelise. The only workload that could
-benefit is FFT convolution, which is a different effect from the ones here (the
-convolver is not implemented), so a GPU backend would accelerate nothing that
-ships. The machine does expose an Intel iGPU through a Mesa Vulkan ICD
-(`intel_icd.json`, `libvulkan.so.1.4.363`), so a Vulkan compute backend is
-technically available; it is deliberately not added, and the workspace carries no
-GPU dependency. The one FFT in the project is a hand-written radix-2 transform,
-not an external library.
+### Processing backend selection (CPU, GPU, Both)
+
+`Preferences` → `Audio processing` → `Processing backend` offers `CPU`, `GPU`
+and `Both`. The choice is stored as `audio_backend` in
+`$XDG_CONFIG_HOME/pipewire-effects/settings.json`, applies to both pipelines,
+and is re-applied when a pipeline is started, retargeted or reconnected. It is
+a real processing selection, not a UI state: changing it restarts the running
+engines and rebuilds their chains against the selected backend.
+
+- **`CPU`** runs every effect on the audio thread. It is no longer the
+  built-in default: a fresh install selects `Both`, which keeps the GPU stage
+  and its CPU reference. A machine without a Vulkan device falls back to `CPU`
+  with a warning.
+- **`GPU`** runs the elementwise gain stages on a Vulkan compute device. A
+  gain stage is exactly the set of effects that expose
+  `Effect::elementwise_gain`, currently `gain`. Filters, dynamics, reverbs and
+  spectral effects keep per-sample recursive state and stay on the CPU; moving
+  them would require a device-resident chain and a different graph topology.
+- **`Both`** executes the same GPU stage and also computes the CPU reference
+  for each block. A block whose GPU result differs by more than
+  `max(1e-5, 1e-5 · |reference|)` is replaced by the CPU result and counted in
+  `gpu_disagreements`.
+
+The realtime contract for the GPU stage is fixed:
+
+1. The Vulkan instance, physical device, queue, buffers, descriptor set,
+   pipeline and shader are created once when the engine starts, and a warm-up
+   dispatch runs there, never in the audio callback.
+2. Per block the stage copies host-mapped samples in, records and submits one
+   dispatch, waits for the fence, and copies the result out. The wait is
+   bounded by **half of the current block duration**, computed from the frame
+   count and sample rate, with a 100 µs floor and a 25 ms ceiling. It never
+   allocates, locks or logs in the callback.
+3. If the fence misses that deadline, or the device reports an error, the CPU
+   applies the gain for that block and the `GPU fallbacks` counter increments.
+   Audio is still correct. Three consecutive deadline misses, or any Vulkan
+   error, latch the accelerator off for that engine and the chain continues on
+   the CPU.
+4. If no Vulkan compute device exists, selecting `GPU` or `Both` reports a
+   warning and keeps the CPU selection; a configuration file that names a GPU
+   backend on another machine degrades to CPU with a warning at engine start.
+
+Measured on the development machine (Intel Core i7-7500U, Intel HD Graphics
+620, `rustc 1.99.1`, release): one 1024-frame stereo gain block costs 0.17–0.22 µs
+on the CPU and 140–330 µs through the persistent GPU stage depending on desktop
+load; a one-shot GPU call including device setup costs 11–29 ms. The GPU path is
+therefore slower than the CPU on this hardware. It is offered because it is a real backend the user can
+select and verify, not because it improves throughput; the application never
+claims GPU acceleration as a performance win.
+
+The live tests `crates/engine/tests/live_gpu.rs` run the real daemon, a
+private virtual sink and `pw-cat`, once for `GPU` and once for `Both`. They
+assert that processed frames reached the chain, that GPU blocks were counted,
+that deadline fallbacks stayed below a tenth of the blocks, and that `Both`
+reported zero disagreements. These are `#[ignore]`d like the other live tests
+and are run explicitly. The decision and its evidence are pinned here so a
+later change cannot silently turn the setting into a mock or delete it.
 
 ## 13. Interface review
 
@@ -604,8 +686,8 @@ What the first pass changed:
   replaced with the effect's plain symbolic icon, drawn in the theme's own
   foreground colour with no background, matching the rest of the desktop.
 - The row menu: move and remove were always present and competed with the switch;
-  the menu button is now revealed on pointer hover and on a secondary click,
-  so the switch is the only control at rest.
+  the menu button is now drawn on every row instead of appearing on hover, so the
+  reorder and remove actions are reachable without a pointer gesture.
 
 The narrow window and the light appearance were captured after each fix. The
 live meters were captured with the session's real audio routed through the
@@ -744,7 +826,7 @@ pass, not a regression; the earlier walk, with the slider names and value text,
 remains the record for the interactive controls.
 
 `scripts/capture-ui.sh` was re-run unchanged; `scripts/update-po.sh` regenerates
-`po/pipewire-effects.pot` (372 messages), and
+`po/pipewire-effects.pot` (379 messages), and
 `make install DESTDIR=<staging> PREFIX=/usr` installed the
 binary, the desktop entry, both icon sets and the built-in preset into a staging
 tree and `make uninstall` removed exactly what it installed.
@@ -808,3 +890,76 @@ to the built-in), with the process alive at every step. The shell helpers
 (`install_breakpoint`, `sidebar_toggle`) were moved from `pages.rs` into
 `chrome.rs` in the same pass, which brought every interface source file back
 under the 350-line limit.
+
+The backend-setting pass added the *Processing backend* chooser and verified it
+on the running application rather than in a mock. A private
+`XDG_CONFIG_HOME` containing
+`{"audio_backend":"both","preset":"Default","developer_mode":true}` was used to
+launch the release binary; the *Preferences* capture showed `Both` selected
+before any interaction, and the diagnostics capture read 677 GPU blocks, 1
+fallback and 0 disagreements on the Intel HD 620, which is the proof that the
+saved setting reaches engine construction and the real processing path. The same
+path was exercised with `GPU` and `Both` through
+`crates/engine/tests/live_gpu.rs` against the live daemon and a private virtual
+sink: 37–47 GPU blocks per run, at most one deadline fallback in ten runs, and
+zero disagreements. The built-in *Default* preset gained a transparent 0 dB
+`gain` stage so the elementwise path exists on a fresh installation; without it
+the GPU counters correctly stayed at zero and the choice looked inert.
+
+The same pass captured `preferences` and `gpu` in the light and the dark
+appearance, plus `save`, `delete`, `modified`, `preset-menu`, `chain`, `presets`,
+`devices`, `about`, `input`, `narrow`, and the phone layouts. The save button in
+the preset action row no longer carries a filled rounded background: it is a
+flat button whose symbolic glyph is drawn in the theme accent colour, matching
+the red delete glyph next to it. The harness was also corrected in this pass:
+`modified` and `preset-menu` used to add a second `gain` stage after the built-in
+preset had gained one, and they now add a `delay` instead, which is what makes
+the loaded preset modified. The `preset-menu` capture from
+`scripts/capture-ui.sh` cannot show the popover itself because a `GtkPopover` is
+a separate surface; it shows the row with its menu button active.
+`scripts/capture-screen.sh` takes the whole X root window under `Xvfb`, and its
+`preset-menu` PNG shows the open popover with *Update preset* and *Revert
+changes*, so the menu is verified by a capture rather than by wiring alone.
+
+No PipeWire daemon, device profile, default route or system setting was changed
+by these captures themselves. The application's virtual nodes keep
+`node.virtual = true`, `priority.session = 0`, `state.restore-props = false` and
+`state.restore-target = false`, and its engine ignores a `default.audio.sink`
+value that names one of its own nodes. During this pass the session's
+`default.audio.sink` metadata was found pointing at `pipewire-effects-sink`,
+left there by an earlier session; the real built-in device was restored with
+`wpctl set-default` and the live tests were then re-run, after which the default
+stayed on the real device and the app's sink appeared only as a lower-priority
+fallback entry. The rule for future sessions is recorded in `AGENTS.md`: check
+`pw-metadata -n default | grep default.audio.sink` after a run and never leave an
+internal node as the default.
+
+The final pass moved the diagnostics out of Preferences and made the processing
+backend default to `Both`. *Developer mode* in Preferences now only controls
+whether a *Diagnostics* entry exists in the main menu; the entry is a
+`gio::MenuItem` with the `hidden-when = action-disabled` attribute and the
+`win.diagnostics` action is enabled from the persisted developer-mode setting,
+so the menu can never show a dead entry. The counters, the detected compute
+devices and the messages live in the `Diagnostics` dialog
+(`crates/ui/src/diagnostics.rs`, `crates/ui/src/pages.rs`) and the Preferences
+page no longer carries them. The menu was captured with
+`scripts/capture-screen.sh`: `menu` shows *Devices*, *Preferences*, *About
+PipeWire Effects* and *Quit* with no *Diagnostics*, and `menu-developer` shows
+*Diagnostics* at `Ctrl`+`5`; the `developer` capture shows the dialog itself
+with the live counters (`target/ui-screens-light/menu-prefer-light.png`,
+`menu-developer-prefer-light.png`, `developer-prefer-light.png`). The
+`Preferences` capture in the dark appearance shows *Both* as the selected
+backend and *Developer mode* with the subtitle *Adds a Diagnostics entry to the
+main menu*, and no counters on the page.
+
+Toggling *Developer mode* was checked through the real widget, not by calling
+the state setter: the `dev-live` harness state opens Preferences, flips the
+`Developer mode` switch the same way a pointer would, closes the dialog and
+opens the main menu. The capture
+(`target/ui-screens-light/dev-live-prefer-light.png`) shows *Diagnostics* with
+`Ctrl`+`5` in the menu, which is the interactive path the earlier screen misses.
+The first version of the change enabled the `win.diagnostics` action only when
+the chain signature changed, so the entry stayed hidden until an unrelated
+refresh; `Ui::refresh` now sets the action from the persisted developer-mode
+value on every 50 ms tick, and the `dev-live` capture is the regression check
+for that fix.

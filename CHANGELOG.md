@@ -66,10 +66,11 @@ keeps working in the next.
 - `scripts/capture-ui.sh`, which renders every interface state on an isolated
   headless GNOME session and writes one PNG per state, and `scripts/update-po.sh`.
   See `scripts/README.md`.
-- `crates/dsp/examples/benchmark.rs`, a reproducible CPU baseline. It times each
+- `crates/dsp/tests/benchmark.rs`, a reproducible CPU baseline. It times each
   effect and the full twenty-three-effect chain and prints microseconds per block, the
-  realtime factor and the cost as a percentage of one core, at two block sizes.
-  `cargo run --release -p pwe-dsp --example benchmark`.
+  realtime factor and the cost as a percentage of one core, at a 1024-frame block,
+  and fails if the whole chain ever needs more than half of the block.
+  `cargo test --release -p pwe-dsp --test benchmark -- --ignored --nocapture`.
 - The window's navigation is an *Output* / *Input* switcher in the header. Each
   pipeline owns its own sidebar, its own *In* and *Out* meters and its own
   editor, so a chain is never drawn against another pipeline's levels. The effect
@@ -86,6 +87,38 @@ keeps working in the next.
   `crates/dsp/src/r128.rs`: ITU-R BS.1770 K-weighting for the running sample
   rate, 400 ms blocks at a 100 ms hop, the absolute −70 LUFS and relative −10 LU
   gates, and the −0.691 offset.
+- A preset can be unloaded and duplicated. The check button on a preset row is
+  accented for the loaded preset and unloads it, which clears the chain and
+  leaves no preset active; a *Clone* button in the preset actions duplicates the
+  loaded preset, both sections, under a new name in the user directory.
+- *Auto-save preset edits* and an *Update interval* in Preferences. When it is
+  on, an edit to the loaded preset is written back to the preset after the
+  interval has passed without further changes. A modified loaded preset also
+  offers *Update preset* and *Revert changes* from its own row.
+- A selectable processing backend in *Preferences*: `CPU`, `GPU` or `Both`.
+  `GPU` runs the elementwise gain stage on a Vulkan compute device through
+  `crates/engine/src/gpu` (the `ash` crate, `scale.comp` compiled to
+  `scale.spv`), while recursive and spectral effects stay on the CPU. `Both`
+  adds a per-block CPU reference and replaces a result that disagrees by more
+  than `max(1e-5, 1e-5 · |reference|)`. The choice is stored as `audio_backend`,
+  applies to both pipelines, and restarts the running engines when changed. The
+  instance, device, buffers, pipeline and a warm-up dispatch are prepared before
+  the audio thread starts. Per block the fence wait is capped at half the block
+  duration (100 µs floor, 25 ms ceiling); a miss applies the gain on the CPU and
+  increments `GPU fallbacks`, and three consecutive misses or a Vulkan error
+  latch the accelerator off for that engine. Six unit tests cover the probe,
+  the persistent scaler, the compute path, backend parsing and the accelerator,
+  and two ignored live tests run `GPU` and `Both` against a real daemon and a
+  private sink. The ignored timing test measured one 1024-frame stereo block at
+  0.17–0.22 µs on the CPU and 140–330 µs through the persistent GPU stage
+  depending on load, so the setting is a real backend choice, not a performance
+  claim. The built-in default is `Both`, so a fresh installation off-loads the
+  gain stage and verifies it against the CPU; a machine without a Vulkan device
+  reports a warning and keeps the CPU path.
+- The engine counters, the detected Vulkan compute devices and the diagnostic
+  messages moved out of *Preferences* into a *Diagnostics* dialog (`Ctrl`+`5`).
+  *Developer mode* now adds a *Diagnostics* entry to the main menu, and the
+  entry is absent while the switch is off.
 
 ### Fixed
 
@@ -234,6 +267,22 @@ keeps working in the next.
 
 ### Changed
 
+- The `pwe-settings` crate is renamed `pwe-services`; it still owns the settings
+  document, its atomic store and the autostart entry.
+- The save action in the preset row is a flat button with an accent-coloured
+  glyph instead of a filled rounded `suggested-action` button, so it matches the
+  flat import, export, clone and delete actions beside it.
+- The effect chain menu button is drawn on every row instead of appearing only
+  while the pointer is over the row, so *Move up*, *Move down* and *Remove* are
+  reachable without hovering. A separator now divides the effect chain from the
+  preset area in the sidebar.
+- The *Presets* heading is gone. The preset actions row (save, import, export,
+  delete, clone) now sits above the preset list, under the divider from the
+  effect chain, and each preset row carries a round check button that loads or
+  unloads that preset.
+- Every preset row shows its name in bold with its origin (`Built in`,
+  `User preset`, `System preset`) on the same line. The *Delete preset* dialog is
+  sized like the other dialogs instead of hugging its content.
 - The *Devices* dialog no longer shows a *State* row. It repeated the pipeline
   state that the chain's *Effects* toggle and the switcher already carry; the
   *Format* and *Quantum* rows stay, and the *Reconnect* button, which used to
@@ -291,11 +340,10 @@ keeps working in the next.
 - The Devices page follows the pipeline that is being edited, and reports which
   one the counters and the destination belong to.
 - The effect chain and the editor are laid out with `adw::OverlaySplitView`, and
-  the pages are reachable with the `Ctrl`+`1`, `Ctrl`+`2` and `Ctrl`+`3`
-  accelerators.
+  each pipeline is reachable with the `Ctrl`+`1` and `Ctrl`+`2` accelerators.
 - The chain sidebar is quieter: each row carries the effect's own symbolic icon
   and an enable switch, the reorder and remove actions live behind a menu button
-  revealed on hover, and one plain sentence reports the engine state. The earlier
+  drawn on every row, and one plain sentence reports the engine state. The earlier
   summary line and coloured status dot were removed because they duplicated the
   rows and did not say what they measured.
 - The live PipeWire processing test opens its own virtual sink under a

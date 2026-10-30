@@ -92,10 +92,11 @@ Reference evidence refers to files under `references/`.
 | Device selection | `pw_manager.cpp` | Implemented | Each pipeline follows its own metadata key (`default.audio.sink`, `default.audio.source`), read before the virtual node is created; a device picked by hand wins, is persisted, and *System default* returns to the automatic choice. The `priority.session` heuristic stays as the fallback. |
 | Following the default device | `bestHardwareOutputDeviceName` | Implemented | The metadata object is watched while the engine runs; a change rebuilds the two streams for the new device. |
 | Level meters | `output_level.cpp` | Implemented | Input and output, peak with an RMS marker, 20 Hz refresh, for whichever pipeline is being edited. Both meters run through `LevelMeter`, so an empty chain reports the same level at both. |
-| Spectrum analyser | `src/spectrum.cpp` | Not implemented | Requires an FFT. |
-| Statistics and diagnostics | reference logs + advanced info page | Implemented | Captured/processed frames, underruns, overruns, trims, ring occupancy, warnings, per pipeline. Shown in Preferences, and only while *Developer mode* is on. |
-| Developer mode | reference advanced info page | Implemented | A switch in Preferences reveals the engine counters and the diagnostic messages; the choice is persisted in the settings file. |
-| Main menu | reference hamburger menu | Implemented | *Devices*, *Preferences*, *About PipeWire Effects* and *Quit*. Devices and Preferences open `adw::PreferencesDialog`s; `Ctrl`+`4` and `Ctrl`+`,` activate them. |
+| Spectrum analyser | `src/spectrum.cpp` | Not implemented | The FFT exists (`crates/dsp/src/fft.rs`, used by the voice suppressor); the analyser view and its double-buffered hand-off were not written. |
+| Statistics and diagnostics | reference logs + advanced info page | Implemented | Captured/processed frames, underruns, overruns, trims, ring occupancy, detected compute devices, GPU blocks/fallbacks/disagreements and warnings, per pipeline. Shown in a *Diagnostics* dialog opened from the main menu, and the menu entry exists only while *Developer mode* is on. |
+| Developer mode | reference advanced info page | Implemented | A switch in Preferences adds a *Diagnostics* entry to the main menu; the entry is absent while the switch is off. The choice is persisted in the settings file. |
+| Processing backend | no reference equivalent (the reference is CPU-only) | Implemented | `Preferences → Processing backend` offers CPU, GPU and Both, with Both as the built-in default. GPU runs the elementwise gain stage on a Vulkan compute device and keeps recursive/spectral effects on the CPU; Both adds a per-block CPU reference and replaces a disagreeing result. The choice is persisted as `audio_backend`, applies to both pipelines, and restarts the running engines. The wait is bounded by half the block duration and a miss falls back to the CPU; a machine with no Vulkan device keeps CPU with a warning. Verified by two live tests against a real daemon and a private sink, and by the accelerator unit tests. |
+| Main menu | reference hamburger menu | Implemented | *Devices*, *Preferences*, *Diagnostics*, *About PipeWire Effects* and *Quit*. Devices, Preferences and Diagnostics open `adw::PreferencesDialog`s; `Ctrl`+`4`, `Ctrl`+`,` and `Ctrl`+`5` activate them. *Diagnostics* is hidden unless Developer mode is on. |
 | Top-level navigation | reference device/page tabs | Implemented | An *Output* / *Input* switcher in the header (`Ctrl`+`1`, `Ctrl`+`2`) selects the pipeline; each owns its sidebar, meters and editor. The preset library lives in each pipeline's sidebar rather than on a page of its own. |
 | Adaptive layout | reference mobile layout | Implemented | Below 860 px the sidebar collapses into a drawer with a back button, the switcher drops to its icon-only policy, and the window's minimum size is 360x480. Captured at 720x620 and 360x740 in both appearances. |
 | Buffer size / samplerate control | `DbMain`, kcfg | Not applicable | The graph rate and quantum are owned by PipeWire and followed, not forced. |
@@ -111,18 +112,18 @@ Reference evidence refers to files under `references/`.
 
 | Area | Count | Location |
 |---|---|---|
-| Core primitives (buffers, parameters, chain, meters, math, pipeline kinds, gettext lookup) | 35 | `crates/core/src/**` |
-| DSP (biquads, the FFT, the Linkwitz-Riley crossover, twenty-three effects, registry, R128 measurement) | 134 | `crates/dsp/src/**`, `crates/dsp/tests/` |
-| Engine (config, devices, target resolution, metadata, processor, stream properties, byte conversion, registry filtering) | 29 | `crates/engine/src/**` |
-| Presets (schema, coercion, storage, built-ins, reference conversion for both sections) | 109 | `crates/presets/src/**` |
-| Settings (model, atomic store, autostart entry) | 9 | `crates/settings/src/**` |
-| Interface (formatting, icons, response axis, state model, banners, device labels) | 23 | `crates/ui/src/**` |
+| Core primitives (buffers, parameters, chain, meters, math, pipeline kinds, gettext lookup) | 37 | `crates/core/src/**` |
+| DSP (biquads, the FFT, the Linkwitz-Riley crossover, twenty-three effects, registry, R128 measurement) | 135 | `crates/dsp/src/**`, `crates/dsp/tests/` |
+| Engine (config, devices, target resolution, metadata, processor, stream properties, byte conversion, registry filtering, Vulkan probe/accelerator) | 35 | `crates/engine/src/**` |
+| Presets (schema, coercion, storage, built-ins, reference conversion for both sections) | 111 | `crates/presets/src/**` |
+| Settings (model, atomic store, autostart entry) | 11 | `crates/services/src/**` |
+| Interface (formatting, icons, response axis, state model, banners, device labels) | 26 | `crates/ui/src/**` |
 | Command line (parsing, help, exported presets) | 4 | `crates/app/src/cli.rs` |
-| Live PipeWire integration (ignored by default) | 4 | `crates/engine/tests/live_pipewire.rs` |
+| Live integration (four PipeWire, two Vulkan backend, ignored by default) | 6 | `crates/engine/tests/live_*.rs` |
 
-`cargo test --workspace` therefore runs 343 tests. None of them need an audio
+`cargo test --workspace` therefore runs 359 tests. None of them need an audio
 device. Two of the interface tests look up icons in the live icon theme and skip
-themselves when no display is available. The four live tests are `#[ignore]`d and
+themselves when no display is available. The six live tests are `#[ignore]`d and
 are run explicitly against a running daemon.
 
 ## 3.1 Interface verification

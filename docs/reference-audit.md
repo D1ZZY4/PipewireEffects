@@ -214,4 +214,4 @@ The reference directory was not modified at any point.
 | EBU R128 loudness (libebur128) | Implemented here from scratch: `crates/dsp/src/r128.rs` applies the ITU-R BS.1770 K-weighting for the running sample rate, 400 ms blocks at a 100 ms hop, the absolute −70 LUFS and relative −10 LU gates, and the −0.691 offset, over a rolling 30-second window. Auto gain drives its gain from that measurement. |
 | KConfig settings | Plain JSON presets plus runtime-only engine settings. |
 | Metadata-driven default device | `default.audio.sink` is read before the sink is created and watched while the engine runs; `priority.session` remains the fallback |
-| The local socket server and the command line options | Not implemented; the interface is the only control surface in this increment. |
+| The local socket server | Not implemented. The command line options are implemented (`crates/app/src/cli.rs`); there is no socket control surface. |
