@@ -209,10 +209,12 @@ fn report_state(
             shared.update_snapshot(|snapshot| snapshot.channels = channels);
         }
         pw::stream::StreamState::Unconnected | pw::stream::StreamState::Paused => {
-            shared.add_warning(tr(
-                "the {0} {1} stream left {2} for {3}",
-                &[kind.noun(), which, &format!("{old:?}"), &format!("{new:?}")],
-            ));
+            if matches!(old, pw::stream::StreamState::Streaming) {
+                shared.add_warning(tr(
+                    "the {0} {1} stream left {2} for {3}",
+                    &[kind.noun(), which, &format!("{old:?}"), &format!("{new:?}")],
+                ));
+            }
         }
         _ => {}
     }
