@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PipeWire Effects 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/D1ZZY4/PipewireEffects/issues\n"
-"POT-Creation-Date: 2026-10-30 06:46+0700\n"
+"POT-Creation-Date: 2026-10-30 09:39+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -122,13 +122,13 @@ msgstr ""
 #: crates/core/src/param/spec.rs:301 crates/core/src/param/value.rs:81
 #: crates/core/src/param/value.rs:92 crates/dsp/src/registry.rs:197
 #: crates/dsp/src/effects/filter.rs:20 crates/dsp/src/effects/gain.rs:8
-#: crates/presets/src/model.rs:181 crates/ui/src/editor.rs:241
+#: crates/presets/src/model.rs:187 crates/ui/src/editor.rs:242
 msgid "Gain"
 msgstr ""
 
 #: crates/core/src/param/spec.rs:310 crates/dsp/src/effects/crusher.rs:12
 #: crates/dsp/src/effects/deesser.rs:28 crates/dsp/src/effects/filter.rs:9
-#: crates/presets/src/model.rs:210 crates/ui/src/editor.rs:245
+#: crates/presets/src/model.rs:216 crates/ui/src/editor.rs:246
 msgid "Mode"
 msgstr ""
 
@@ -149,16 +149,14 @@ msgstr ""
 #: crates/dsp/src/effects/gain.rs:13 crates/dsp/src/effects/gate.rs:37
 #: crates/dsp/src/effects/limiter.rs:16
 #: crates/dsp/src/effects/midside_equalizer.rs:81
-#: crates/dsp/src/effects/multiband_compressor.rs:146
-#: crates/dsp/src/effects/multiband_gate.rs:146
-#: crates/dsp/src/effects/reverb.rs:32 crates/dsp/src/effects/reverb.rs:37
-#: crates/dsp/src/effects/reverb.rs:42
-#: crates/dsp/src/effects/voice_suppressor.rs:38 crates/ui/src/pages.rs:97
+#: crates/dsp/src/effects/multiband.rs:49 crates/dsp/src/effects/reverb.rs:32
+#: crates/dsp/src/effects/reverb.rs:37 crates/dsp/src/effects/reverb.rs:42
+#: crates/dsp/src/effects/voice_suppressor.rs:38
 msgid "Output"
 msgstr ""
 
 #: crates/core/src/pipeline.rs:20 crates/dsp/src/effects/limiter.rs:11
-#: crates/dsp/src/effects/stereo_tools.rs:13 crates/ui/src/pages.rs:103
+#: crates/dsp/src/effects/stereo_tools.rs:13
 msgid "Input"
 msgstr ""
 
@@ -471,8 +469,8 @@ msgstr ""
 #: crates/dsp/src/effects/compressor.rs:12 crates/dsp/src/effects/deesser.rs:18
 #: crates/dsp/src/effects/expander.rs:12 crates/dsp/src/effects/gate.rs:9
 #: crates/dsp/src/effects/maximizer.rs:10
-#: crates/dsp/src/effects/multiband_compressor.rs:100
-#: crates/dsp/src/effects/multiband_gate.rs:100
+#: crates/dsp/src/effects/multiband_compressor.rs:64
+#: crates/dsp/src/effects/multiband_gate.rs:64
 msgid "Threshold"
 msgstr ""
 
@@ -490,43 +488,41 @@ msgstr ""
 
 #: crates/dsp/src/effects/compressor.rs:18 crates/dsp/src/effects/deesser.rs:23
 #: crates/dsp/src/effects/expander.rs:18
-#: crates/dsp/src/effects/multiband_compressor.rs:107
+#: crates/dsp/src/effects/multiband_compressor.rs:71
 msgid "Ratio"
 msgstr ""
 
 #: crates/dsp/src/effects/compressor.rs:23
 #: crates/dsp/src/effects/expander.rs:23
-#: crates/dsp/src/effects/multiband_compressor.rs:114
+#: crates/dsp/src/effects/multiband_compressor.rs:78
 msgid "Knee"
 msgstr ""
 
 #: crates/dsp/src/effects/compressor.rs:28 crates/dsp/src/effects/deesser.rs:29
 #: crates/dsp/src/effects/expander.rs:28 crates/dsp/src/effects/gate.rs:19
-#: crates/dsp/src/effects/multiband_compressor.rs:121
-#: crates/dsp/src/effects/multiband_gate.rs:114
+#: crates/dsp/src/effects/multiband_compressor.rs:85
+#: crates/dsp/src/effects/multiband_gate.rs:78
 msgid "Attack"
 msgstr ""
 
 #: crates/dsp/src/effects/compressor.rs:33 crates/dsp/src/effects/deesser.rs:34
 #: crates/dsp/src/effects/expander.rs:33 crates/dsp/src/effects/gate.rs:29
 #: crates/dsp/src/effects/limiter.rs:18 crates/dsp/src/effects/maximizer.rs:15
-#: crates/dsp/src/effects/multiband_compressor.rs:128
-#: crates/dsp/src/effects/multiband_gate.rs:128
+#: crates/dsp/src/effects/multiband_compressor.rs:92
+#: crates/dsp/src/effects/multiband_gate.rs:92
 msgid "Release"
 msgstr ""
 
 #: crates/dsp/src/effects/compressor.rs:38
 #: crates/dsp/src/effects/expander.rs:38
-#: crates/dsp/src/effects/multiband_compressor.rs:135
-#: crates/dsp/src/effects/multiband_gate.rs:135
+#: crates/dsp/src/effects/multiband_compressor.rs:99
+#: crates/dsp/src/effects/multiband_gate.rs:99
 msgid "Makeup"
 msgstr ""
 
 #: crates/dsp/src/effects/compressor.rs:43 crates/dsp/src/effects/crusher.rs:18
 #: crates/dsp/src/effects/delay.rs:25 crates/dsp/src/effects/expander.rs:43
-#: crates/dsp/src/effects/gate.rs:34
-#: crates/dsp/src/effects/multiband_compressor.rs:143
-#: crates/dsp/src/effects/multiband_gate.rs:143
+#: crates/dsp/src/effects/gate.rs:34 crates/dsp/src/effects/multiband.rs:46
 #: crates/dsp/src/effects/voice_suppressor.rs:35
 msgid "Mix"
 msgstr ""
@@ -615,14 +611,13 @@ msgstr ""
 msgid "Amount"
 msgstr ""
 
-#: crates/dsp/src/effects/crystalizer.rs:23 crates/ui/src/format.rs:74
+#: crates/dsp/src/effects/crystalizer.rs:23 crates/ui/src/format.rs:65
 msgid "Effect"
 msgstr ""
 
 #: crates/dsp/src/effects/crystalizer.rs:32
 #: crates/dsp/src/effects/equalizer.rs:47
-#: crates/dsp/src/effects/multiband_compressor.rs:68
-#: crates/dsp/src/effects/multiband_gate.rs:68
+#: crates/dsp/src/effects/multiband.rs:22
 msgid "Bands"
 msgstr ""
 
@@ -750,19 +745,19 @@ msgstr ""
 msgid "Order"
 msgstr ""
 
-#: crates/dsp/src/effects/gain.rs:13 crates/ui/src/editor.rs:244
+#: crates/dsp/src/effects/gain.rs:13 crates/ui/src/editor.rs:245
 msgid "Mute"
 msgstr ""
 
 #: crates/dsp/src/effects/gate.rs:14
-#: crates/dsp/src/effects/multiband_gate.rs:107
+#: crates/dsp/src/effects/multiband_gate.rs:71
 #: crates/dsp/src/effects/voice_suppressor.rs:17
 #: crates/dsp/src/effects/voice_suppressor.rs:22
 msgid "Range"
 msgstr ""
 
 #: crates/dsp/src/effects/gate.rs:24
-#: crates/dsp/src/effects/multiband_gate.rs:121
+#: crates/dsp/src/effects/multiband_gate.rs:85
 msgid "Hold"
 msgstr ""
 
@@ -783,54 +778,43 @@ msgstr ""
 msgid "Side gain"
 msgstr ""
 
-#: crates/dsp/src/effects/multiband_compressor.rs:59
-#: crates/dsp/src/effects/multiband_gate.rs:59
+#: crates/dsp/src/effects/multiband.rs:10
 msgid "Band 1"
 msgstr ""
 
-#: crates/dsp/src/effects/multiband_compressor.rs:60
-#: crates/dsp/src/effects/multiband_gate.rs:60
+#: crates/dsp/src/effects/multiband.rs:11
 msgid "Band 2"
 msgstr ""
 
-#: crates/dsp/src/effects/multiband_compressor.rs:61
-#: crates/dsp/src/effects/multiband_gate.rs:61
+#: crates/dsp/src/effects/multiband.rs:12
 msgid "Band 3"
+msgstr ""
+
+#: crates/dsp/src/effects/multiband.rs:13
+msgid "Band 4"
+msgstr ""
+
+#: crates/dsp/src/effects/multiband.rs:25
+#: crates/dsp/src/effects/multiband.rs:30
+#: crates/dsp/src/effects/multiband.rs:35
+#: crates/dsp/src/effects/multiband.rs:40
+msgid "Crossovers"
+msgstr ""
+
+#: crates/dsp/src/effects/multiband.rs:27
+msgid "Split 1"
+msgstr ""
+
+#: crates/dsp/src/effects/multiband.rs:32
+msgid "Split 2"
+msgstr ""
+
+#: crates/dsp/src/effects/multiband.rs:37
+msgid "Split 3"
 msgstr ""
 
 #: crates/dsp/src/effects/multiband_compressor.rs:62
 #: crates/dsp/src/effects/multiband_gate.rs:62
-msgid "Band 4"
-msgstr ""
-
-#: crates/dsp/src/effects/multiband_compressor.rs:71
-#: crates/dsp/src/effects/multiband_compressor.rs:78
-#: crates/dsp/src/effects/multiband_compressor.rs:85
-#: crates/dsp/src/effects/multiband_compressor.rs:92
-#: crates/dsp/src/effects/multiband_gate.rs:71
-#: crates/dsp/src/effects/multiband_gate.rs:78
-#: crates/dsp/src/effects/multiband_gate.rs:85
-#: crates/dsp/src/effects/multiband_gate.rs:92
-msgid "Crossovers"
-msgstr ""
-
-#: crates/dsp/src/effects/multiband_compressor.rs:75
-#: crates/dsp/src/effects/multiband_gate.rs:75
-msgid "Split 1"
-msgstr ""
-
-#: crates/dsp/src/effects/multiband_compressor.rs:82
-#: crates/dsp/src/effects/multiband_gate.rs:82
-msgid "Split 2"
-msgstr ""
-
-#: crates/dsp/src/effects/multiband_compressor.rs:89
-#: crates/dsp/src/effects/multiband_gate.rs:89
-msgid "Split 3"
-msgstr ""
-
-#: crates/dsp/src/effects/multiband_compressor.rs:98
-#: crates/dsp/src/effects/multiband_gate.rs:98
 msgid "Enabled"
 msgstr ""
 
@@ -1127,19 +1111,19 @@ msgstr ""
 msgid "parameter '{0}' is not a finite number"
 msgstr ""
 
-#: crates/presets/src/store.rs:85
+#: crates/presets/src/store.rs:107
 msgid "{0} is unreadable: {1}"
 msgstr ""
 
-#: crates/presets/src/store.rs:101
+#: crates/presets/src/store.rs:123
 msgid "{0} was skipped: '{1}' is not a valid preset name"
 msgstr ""
 
-#: crates/presets/src/store.rs:110
+#: crates/presets/src/store.rs:132
 msgid "{0} declares the name '{1}'"
 msgstr ""
 
-#: crates/presets/src/store.rs:131
+#: crates/presets/src/store.rs:160
 msgid "{0} was skipped: {1}"
 msgstr ""
 
@@ -1147,28 +1131,28 @@ msgstr ""
 msgid "{0} was ignored: {1}"
 msgstr ""
 
-#: crates/ui/src/app.rs:108
+#: crates/ui/src/app.rs:109
 msgid "{0} is running without a window"
 msgstr ""
 
-#: crates/ui/src/app.rs:152 crates/ui/src/state.rs:269
+#: crates/ui/src/app.rs:153 crates/ui/src/state.rs:294
 msgid "'{0}' could not be loaded: {1}"
 msgstr ""
 
-#: crates/ui/src/app.rs:261
+#: crates/ui/src/app.rs:262
 msgid "PipeWire Effects contributors"
 msgstr ""
 
-#: crates/ui/src/app.rs:267
+#: crates/ui/src/app.rs:268
 msgid ""
 "Runs application audio through a chain of effects on a virtual PipeWire sink."
 msgstr ""
 
-#: crates/ui/src/app.rs:276
+#: crates/ui/src/app.rs:277
 msgid "PipeWire Effects could not start"
 msgstr ""
 
-#: crates/ui/src/app.rs:277
+#: crates/ui/src/app.rs:278
 msgid "Close"
 msgstr ""
 
@@ -1180,217 +1164,213 @@ msgstr ""
 msgid "'{0}' has no parameter '{1}'"
 msgstr ""
 
-#: crates/ui/src/chain_view.rs:42
+#: crates/ui/src/chain_view.rs:49 crates/ui/src/chain_view.rs:52
 msgid "Enable or disable this effect"
 msgstr ""
 
-#: crates/ui/src/chain_view.rs:96
+#: crates/ui/src/chain_view.rs:106
 msgid "Move up"
 msgstr ""
 
-#: crates/ui/src/chain_view.rs:97
+#: crates/ui/src/chain_view.rs:107
 msgid "Move down"
 msgstr ""
 
-#: crates/ui/src/chain_view.rs:98
+#: crates/ui/src/chain_view.rs:108
 msgid "Remove"
 msgstr ""
 
-#: crates/ui/src/chain_view.rs:110
+#: crates/ui/src/chain_view.rs:120
 msgid "Reorder or remove this effect"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:51 crates/ui/src/chrome.rs:53
-#: crates/ui/src/window.rs:279
-msgid "Bypass the effect chain"
-msgstr ""
-
-#: crates/ui/src/chrome.rs:55
-msgid "Stops the audio from passing through the effects without removing them"
-msgstr ""
-
-#: crates/ui/src/chrome.rs:64
+#: crates/ui/src/chrome.rs:50
 msgid "Main menu"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:73 crates/ui/src/pages.rs:90
+#: crates/ui/src/chrome.rs:59 crates/ui/src/chrome.rs:67
+msgid "Effects"
+msgstr ""
+
+#: crates/ui/src/chrome.rs:65
+msgid "Bypass the effect chain"
+msgstr ""
+
+#: crates/ui/src/chrome.rs:69
+msgid ""
+"Runs the audio through the effect chain; turn it off to bypass the chain"
+msgstr ""
+
+#: crates/ui/src/chrome.rs:78 crates/ui/src/pages.rs:92
 msgid "Devices"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:78 crates/ui/src/pages.rs:91
+#: crates/ui/src/chrome.rs:83 crates/ui/src/pages.rs:93
 msgid "Preferences"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:82
+#: crates/ui/src/chrome.rs:87
 msgid "About PipeWire Effects"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:83
+#: crates/ui/src/chrome.rs:88
 msgid "Quit"
 msgstr ""
 
-#: crates/ui/src/devices.rs:37 crates/ui/src/diagnostics.rs:44
+#: crates/ui/src/chrome.rs:149 crates/ui/src/chrome.rs:152
+msgid "Show or hide the effect chain"
+msgstr ""
+
+#: crates/ui/src/chrome.rs:154
+msgid "Shows or hides the effect chain and preset sidebar"
+msgstr ""
+
+#: crates/ui/src/devices.rs:34 crates/ui/src/diagnostics.rs:35
 msgid "Pipeline"
 msgstr ""
 
-#: crates/ui/src/devices.rs:40 crates/ui/src/diagnostics.rs:39
-msgid "State"
-msgstr ""
-
-#: crates/ui/src/devices.rs:41
-msgid "Connecting"
-msgstr ""
-
-#: crates/ui/src/devices.rs:45
-msgid "Reconnect"
-msgstr ""
-
-#: crates/ui/src/devices.rs:49
-msgid "Rebuild the streams against the audio server"
-msgstr ""
-
-#: crates/ui/src/devices.rs:57
+#: crates/ui/src/devices.rs:37
 msgid "Format"
 msgstr ""
 
-#: crates/ui/src/devices.rs:58 crates/ui/src/devices.rs:171
+#: crates/ui/src/devices.rs:38 crates/ui/src/devices.rs:151
 msgid "Waiting for the graph"
 msgstr ""
 
-#: crates/ui/src/devices.rs:61 crates/ui/src/diagnostics.rs:46
+#: crates/ui/src/devices.rs:39
+msgid "Reconnect"
+msgstr ""
+
+#: crates/ui/src/devices.rs:43
+msgid "Rebuild the streams against the audio server"
+msgstr ""
+
+#: crates/ui/src/devices.rs:51 crates/ui/src/diagnostics.rs:37
 msgid "Quantum"
 msgstr ""
 
-#: crates/ui/src/devices.rs:70
+#: crates/ui/src/devices.rs:59
 msgid "Routing"
 msgstr ""
 
-#: crates/ui/src/devices.rs:73 crates/ui/src/devices.rs:242
+#: crates/ui/src/devices.rs:62 crates/ui/src/devices.rs:222
 msgid "Output device"
 msgstr ""
 
-#: crates/ui/src/devices.rs:74
+#: crates/ui/src/devices.rs:63
 msgid "Automatic"
 msgstr ""
 
-#: crates/ui/src/devices.rs:91
+#: crates/ui/src/devices.rs:80
 msgid "Node name"
 msgstr ""
 
-#: crates/ui/src/devices.rs:107
+#: crates/ui/src/devices.rs:96
 msgid "Microphone input"
 msgstr ""
 
-#: crates/ui/src/devices.rs:110
+#: crates/ui/src/devices.rs:99
 msgid "Process the microphone"
 msgstr ""
 
-#: crates/ui/src/devices.rs:112
+#: crates/ui/src/devices.rs:101
 msgid "Runs the input chain and publishes the result as a virtual source"
 msgstr ""
 
-#: crates/ui/src/devices.rs:125 crates/ui/src/devices.rs:194
+#: crates/ui/src/devices.rs:114 crates/ui/src/devices.rs:174
 msgid "Virtual source"
 msgstr ""
 
-#: crates/ui/src/devices.rs:162
+#: crates/ui/src/devices.rs:148
 msgid "{0} pipeline"
 msgstr ""
 
-#: crates/ui/src/devices.rs:174
+#: crates/ui/src/devices.rs:154
 msgid "{0} · {1} channels"
 msgstr ""
 
-#: crates/ui/src/devices.rs:185
+#: crates/ui/src/devices.rs:165
 msgid "{0} frames · {1}"
 msgstr ""
 
-#: crates/ui/src/devices.rs:193
+#: crates/ui/src/devices.rs:173
 msgid "Virtual sink"
 msgstr ""
 
-#: crates/ui/src/devices.rs:205
+#: crates/ui/src/devices.rs:185
 msgid "Route an application to this sink, or make it the default output."
 msgstr ""
 
-#: crates/ui/src/devices.rs:208
+#: crates/ui/src/devices.rs:188
 msgid ""
 "Record from this source in an application, or make it the default input."
 msgstr ""
 
-#: crates/ui/src/devices.rs:232
+#: crates/ui/src/devices.rs:212
 msgid "No {0} device is available"
 msgstr ""
 
-#: crates/ui/src/devices.rs:234
+#: crates/ui/src/devices.rs:214
 msgid "System default · {0}"
 msgstr ""
 
-#: crates/ui/src/devices.rs:243
+#: crates/ui/src/devices.rs:223
 msgid "Input device"
 msgstr ""
 
-#: crates/ui/src/devices.rs:266
+#: crates/ui/src/devices.rs:246
 msgid "System default"
 msgstr ""
 
-#: crates/ui/src/devices.rs:288 crates/ui/src/devices.rs:302
-msgid "Copy"
-msgstr ""
-
-#: crates/ui/src/devices.rs:291
+#: crates/ui/src/devices.rs:271 crates/ui/src/devices.rs:273
 msgid "Copy this name to the clipboard"
 msgstr ""
 
-#: crates/ui/src/devices.rs:299
-msgid "Copied"
-msgstr ""
-
-#: crates/ui/src/diagnostics.rs:45
+#: crates/ui/src/diagnostics.rs:36
 msgid "Sample rate"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:47
+#: crates/ui/src/diagnostics.rs:38
 msgid "Ring occupancy"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:48
+#: crates/ui/src/diagnostics.rs:39
 msgid "Captured frames"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:49
+#: crates/ui/src/diagnostics.rs:40
 msgid "Processed frames"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:50
+#: crates/ui/src/diagnostics.rs:41
 msgid "Underruns"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:51
+#: crates/ui/src/diagnostics.rs:42
 msgid "Overruns"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:52
+#: crates/ui/src/diagnostics.rs:43
 msgid "Drift trims"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:55
+#: crates/ui/src/diagnostics.rs:46
 msgid "Engine counters"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:56
+#: crates/ui/src/diagnostics.rs:47
 msgid "Live values for the pipeline in view"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:73
+#: crates/ui/src/diagnostics.rs:63
 msgid "Engine"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:77
+#: crates/ui/src/diagnostics.rs:67
 msgid "Messages"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:79
+#: crates/ui/src/diagnostics.rs:69
 msgid "No messages"
 msgstr ""
 
@@ -1422,36 +1402,32 @@ msgstr ""
 msgid "No effect selected"
 msgstr ""
 
-#: crates/ui/src/editor.rs:94 crates/ui/src/pages.rs:173
+#: crates/ui/src/editor.rs:94 crates/ui/src/pages.rs:196
 msgid "Add an effect to start shaping your audio."
 msgstr ""
 
-#: crates/ui/src/pages.rs:76
+#: crates/ui/src/pages.rs:85
 msgid "Dismiss"
 msgstr ""
 
-#: crates/ui/src/pages.rs:109
-msgid "Presets"
-msgstr ""
-
-#: crates/ui/src/pages.rs:165
+#: crates/ui/src/pages.rs:180
 msgid "Add an effect to the chain"
 msgstr ""
 
-#: crates/ui/src/pages.rs:167
+#: crates/ui/src/pages.rs:186 crates/ui/src/pages.rs:188
+msgid "Close the effect chain"
+msgstr ""
+
+#: crates/ui/src/pages.rs:193
 msgid "In"
 msgstr ""
 
-#: crates/ui/src/pages.rs:168
+#: crates/ui/src/pages.rs:194
 msgid "Out"
 msgstr ""
 
-#: crates/ui/src/pages.rs:192
-msgid "{0} chain"
-msgstr ""
-
-#: crates/ui/src/pages.rs:247
-msgid "Show or hide the effect chain"
+#: crates/ui/src/pages.rs:239
+msgid "Presets"
 msgstr ""
 
 #: crates/ui/src/preferences.rs:23
@@ -1478,51 +1454,51 @@ msgstr ""
 msgid "Shows the engine counters and diagnostic messages below"
 msgstr ""
 
+#: crates/ui/src/presets_ui.rs:16
+msgid "Save the current chain as a preset"
+msgstr ""
+
 #: crates/ui/src/presets_ui.rs:18
-msgid "Saved presets"
+msgid "Import a preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:19
+msgid "Export the loaded preset"
 msgstr ""
 
 #: crates/ui/src/presets_ui.rs:20
-msgid "Activate a preset to replace the current effect chain."
+msgid "Delete a user preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:33
-msgid "Save current chain"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:35
-msgid "Import"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:36
-msgid "Export"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:37 crates/ui/src/presets_ui.rs:260
-msgid "Delete"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:70
+#: crates/ui/src/presets_ui.rs:53
 msgid "Built in"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:72
+#: crates/ui/src/presets_ui.rs:55
 msgid "User preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:74
+#: crates/ui/src/presets_ui.rs:57
 msgid "System preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:85
+#: crates/ui/src/presets_ui.rs:68
+msgid "No microphone presets yet"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:69
+msgid "Save the input chain to create one"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:74
 msgid "Skipped files"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:105
+#: crates/ui/src/presets_ui.rs:107
 msgid "The preset loaded with warnings: {0}"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:114
+#: crates/ui/src/presets_ui.rs:116
 msgid "The preset could not be loaded: {0}"
 msgstr ""
 
@@ -1534,107 +1510,115 @@ msgstr ""
 msgid "Import failed: {0}"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:154
+#: crates/ui/src/presets_ui.rs:155
 msgid "Load a preset before exporting it"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:162
+#: crates/ui/src/presets_ui.rs:163
 msgid "Export preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:166
+#: crates/ui/src/presets_ui.rs:169
 msgid "Preset exported"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:168
+#: crates/ui/src/presets_ui.rs:171
 msgid "Export failed: {0}"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:181
+#: crates/ui/src/presets_ui.rs:186
 msgid "My preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:186
+#: crates/ui/src/presets_ui.rs:191
 msgid "Save preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:187
+#: crates/ui/src/presets_ui.rs:192
 msgid "The current effect chain is stored under this name."
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:189
+#: crates/ui/src/presets_ui.rs:194
 msgid "Save"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:192
+#: crates/ui/src/presets_ui.rs:197
 msgid "A preset needs a name"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:199
+#: crates/ui/src/presets_ui.rs:204
 msgid "Preset saved"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:203
+#: crates/ui/src/presets_ui.rs:208
 msgid "The preset could not be saved: {0}"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:220
+#: crates/ui/src/presets_ui.rs:226
 msgid "There are no user presets to delete"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:225
+#: crates/ui/src/presets_ui.rs:231
 msgid "Delete preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:255
+#: crates/ui/src/presets_ui.rs:261
 msgid "Delete preset?"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:257
+#: crates/ui/src/presets_ui.rs:263
 msgid "'{0}' will be removed from your preset directory."
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:265
+#: crates/ui/src/presets_ui.rs:266
+msgid "Delete"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:272
 msgid "Preset deleted"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:268
+#: crates/ui/src/presets_ui.rs:275
 msgid "Could not delete: {0}"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:285
+#: crates/ui/src/presets_ui.rs:292
 msgid "{0} and {1} more"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:295
+#: crates/ui/src/presets_ui.rs:302
 msgid "Imported '{0}'"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:298
+#: crates/ui/src/presets_ui.rs:305
 msgid "Imported '{0}' with warnings: {1}"
 msgstr ""
 
-#: crates/ui/src/state.rs:209
+#: crates/ui/src/state.rs:209 crates/ui/src/state.rs:233
 msgid ""
 "the preset carries an input chain; turn on microphone processing to run it"
 msgstr ""
 
-#: crates/ui/src/state.rs:249
+#: crates/ui/src/state.rs:274
 msgid "the settings could not be saved: {0}"
 msgstr ""
 
-#: crates/ui/src/window.rs:153
+#: crates/ui/src/window.rs:157
 msgid "The effect could not be added; the chain may be full"
 msgstr ""
 
-#: crates/ui/src/window.rs:164
+#: crates/ui/src/window.rs:169
 msgid "The microphone pipeline could not start: {0}"
 msgstr ""
 
-#: crates/ui/src/window.rs:199
+#: crates/ui/src/window.rs:200
 msgid "Turn on microphone processing from the main menu, under Devices"
 msgstr ""
 
-#: crates/ui/src/window.rs:277
-msgid "The chain is bypassed; press to let the audio through"
+#: crates/ui/src/window.rs:285
+msgid "The chain is bypassed; switch it on to run the effects"
+msgstr ""
+
+#: crates/ui/src/window.rs:287
+msgid "The chain is running; switch it off to bypass the effects"
 msgstr ""
