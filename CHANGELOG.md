@@ -67,12 +67,15 @@ keeps working in the next.
   headless GNOME session and writes one PNG per state, and `scripts/update-po.sh`.
   See `scripts/README.md`.
 - `crates/dsp/examples/benchmark.rs`, a reproducible CPU baseline. It times each
-  effect and the full twenty-effect chain and prints microseconds per block, the
+  effect and the full twenty-three-effect chain and prints microseconds per block, the
   realtime factor and the cost as a percentage of one core, at two block sizes.
   `cargo run --release -p pwe-dsp --example benchmark`.
-- The window's top-level navigation is now *Output*, *Input* and *Presets*.
-  Each pipeline owns its own chain column, its own *In* and *Out* meters and its
-  own editor, so a chain is never drawn against another pipeline's levels.
+- The window's navigation is an *Output* / *Input* switcher in the header. Each
+  pipeline owns its own sidebar, its own *In* and *Out* meters and its own
+  editor, so a chain is never drawn against another pipeline's levels. The effect
+  chain, the on/off *Effects* switch and the preset library share the left
+  sidebar; a header toggle hides it, and below 860 px it becomes a drawer. The
+  window's minimum size is 360x480.
 - *Devices* and *Preferences* moved into the main menu and open
   `adw::PreferencesDialog`s. The menu entries carry icons and have `Ctrl`+`4`
   and `Ctrl`+`,` accelerators.
@@ -223,6 +226,21 @@ keeps working in the next.
 
 ### Changed
 
+- The interface shell was consolidated. The preset library moved from a page of
+  its own into each pipeline's sidebar, the chain on/off *Effects* toggle moved
+  from the header into that sidebar, and the sidebar is shown or hidden with a
+  `sidebar-show-symbolic` toggle in the header. The split view's 1 px separator
+  is switched off in the application stylesheet, so the sidebar keeps the theme's
+  tinted background without a drawn line.
+- The chain rows are a flat list in processing order: no category headers and no
+  position numbers, so *Move up* and *Move down* always move an effect past the
+  neighbour that is drawn above or below it. Each row carries an on/off switch
+  for that effect; the effect icon is plain and the switch carries the accent. The
+  effect picker still groups its rows by category.
+- The layout is adaptive. Below 860 px the split view collapses, the header
+  switcher drops to its icon-only policy and the sidebar becomes a drawer with a
+  back button; the window's minimum size is 360x480, and a float row keeps its
+  label on one line so a phone-width window ellipsizes it instead of breaking it.
 - Auto gain normalises to an EBU R128 loudness target instead of a raw RMS
   level, so its *Target loudness* and *Silence threshold* are in LUFS and a
   reference preset's `target` now means what it means in EasyEffects. The
@@ -299,6 +317,17 @@ keeps working in the next.
 - The window activation path matches on the held state directly instead of
   unwrapping it after a separate check, so no `expect` remains in a production
   path.
+- The multiband compressor and the multiband gate no longer carry two copies of
+  their crossover parameters, band-knob construction and redesign gate; those
+  live in `crates/dsp/src/effects/multiband.rs`, and each effect keeps only its
+  own parameters and its own per-band maths. The two test modules and the Devices
+  test module moved into files of their own (`multiband_compressor/tests.rs`,
+  `multiband_gate/tests.rs`, `devices/tests.rs`), which brings every hand-written
+  source file back under the 350-line limit.
+- The CPU baseline in `docs/architecture.md` was refreshed. The figures there
+  predated the three spectral effects, so the full chain read 33x realtime when
+  the chain had twenty effects; with all twenty-three it measures about 12x at
+  1024 frames and 10x at 128 frames, or 8 to 10 % of one core.
 
 ### Documentation
 
@@ -312,7 +341,7 @@ keeps working in the next.
   measurement was corrected: the R128 measurement in `crates/dsp/src/r128.rs`
   implements the standard, and the audit now says so. The test counts in
   `docs/feature-matrix.md`, `docs/architecture.md` and `README.md` were brought
-  in line with the suite (318), and a merged table row in `scripts/README.md` was
+  in line with the suite at the time, and a merged table row in `scripts/README.md` was
   split again.
 - `SECURITY.md` claimed the crate contains no `unsafe` blocks, which stopped
   being true when the gettext FFI was added to `crates/core/src/i18n.rs`. Its

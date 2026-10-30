@@ -193,37 +193,66 @@ click a repeated sample produces at a buffer boundary.
 
 ## 7. The interface
 
-`adw::ApplicationWindow` → `adw::ToolbarView` → `adw::ViewStack`, with an
-`adw::ViewSwitcher` in the header as the top-level navigation. The tabs are
-**Output**, **Input** and **Presets**, and they have `Ctrl`+`1`, `Ctrl`+`2` and
-`Ctrl`+`3` accelerators, registered as window actions. The main menu carries
-**Devices** (`Ctrl`+`4`), **Preferences** (`Ctrl`+`,`), **About PipeWire
-Effects** and **Quit**; the two device destinations open
-`adw::PreferencesDialog`s rather than occupying a tab.
+`adw::ApplicationWindow` → `adw::OverlaySplitView`. The end side is an
+`adw::ToolbarView` holding the header, the banner and an `adw::ViewStack`; the
+start side is a `gtk::Stack` that shows one sidebar per pipeline. The `ViewStack`
+has two titled children, **Output** and **Input**, and its `adw::ViewSwitcher` is
+the header's title widget, so the header carries no window-title text. The two
+pipelines have `Ctrl`+`1` and `Ctrl`+`2` accelerators, registered as window
+actions. Below 860 px the split view collapses: the editor fills the window, the
+switcher drops to its icon-only policy, and the sidebar opens as an overlay
+drawer. The window's minimum size is 360x480, so the same layout serves a
+phone-width screen.
 
-- **Output** and **Input**: one `adw::OverlaySplitView` per pipeline, each with
-  its own chain column, meters and editor, so switching tabs never rebuilds the
-  other pipeline's widgets. The start side is a fixed-width chain column (the
-  chain title, *Add effect*, the effect rows); the end side carries the chain's
-  input and output meters above the editor for the selected effect. Below 860 px
-  both split views collapse and a header toggle reveals the chain over the
-  editor. The visible tab is the active pipeline.
-- **Presets**: the preset library, with load, save, delete, import and export.
+The header's start holds a sidebar toggle (`sidebar-show-symbolic`) that shows or
+hides the sidebar at any width; the main menu is at the end and carries **Devices**
+(`Ctrl`+`4`), **Preferences** (`Ctrl`+`,`), **About PipeWire Effects** and
+**Quit**. The two device destinations open `adw::PreferencesDialog`s rather than
+occupying a page.
+
+- **Sidebar**: one per pipeline, so switching the switcher never rebuilds the
+  other pipeline's widgets. It carries the theme's sidebar background, with the
+  split view's 1 px separator switched off in the application stylesheet, so the
+  panel is distinct without a drawn line. Its first line carries the chain on/off
+  **Effects** toggle, *Add effect* and, while the split view is collapsed, a
+  *back* button that closes the drawer; below it is the effect list, and then a
+  **Presets** section with the preset list and the save, import, export and delete
+  buttons. A pipeline with no preset of its own and no skipped file shows a
+  one-line empty state instead, and skipped files are listed in full in a
+  *Skipped files* row.
+- **Effects toggle**: the chain on/off, a labelled toggle button at the top of the
+  sidebar. It is accented while that pipeline's chain processes audio and plain
+  while it is bypassed, which is the state a user reads at a glance. It replaced
+  an icon-only control whose meaning was the opposite (an unchecked *Bypass*
+  switch), so a running chain looked switched off. Each pipeline has its own
+  toggle, and it drives that pipeline's bypass.
+- **Editor and meters**: the end side carries the chain's input and output meters
+  above the editor for the selected effect.
 - **Devices** (menu): the engine status for the active pipeline, its node name
   with a copy button, its routing hint, its destination chooser, a *Microphone*
   switch and a *Reconnect* button that appears when the engine has failed.
 - **Preferences** (menu): *Start on login* and a *Developer mode* switch. The
   engine counters and the diagnostic messages are shown in a *Diagnostics* group
   only while developer mode is on, and the choice is persisted.
-- **Chain rows**: the effect's symbolic icon, its name and summary, and an enable
-  switch; move up/down and remove are behind a menu button that appears on hover
-  or secondary click. The labels are ellipsized so that the column width does not
-  depend on the length of an effect summary.
+- **Chain rows**: one flat line per effect, in processing order - the effect's
+  symbolic icon, its name, an on/off `gtk::Switch` and the row menu. The icon is
+  drawn in the theme's foreground colour, not the accent, and dims while the
+  effect is disabled, as does the name; the switch carries the accent and is the
+  enable control. Clicking the row selects it for the editor; the summary is the
+  row's tooltip, and move up/down and remove are behind a menu button that appears
+  on hover or secondary click. The rows
+  carry no category headers and no position numbers: the visible order is the
+  processing order, so *Move up* and *Move down* always move an effect past the
+  neighbour that is drawn above or below it. The effect picker applies the same
+  vocabulary but groups its rows by category, which is where that grouping
+  belongs.
 - **Editor**: a `adw::PreferencesPage` generated from the selected effect's
   parameter specifications. Booleans become `adw::SwitchRow`, choices become
   `adw::ComboRow`, floats become a labelled `gtk::Scale` that maps through the
   parameter's normalisation (so frequency sliders are logarithmic). Grouping
-  comes from the `group` field of each specification.
+  comes from the `group` field of each specification. A float row keeps its label
+  on one line and gives the scale a 120 px floor, so a 360 px window ellipsizes a
+  long label instead of breaking it across lines.
 - **Equalizer**: an analytic magnitude response drawn with cairo above the band
   sliders, recomputed from the live parameter values on every redraw.
 - **Dialogs**: effect picker with search, and the name, confirm and file dialogs
@@ -386,7 +415,7 @@ installed into the system here.
 
 ## 11. Verification
 
-- `cargo test --workspace`: 318 tests, no audio device needed.
+- `cargo test --workspace`: 343 tests, no audio device needed.
   Two of them need a display and skip themselves without one: the bundled icon
   lookup and the icon-theme check.
 - The R128 measurement is checked against the standard's own calibration: a
@@ -442,7 +471,9 @@ installed into the system here.
   it is mapped, so a screenshot can be taken of a specific screen. The states are
   `chain`, `editor`, `equalizer`, `presets`, `devices`, `preferences`,
   `developer`, `input`, `picker`, `picker-tone`, `about`, `save`, `banner`,
-  `bypass`, `narrow` and `effect:<kind>`, which loads the built-in preset, adds
+  `bypass`, `narrow`, `mobile`, `mobile-drawer`, `sidebar-hidden` and
+  `effect:<kind>`, which loads
+  the built-in preset, adds
   the named effect if it is absent and selects it. `devices` and `preferences`
   activate the `win.devices` and `win.preferences` actions, so the menu wiring is
   exercised too. This is the harness the interface review in section 13
@@ -466,10 +497,11 @@ installed into the system here.
 - The accessibility tree is checked over the real AT-SPI bus. The application is
   started with `PIPEWIRE_EFFECTS_UI_STATE` set, its unique name is found on the
   accessibility bus, and `org.a11y.atspi.Accessible.GetRoleName` plus the `Name`
-  property are read for every object down the tree. On the development machine
-  this exposed the window (`PipeWire Effects`), the navigation (`Effects`,
-  `Presets`, `Devices` tabs), the header controls (`Bypass the effect chain`,
-  `Main menu`, `Minimize`, `Maximize`, `Close`), every `switch` by name, the
+  property are read for every object down the tree. That run predates the sidebar
+  redesign in section 7; on the development machine it exposed the window
+  (`PipeWire Effects`), the navigation of the time (`Effects`, `Presets`,
+  `Devices` tabs), the header controls (`Bypass the effect chain`, `Main menu`,
+  `Minimize`, `Maximize`, `Close`), every `switch` by name, the
   destination `combo box`, the `list item` rows, and the parameter `slider`s named
   after their labels (`Sibilance`, `Threshold`, `Ratio`, `Attack`, `Release`) with
   their value text (`5600 Hz`, `-15.0 dB`, `1.35:1`, `5.0 ms`, `100.0 ms`). Orca
@@ -499,40 +531,48 @@ installed into the system here.
 ### CPU baseline
 
 `cargo run --release -p pwe-dsp --example benchmark` times each effect and the
-full twenty-effect chain on the machine it runs on: a 48 kHz stereo stream, a
+full twenty-three-effect chain on the machine it runs on: a 48 kHz stereo stream, a
 per-block wall clock over 2 000 blocks, and the tone-generation cost subtracted
-so the numbers are the effects. On the development machine (Intel iGPU, four
-cores, `rustc 1.99.1`, release profile with thin LTO) a representative run gave:
+so the numbers are the effects. On the development machine (Intel Core i7-7500U,
+two cores and four threads, `rustc 1.99.1`, release profile with thin LTO) a
+representative run gave:
 
 | Workload | 1024 frames per block | 128 frames per block |
 |---|---|---|
-| All twenty effects | 646 µs/block · 33.0× realtime · 3.03 % of one core | 81 µs/block · 32.9× realtime · 3.04 % of one core |
-| Reverberation (heaviest) | 93 µs/block | 11.5 µs/block |
-| Mid/side equalizer | 85 µs/block | 10.6 µs/block |
-| Equalizer | 78 µs/block | 9.8 µs/block |
-| Gain (lightest) | 8 µs/block | 0.9 µs/block |
+| All twenty-three effects | 1743 µs/block · 12.2× realtime · 8.17 % of one core | 272 µs/block · 9.8× realtime · 10.2 % of one core |
+| Voice suppressor (heaviest) | 418 µs/block | 104 µs/block |
+| Multiband compressor | 285 µs/block | 37 µs/block |
+| Multiband gate | 266 µs/block | 35 µs/block |
+| Reverberation | 101 µs/block | 12.3 µs/block |
+| Equalizer | 81 µs/block | 9.5 µs/block |
+| Gain (lightest) | 1.9 µs/block | 0.04 µs/block |
 
-The whole chain uses about 3 % of one core and leaves roughly thirty times the
-deadline free at both quantum sizes, which is the headroom the realtime callback
-needs for scheduling jitter. Repeated runs vary with machine load: the same
-machine measured between 22× and 33× realtime for the full chain, or about 3 % to
-4.6 % of one core, so the figures are a range rather than a single number. A
-re-run on a loaded machine gave 27.6× at 1024 frames and 21.9× at 128 frames.
-These are wall-clock figures from one machine, not a portable claim; re-run the
-example to reproduce them.
+The whole chain uses between about 8 % and 10 % of one core and leaves roughly
+ten to twelve times the deadline free at both quantum sizes, which is the
+headroom the realtime callback needs for scheduling jitter. The three spectral
+effects added last are the expensive ones: the voice suppressor alone is a
+quarter of the chain at 1024 frames because it runs a 1024-point STFT on every
+block. Repeated runs vary with machine load: two back-to-back runs of the same
+binary measured 12.5x and 12.2x realtime at 1024 frames and 10.0x and 9.8x at 128
+frames, so the figures are a range rather than a single number. At 128 frames the
+cheapest effects measure at or below the timer resolution, so their small-block
+figures are a floor, not a precise cost. These are wall-clock figures from one
+machine, not a portable claim; re-run the example to reproduce them.
 
 ### GPU acceleration
 
 No GPU backend is implemented, and the numbers above are the reason. The entire
-chain costs about 3 % of a single core, so off-loading any of it would add a
+chain costs under a tenth of a single core, so off-loading any of it would add a
 transfer, a synchronisation point and a dispatch to a callback whose budget is
 21 ms (2.7 ms at 128 frames), while the effects are recursive per-sample filters
 with a serial dependency that does not parallelise. The only workload that could
-benefit is FFT convolution, which is out of scope because the project carries no
-FFT dependency. The machine does expose an Intel iGPU through a Mesa Vulkan ICD
+benefit is FFT convolution, which is a different effect from the ones here (the
+convolver is not implemented), so a GPU backend would accelerate nothing that
+ships. The machine does expose an Intel iGPU through a Mesa Vulkan ICD
 (`intel_icd.json`, `libvulkan.so.1.4.363`), so a Vulkan compute backend is
 technically available; it is deliberately not added, and the workspace carries no
-GPU dependency.
+GPU dependency. The one FFT in the project is a hand-written radix-2 transform,
+not an external library.
 
 ## 13. Interface review
 
@@ -675,7 +715,7 @@ shipped, so an installed build still shows English.
 
 A later pass re-ran the harness on the current build on the headless Wayland
 session: the fourteen light states and eleven dark states were captured and
-inspected again, together with the twenty-effect editors where they differ. The
+inspected again, together with the twenty-three-effect editors where they differ. The
 light pass covered `chain`, `editor`, `equalizer`, `presets`, `devices`,
 `picker`, `picker-tone`, `about`, `banner`, `bypass`, `narrow`, the crusher and
 reverberation editors, and the input pipeline; the dark pass repeated the
@@ -703,8 +743,8 @@ pass, not a regression; the earlier walk, with the slider names and value text,
 remains the record for the interactive controls.
 
 `scripts/capture-ui.sh` was re-run unchanged; `scripts/update-po.sh` regenerates
-`po/pipewire-effects.pot` with no change other than its creation date (343
-messages), and `make install DESTDIR=<staging> PREFIX=/usr` installed the
+`po/pipewire-effects.pot` (374 messages), and
+`make install DESTDIR=<staging> PREFIX=/usr` installed the
 binary, the desktop entry, both icon sets and the built-in preset into a staging
 tree and `make uninstall` removed exactly what it installed.
 
@@ -714,7 +754,8 @@ It found and fixed two defects: the destination chooser's value was ellipsized i
 the narrower Devices dialog, so the row was shortened to *Output device* /
 *Input device*; and the first version of the *Developer mode* switch hid the
 group it lived in, which would have made it impossible to switch back off. The
-final captures show the *Output*, *Input* and *Presets* tabs, the Output chain
+final captures show the *Output* and *Input* switcher pages with the preset list
+in the sidebar, the Output chain
 with the built-in preset, the Input chain driven by the real capture device
 (−36.8 dB on both of its meters), the Devices and Preferences dialogs, and the
 Preferences dialog with developer mode on and the engine counters visible. The
@@ -728,3 +769,24 @@ switch was checked.
 The R128 measurement is not verified by the interface pass. It is verified by the
 unit tests listed in section 11, against the standard's own calibration values,
 and it runs in the audio path through `AutoGain`.
+
+The current pass reworked the shell and re-ran the harness in both appearances.
+It moved the chain on/off **Effects** toggle from the header into the per-pipeline
+sidebar, gave each effect row an on/off switch whose accent replaces the old
+accent on the effect icon, dropped the *Output chain* / *Input chain* heading, made the switcher the
+header's title widget so no window-title text is drawn, flattened the effect rows
+into processing order with no category headers and no position numbers, and made
+the layout adaptive: the split view collapses below 860 px, the switcher drops to
+icons, a back button closes the drawer, and the window's minimum size is 360x480.
+The sidebar keeps the theme's tinted background; the split view's own 1 px
+separator is switched off in the application stylesheet. Pixel sampling across the
+sidebar/content boundary at y=400 reads `rgb(235,235,237)` inside the sidebar and
+`rgb(250,250,251)` in the content with no darker pixel between them, so the panel
+is distinct without a drawn line. The run wrote 16 light captures and 15 dark
+captures (`chain`, `editor`, `equalizer`, `presets`, `devices`, `preferences`,
+`developer`, `picker`, `picker-tone`, `about`, `banner`, `bypass`, `narrow`,
+`mobile`, `mobile-drawer` and `input`) into `target/ui-captures-light` and
+`target/ui-captures-dark`. The same run's live PipeWire tests measured the input
+chain at −36.85 dB in and −42.85 dB out (a −6 dB gain stage) over 12 288 processed
+frames, and a −20 dB tone reduced by 20.00 dB over 16 384 captured frames with no
+underruns, overruns or trims.

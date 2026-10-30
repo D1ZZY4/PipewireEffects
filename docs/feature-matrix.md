@@ -96,7 +96,8 @@ Reference evidence refers to files under `references/`.
 | Statistics and diagnostics | reference logs + advanced info page | Implemented | Captured/processed frames, underruns, overruns, trims, ring occupancy, warnings, per pipeline. Shown in Preferences, and only while *Developer mode* is on. |
 | Developer mode | reference advanced info page | Implemented | A switch in Preferences reveals the engine counters and the diagnostic messages; the choice is persisted in the settings file. |
 | Main menu | reference hamburger menu | Implemented | *Devices*, *Preferences*, *About PipeWire Effects* and *Quit*. Devices and Preferences open `adw::PreferencesDialog`s; `Ctrl`+`4` and `Ctrl`+`,` activate them. |
-| Top-level navigation | reference device/page tabs | Implemented | *Output*, *Input* and *Presets* tabs (`Ctrl`+`1`, `Ctrl`+`2`, `Ctrl`+`3`). Each of the first two owns its own chain column, meters and editor. |
+| Top-level navigation | reference device/page tabs | Implemented | An *Output* / *Input* switcher in the header (`Ctrl`+`1`, `Ctrl`+`2`) selects the pipeline; each owns its sidebar, meters and editor. The preset library lives in each pipeline's sidebar rather than on a page of its own. |
+| Adaptive layout | reference mobile layout | Implemented | Below 860 px the sidebar collapses into a drawer with a back button, the switcher drops to its icon-only policy, and the window's minimum size is 360x480. Captured at 720x620 and 360x740 in both appearances. |
 | Buffer size / samplerate control | `DbMain`, kcfg | Not applicable | The graph rate and quantum are owned by PipeWire and followed, not forced. |
 | Settings persistence | `DbMain`, `db_manager.cpp` | Implemented | `$XDG_CONFIG_HOME/pipewire-effects/settings.json`, written atomically; a damaged file falls back to the defaults with a message. |
 | Stream failure recovery | reference reconnect logic | Implemented | A failed stream is rebuilt with an increasing backoff, and the Devices page offers a manual *Reconnect*. |
@@ -113,13 +114,13 @@ Reference evidence refers to files under `references/`.
 | Core primitives (buffers, parameters, chain, meters, math, pipeline kinds, gettext lookup) | 35 | `crates/core/src/**` |
 | DSP (biquads, the FFT, the Linkwitz-Riley crossover, twenty-three effects, registry, R128 measurement) | 134 | `crates/dsp/src/**`, `crates/dsp/tests/` |
 | Engine (config, devices, target resolution, metadata, processor, stream properties, byte conversion, registry filtering) | 29 | `crates/engine/src/**` |
-| Presets (schema, coercion, storage, built-ins, reference conversion for both sections) | 106 | `crates/presets/src/**` |
+| Presets (schema, coercion, storage, built-ins, reference conversion for both sections) | 109 | `crates/presets/src/**` |
 | Settings (model, atomic store, autostart entry) | 9 | `crates/settings/src/**` |
 | Interface (formatting, icons, response axis, state model, banners, device labels) | 23 | `crates/ui/src/**` |
 | Command line (parsing, help, exported presets) | 4 | `crates/app/src/cli.rs` |
 | Live PipeWire integration (ignored by default) | 4 | `crates/engine/tests/live_pipewire.rs` |
 
-`cargo test --workspace` therefore runs 340 tests. None of them need an audio
+`cargo test --workspace` therefore runs 343 tests. None of them need an audio
 device. Two of the interface tests look up icons in the live icon theme and skip
 themselves when no display is available. The four live tests are `#[ignore]`d and
 are run explicitly against a running daemon.

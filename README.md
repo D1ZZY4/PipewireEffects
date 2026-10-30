@@ -52,9 +52,12 @@ Twenty-three effects, each with real processing and a generated control surface:
 
 Around them:
 
-- Two pipelines: an **Output** chain and an **Input** (microphone) chain, each
-  with its own device, meters and enable switch. They are the first two tabs of
-  the window.
+- Two pipelines: an **Output** chain and an **Input** (microphone) chain. Each
+  has its own sidebar, device, meters and enable switch, and the header switcher
+  moves between them.
+- The chain, its presets and the on/off **Effects** switch live in the left
+  sidebar. A header toggle hides or shows it, and below 860 px it becomes a
+  drawer, so the layout also works at phone width.
 - A chain you can reorder, enable per stage, or bypass as a whole.
 - Presets stored as readable JSON with `output` and `input` sections, one built
   in, with save, delete, import and export. EasyEffects presets load too, both
@@ -240,7 +243,7 @@ pwe-core  ◄── pwe-dsp  ◄── pwe-engine ◄── pwe-ui ◄── pip
 | Crate | Responsibility |
 |---|---|
 | `pwe-core` | Buffers, parameter specifications and atomics, the effect contract, the chain, meters, realtime helpers, the pipeline kinds |
-| `pwe-dsp` | Biquad design, the twenty effects, the effect registry |
+| `pwe-dsp` | Biquad design, the twenty-three effects, the effect registry |
 | `pwe-presets` | Preset schema, validation, storage, built-ins |
 | `pwe-settings` | The settings document, its store and the autostart entry |
 | `pwe-engine` | PipeWire streams, the virtual sink and virtual source, realtime processors, device discovery, statistics |
@@ -269,13 +272,13 @@ cargo test --workspace
 ```
 
 A reproducible CPU baseline, which prints microseconds per block and the realtime
-factor for each effect and for the full twenty-effect chain:
+factor for each effect and for the full twenty-three-effect chain:
 
 ```sh
 cargo run --release -p pwe-dsp --example benchmark
 ```
 
-340 tests, none of which need an audio device or a display; the two icon lookups
+343 tests, none of which need an audio device or a display; the two icon lookups
 skip themselves when no display is available. They cover biquad designs against
 their analytic magnitude response, the effects against measured signal levels and
 numerical bounds, the ring buffer and trimming policy with a real producer and

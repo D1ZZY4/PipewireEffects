@@ -4,7 +4,7 @@ set -u
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 
 out_dir=${OUT_DIR:-"$repo_root/target/ui-captures"}
-states=${STATES:-"chain editor equalizer presets devices picker picker-tone about banner bypass narrow"}
+states=${STATES:-"chain editor equalizer presets devices preferences developer picker picker-tone about banner bypass narrow mobile mobile-drawer sidebar-hidden"}
 scheme=${SCHEME:-prefer-light}
 size=${SIZE:-1280x900}
 app=${APP:-"$repo_root/target/release/pipewire-effects"}
@@ -30,8 +30,9 @@ Environment:
   CAPTURE_TIMEOUT  seconds to wait for one PNG   (default 40)
   KEEP_WORKDIR     set to 1 to keep the logs and the private config
 
-States: chain editor equalizer presets devices picker picker-tone about banner
-        bypass narrow input effect:<kind>
+States: chain editor equalizer presets devices preferences developer picker
+        picker-tone about banner bypass narrow mobile mobile-drawer
+        sidebar-hidden input effect:<kind>
 
 The script needs gnome-shell, dbus-run-session and a running PipeWire daemon.
 It never changes the real session: the Wayland socket, the config directory and

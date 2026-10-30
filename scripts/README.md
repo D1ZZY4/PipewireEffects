@@ -81,7 +81,7 @@ can gate a review.
 | `chain` | the Effects page with the built-in preset loaded |
 | `editor` | the Effects page with the third effect selected |
 | `equalizer` | the equalizer editor with its response curve |
-| `presets` | the preset library |
+| `presets` | the Effects page with the built-in preset and the preset list in the sidebar |
 | `devices` | the Devices dialog, opened through the `win.devices` action |
 | `preferences` | the Preferences dialog |
 | `developer` | Preferences with developer mode on and the diagnostics expanded |
@@ -90,7 +90,10 @@ can gate a review.
 | `about` | the About dialog |
 | `banner` | an error banner over the Effects page |
 | `bypass` | the Effects page with the chain bypassed |
-| `narrow` | the collapsed layout at 720x620 |
+| `narrow` | the collapsed layout at 720x620, content first with the switcher in icons |
+| `mobile` | the phone-width layout at 360x740, content first |
+| `mobile-drawer` | the same phone-width layout with the sidebar drawer open |
+| `sidebar-hidden` | the desktop layout with the sidebar hidden |
 | `input` | the Input pipeline, with microphone processing switched on |
 | `effect:<kind>` | the built-in preset plus the named effect, selected |
 
