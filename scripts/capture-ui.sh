@@ -4,7 +4,7 @@ set -u
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 
 out_dir=${OUT_DIR:-"$repo_root/target/ui-captures"}
-states=${STATES:-"chain editor equalizer presets devices preferences developer picker picker-tone about banner bypass narrow mobile mobile-drawer sidebar-hidden"}
+states=${STATES:-"chain editor equalizer presets modified preset-menu unloaded clone devices preferences developer gpu picker picker-tone about banner bypass narrow mobile mobile-drawer sidebar-hidden"}
 scheme=${SCHEME:-prefer-light}
 size=${SIZE:-1280x900}
 app=${APP:-"$repo_root/target/release/pipewire-effects"}
@@ -32,9 +32,9 @@ Environment:
   CAPTURE_ATTEMPTS launcher retries per state    (default 3)
   KEEP_WORKDIR     set to 1 to keep the logs and the private config
 
-States: chain editor equalizer presets devices preferences developer picker
-        picker-tone about banner bypass narrow mobile mobile-drawer
-        sidebar-hidden input effect:<kind>
+States: chain editor equalizer presets modified preset-menu unloaded clone save
+        delete devices preferences developer gpu picker picker-tone about banner
+        bypass narrow mobile mobile-drawer sidebar-hidden input effect:<kind>
 
 The script needs gnome-shell, dbus-run-session and a running PipeWire daemon.
 It never changes the real session: the Wayland socket, the config directory and
@@ -89,6 +89,7 @@ export CAPTURE_TIMEOUT="$capture_timeout"
 export CAPTURE_ATTEMPTS="$state_attempts"
 export CAPTURE_REAL_RUNTIME="$real_runtime"
 
+session_log="$work/session.log"
 dbus-run-session -- bash -c '
 set -u
 export XDG_RUNTIME_DIR="$CAPTURE_WORK/run"
@@ -186,6 +187,7 @@ if [ "$failures" -gt 0 ]; then
     exit 4
 fi
 echo "capture-ui: wrote $(ls -1 "$CAPTURE_OUT" | wc -l) file(s) to $CAPTURE_OUT"
-'
+' >"$session_log" 2>&1
 status=$?
+cat "$session_log"
 exit "$status"
