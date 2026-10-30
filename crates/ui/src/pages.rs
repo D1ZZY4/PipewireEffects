@@ -1,14 +1,16 @@
 use std::rc::Rc;
 
 use adw::prelude::*;
+use gtk::gio;
 use pwe_core::i18n::t;
-use pwe_core::{ALL_PIPELINES, PipelineKind};
+use pwe_core::{PipelineKind, ALL_PIPELINES};
 
 use crate::chrome::{
     dialog, effects_toggle, header_controls, install, install_breakpoint, install_dialog,
     main_menu, sidebar_toggle,
 };
 use crate::devices::DevicesView;
+use crate::diagnostics::Diagnostics;
 use crate::format;
 use crate::meter::LevelDisplay;
 use crate::preferences::PreferencesView;
@@ -65,8 +67,11 @@ pub struct Workspace {
     pub panes: [ChainPane; 2],
     pub devices_view: DevicesView,
     pub preferences_view: PreferencesView,
+    pub diagnostics_view: Diagnostics,
     pub devices_dialog: adw::PreferencesDialog,
     pub preferences_dialog: adw::PreferencesDialog,
+    pub diagnostics_dialog: adw::PreferencesDialog,
+    pub diagnostics_action: gio::SimpleAction,
 }
 
 impl Workspace {
@@ -89,8 +94,10 @@ impl Workspace {
 
         let (devices_page, devices_view) = DevicesView::new(actions.clone());
         let (preferences_page, preferences_view) = PreferencesView::new(actions);
+        let diagnostics_view = Diagnostics::new();
         let devices_dialog = dialog(t("Devices"), &devices_page);
         let preferences_dialog = dialog(t("Preferences"), &preferences_page);
+        let diagnostics_dialog = dialog(t("Diagnostics"), diagnostics_view.page());
 
         let stack = adw::ViewStack::new();
         let sidebar_stack = gtk::Stack::new();
@@ -135,6 +142,7 @@ impl Workspace {
         install(app, &window, &stack);
         install_dialog(app, &window, "devices", &devices_dialog);
         install_dialog(app, &window, "preferences", &preferences_dialog);
+        let diagnostics_action = install_dialog(app, &window, "diagnostics", &diagnostics_dialog);
 
         menu.set_menu_model(Some(&main_menu()));
         Self {
@@ -147,8 +155,11 @@ impl Workspace {
             panes,
             devices_view,
             preferences_view,
+            diagnostics_view,
             devices_dialog,
             preferences_dialog,
+            diagnostics_dialog,
+            diagnostics_action,
         }
     }
 }

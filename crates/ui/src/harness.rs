@@ -9,7 +9,7 @@ use crate::presets_ui;
 
 mod navigation;
 
-use navigation::scroll_to_bottom;
+use navigation::{find_switch_row, open_main_menu, scroll_to_bottom};
 
 pub const STATE_VARIABLE: &str = "PIPEWIRE_EFFECTS_UI_STATE";
 pub const CAPTURE_VARIABLE: &str = "PIPEWIRE_EFFECTS_UI_CAPTURE";
@@ -129,13 +129,42 @@ fn apply(ui: &Rc<Ui>, state: &str) {
         "developer" => {
             ui.state.borrow_mut().set_developer_mode(true);
             ui.sync_desktop_switches();
-            ui.preferences_view.expand_diagnostics();
-            activate(ui, "win.preferences");
+            ui.diagnostics_view.expand();
+            activate(ui, "win.diagnostics");
             let ui = Rc::clone(ui);
             glib::timeout_add_local_once(std::time::Duration::from_millis(700), move || {
-                if let Some(page) = ui.preferences_dialog.visible_page() {
+                if let Some(page) = ui.diagnostics_dialog.visible_page() {
                     scroll_to_bottom(page.upcast_ref());
                 }
+            });
+        }
+        "menu" => {
+            load_default(ui);
+            open_main_menu(ui);
+        }
+        "menu-developer" => {
+            load_default(ui);
+            ui.state.borrow_mut().set_developer_mode(true);
+            ui.sync_desktop_switches();
+            open_main_menu(ui);
+        }
+        "dev-live" => {
+            load_default(ui);
+            activate(ui, "win.preferences");
+            let toggler = Rc::clone(ui);
+            let closer = Rc::clone(ui);
+            let opener = Rc::clone(ui);
+            glib::timeout_add_local_once(std::time::Duration::from_millis(250), move || {
+                let dialog = toggler.preferences_dialog.clone();
+                if let Some(row) = find_switch_row(dialog.upcast_ref(), "Developer mode") {
+                    row.set_active(true);
+                }
+            });
+            glib::timeout_add_local_once(std::time::Duration::from_millis(550), move || {
+                closer.preferences_dialog.close();
+            });
+            glib::timeout_add_local_once(std::time::Duration::from_millis(900), move || {
+                open_main_menu(&opener);
             });
         }
         "picker" => open_picker(ui, false),

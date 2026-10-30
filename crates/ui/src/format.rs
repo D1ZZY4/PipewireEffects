@@ -19,6 +19,7 @@ pub const ICON_ADD: &str = "list-add-symbolic";
 pub const ICON_SAVE: &str = "document-save-symbolic";
 pub const ICON_IMPORT: &str = "document-open-symbolic";
 pub const ICON_EXPORT: &str = "document-send-symbolic";
+pub const ICON_DIAGNOSTICS: &str = "dialog-information-symbolic";
 
 pub const CHROME_ICONS: &[&str] = &[
     ICON_BYPASS,
@@ -42,6 +43,7 @@ pub const CHROME_ICONS: &[&str] = &[
     ICON_SAVE,
     ICON_IMPORT,
     ICON_EXPORT,
+    ICON_DIAGNOSTICS,
 ];
 
 pub fn missing_icons(theme: &gtk::IconTheme) -> Vec<&'static str> {

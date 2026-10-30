@@ -1,5 +1,6 @@
 use adw::prelude::*;
 use gtk::gio;
+use gtk::glib::variant::ToVariant;
 use pwe_core::i18n::t;
 
 use crate::format;
@@ -9,8 +10,11 @@ pub const PAGES: [(&str, &str, &str); 2] = [
     ("page-input", "input", "<primary>2"),
 ];
 
-pub const MENU_ACTIONS: [(&str, &str); 2] =
-    [("devices", "<primary>4"), ("preferences", "<primary>comma")];
+pub const MENU_ACTIONS: [(&str, &str); 3] = [
+    ("devices", "<primary>4"),
+    ("preferences", "<primary>comma"),
+    ("diagnostics", "<primary>5"),
+];
 
 pub const NARROW_LAYOUT: &str = "max-width: 860px";
 
@@ -31,7 +35,7 @@ pub fn install_dialog(
     window: &adw::ApplicationWindow,
     name: &str,
     dialog: &adw::PreferencesDialog,
-) {
+) -> gio::SimpleAction {
     let action = gio::SimpleAction::new(name, None);
     let dialog = dialog.clone();
     let window_clone = window.clone();
@@ -42,6 +46,7 @@ pub fn install_dialog(
             application.set_accels_for_action(&format!("win.{name}"), &[accelerator]);
         }
     }
+    action
 }
 
 pub fn header_controls(header: &adw::HeaderBar) -> gtk::MenuButton {
@@ -84,6 +89,13 @@ pub fn main_menu() -> gio::Menu {
         "win.preferences",
         format::ICON_PREFERENCES,
     ));
+    let diagnostics = menu_item(
+        t("Diagnostics"),
+        "win.diagnostics",
+        format::ICON_DIAGNOSTICS,
+    );
+    diagnostics.set_attribute_value("hidden-when", Some(&"action-disabled".to_variant()));
+    menu.append_item(&diagnostics);
     menu.append(Some(t("About PipeWire Effects")), Some("app.about"));
     menu.append(Some(t("Quit")), Some("app.quit"));
     menu

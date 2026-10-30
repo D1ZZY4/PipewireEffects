@@ -7,7 +7,7 @@ use pwe_engine::{EngineState, Snapshot, StatsSnapshot};
 use crate::format;
 
 pub struct Diagnostics {
-    counters: adw::PreferencesGroup,
+    page: adw::PreferencesPage,
     expander: adw::ExpanderRow,
     pipeline_row: adw::ActionRow,
     rate_row: adw::ActionRow,
@@ -70,8 +70,12 @@ impl Diagnostics {
         empty_row.add_css_class("dim-label");
         messages_group.add(&empty_row);
 
+        let page = adw::PreferencesPage::new();
+        page.add(&counters);
+        page.add(&messages_group);
+
         Self {
-            counters,
+            page,
             expander,
             pipeline_row,
             rate_row,
@@ -89,17 +93,8 @@ impl Diagnostics {
         }
     }
 
-    pub fn counters(&self) -> &adw::PreferencesGroup {
-        &self.counters
-    }
-
-    pub fn messages(&self) -> &adw::PreferencesGroup {
-        &self.messages_group
-    }
-
-    pub fn set_visible(&self, visible: bool) {
-        self.counters.set_visible(visible);
-        self.messages_group.set_visible(visible);
+    pub fn page(&self) -> &adw::PreferencesPage {
+        &self.page
     }
 
     pub fn expand(&self) {

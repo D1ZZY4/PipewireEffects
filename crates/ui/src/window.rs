@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use adw::prelude::*;
+use gtk::gio;
 use gtk::glib;
 use pwe_core::PipelineKind;
 use pwe_core::i18n::{t, tr};
@@ -10,6 +11,7 @@ use pwe_engine::EffectSlot;
 
 use crate::chain_view;
 use crate::devices::DevicesView;
+use crate::diagnostics::Diagnostics;
 use crate::editor;
 use crate::harness;
 use crate::pages::{ChainPane, Workspace, page_name};
@@ -29,8 +31,11 @@ pub struct Ui {
     pub banner: adw::Banner,
     pub devices_view: DevicesView,
     pub preferences_view: PreferencesView,
+    pub diagnostics_view: Diagnostics,
     pub devices_dialog: adw::PreferencesDialog,
     pub preferences_dialog: adw::PreferencesDialog,
+    pub diagnostics_dialog: adw::PreferencesDialog,
+    diagnostics_action: gio::SimpleAction,
     pub stack: adw::ViewStack,
     pub sidebar_stack: gtk::Stack,
     pub split: adw::OverlaySplitView,
@@ -52,8 +57,11 @@ impl Ui {
             banner: workspace.banner,
             devices_view: workspace.devices_view,
             preferences_view: workspace.preferences_view,
+            diagnostics_view: workspace.diagnostics_view,
             devices_dialog: workspace.devices_dialog,
             preferences_dialog: workspace.preferences_dialog,
+            diagnostics_dialog: workspace.diagnostics_dialog,
+            diagnostics_action: workspace.diagnostics_action,
             stack: workspace.stack,
             sidebar_stack: workspace.sidebar_stack,
             split: workspace.split,
@@ -101,6 +109,8 @@ impl Ui {
             .set_autostart(state.settings.autostart);
         self.preferences_view
             .set_developer_mode(state.settings.developer_mode);
+        self.diagnostics_action
+            .set_enabled(state.settings.developer_mode);
     }
 
     pub fn add_effect(self: &Rc<Self>, kind: &str) {
@@ -205,7 +215,7 @@ impl Ui {
 
     pub fn refresh(self: &Rc<Self>) {
         let kind = self.active();
-        let (snapshot, meters, stats, state, error, bypassed) = {
+        let (snapshot, meters, stats, state, error, bypassed, developer) = {
             let state = self.state.borrow();
             let snapshot = state.snapshot_of(kind);
             let meters = state
@@ -221,8 +231,10 @@ impl Ui {
                 state.state_of(kind),
                 state.error_of(kind),
                 state.bypassed(),
+                state.settings.developer_mode,
             )
         };
+        self.diagnostics_action.set_enabled(developer);
         self.sync_view_signature();
         let pane = self.pane();
         pane.meter_in
@@ -242,7 +254,8 @@ impl Ui {
         }
         self.set_status(bypassed);
         self.devices_view.update(&snapshot, &stats, state);
-        self.preferences_view.update(&snapshot, state, &stats);
+        self.diagnostics_view
+            .update(&snapshot, state, &stats, &snapshot.warnings);
         if let Some(error) = error {
             self.banner.set_title(&error);
             self.banner.set_revealed(true);
