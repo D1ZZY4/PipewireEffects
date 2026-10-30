@@ -166,6 +166,7 @@ fn choice_row(spec: ParamSpec, params: &ParamSet, labels: &'static [&'static str
 fn float_row(spec: ParamSpec, params: &ParamSet, curve: Option<gtk::DrawingArea>) -> gtk::Widget {
     let row = adw::ActionRow::new();
     row.set_title(t(spec.label));
+    row.set_title_lines(1);
 
     let suffix = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     suffix.set_valign(gtk::Align::Center);
@@ -173,7 +174,7 @@ fn float_row(spec: ParamSpec, params: &ParamSet, curve: Option<gtk::DrawingArea>
     let scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 1.0, 0.001);
     scale.set_draw_value(false);
     scale.set_hexpand(true);
-    scale.set_size_request(160, -1);
+    scale.set_size_request(120, -1);
     scale.set_round_digits(3);
     let current = params.get(spec.id).unwrap_or_else(|| spec.default_value());
     scale.set_value(f64::from(spec.normalize(current.as_f32())));
@@ -183,7 +184,7 @@ fn float_row(spec: ParamSpec, params: &ParamSet, curve: Option<gtk::DrawingArea>
     ]);
 
     let value = gtk::Label::new(Some(&spec.display(current)));
-    value.set_width_chars(9);
+    value.set_width_chars(8);
     value.set_xalign(1.0);
     value.add_css_class("numeric");
     value.add_css_class("dim-label");

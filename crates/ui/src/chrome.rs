@@ -4,10 +4,9 @@ use pwe_core::i18n::t;
 
 use crate::format;
 
-pub const PAGES: [(&str, &str, &str); 3] = [
+pub const PAGES: [(&str, &str, &str); 2] = [
     ("page-output", "output", "<primary>1"),
     ("page-input", "input", "<primary>2"),
-    ("page-presets", "presets", "<primary>3"),
 ];
 
 pub const MENU_ACTIONS: [(&str, &str); 2] =
@@ -45,26 +44,32 @@ pub fn install_dialog(
     }
 }
 
-pub fn header_controls(header: &adw::HeaderBar) -> (gtk::ToggleButton, gtk::MenuButton) {
-    let bypass = gtk::ToggleButton::new();
-    bypass.set_icon_name(format::ICON_BYPASS);
-    bypass.set_tooltip_text(Some(t("Bypass the effect chain")));
-    bypass.update_property(&[
-        gtk::accessible::Property::Label(t("Bypass the effect chain")),
-        gtk::accessible::Property::Description(t(
-            "Stops the audio from passing through the effects without removing them",
-        )),
-    ]);
-    bypass.add_css_class("flat");
-    bypass.add_css_class("bypass-button");
-    header.pack_start(&bypass);
-
+pub fn header_controls(header: &adw::HeaderBar) -> gtk::MenuButton {
     let menu_button = gtk::MenuButton::builder()
         .icon_name(format::ICON_MENU)
         .tooltip_text(t("Main menu"))
         .build();
     header.pack_end(&menu_button);
-    (bypass, menu_button)
+    menu_button
+}
+
+pub fn effects_toggle() -> gtk::ToggleButton {
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    content.append(&gtk::Image::from_icon_name(format::ICON_BYPASS));
+    content.append(&gtk::Label::new(Some(t("Effects"))));
+    let button = gtk::ToggleButton::new();
+    button.set_child(Some(&content));
+    button.add_css_class("flat");
+    button.add_css_class("effects-button");
+    button.set_valign(gtk::Align::Center);
+    button.set_tooltip_text(Some(t("Bypass the effect chain")));
+    button.update_property(&[
+        gtk::accessible::Property::Label(t("Effects")),
+        gtk::accessible::Property::Description(t(
+            "Runs the audio through the effect chain; turn it off to bypass the chain",
+        )),
+    ]);
+    button
 }
 
 pub fn main_menu() -> gio::Menu {

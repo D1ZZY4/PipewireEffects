@@ -1,67 +1,50 @@
 use std::rc::Rc;
 
 use adw::prelude::*;
+use pwe_core::PipelineKind;
 use pwe_core::i18n::{t, tr};
 
 use crate::Ui;
 use crate::dialogs;
 use crate::format;
 
-pub fn build_page() -> (
-    gtk::Widget,
-    gtk::ListBox,
-    (gtk::Button, gtk::Button, gtk::Button, gtk::Button),
-) {
-    let page = adw::PreferencesPage::new();
+pub type PresetButtons = (gtk::Button, gtk::Button, gtk::Button, gtk::Button);
 
-    let group = adw::PreferencesGroup::new();
-    group.set_title(t("Saved presets"));
-    group.set_description(Some(t(
-        "Activate a preset to replace the current effect chain.",
-    )));
-
-    let list = gtk::ListBox::new();
-    list.set_selection_mode(gtk::SelectionMode::None);
-    list.add_css_class("boxed-list");
-    group.add(&list);
-    page.add(&group);
-
-    let actions = adw::PreferencesGroup::new();
+pub fn actions_row() -> (gtk::Box, PresetButtons) {
     let bar = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    bar.set_halign(gtk::Align::Start);
-    bar.set_margin_top(2);
-    let save = action_button(format::ICON_SAVE, t("Save current chain"));
+    bar.set_margin_top(4);
+    let save = action_button(format::ICON_SAVE, t("Save the current chain as a preset"));
     save.add_css_class("suggested-action");
-    let import = action_button(format::ICON_IMPORT, t("Import"));
-    let export = action_button(format::ICON_EXPORT, t("Export"));
-    let delete = action_button(format::ICON_REMOVE, t("Delete"));
+    let import = action_button(format::ICON_IMPORT, t("Import a preset"));
+    let export = action_button(format::ICON_EXPORT, t("Export the loaded preset"));
+    let delete = action_button(format::ICON_REMOVE, t("Delete a user preset"));
     delete.add_css_class("destructive-action");
     bar.append(&save);
     bar.append(&import);
     bar.append(&export);
     bar.append(&delete);
-    actions.add(&bar);
-    page.add(&actions);
-
-    (page.upcast(), list, (save, delete, import, export))
+    (bar, (save, delete, import, export))
 }
 
-fn action_button(icon: &str, label: &str) -> gtk::Button {
-    let content = adw::ButtonContent::new();
-    content.set_icon_name(icon);
-    content.set_label(label);
-    let button = gtk::Button::new();
-    button.set_child(Some(&content));
-    button.set_tooltip_text(Some(label));
-    button.update_property(&[gtk::accessible::Property::Label(label)]);
+fn action_button(icon: &str, tooltip: &str) -> gtk::Button {
+    let button = gtk::Button::from_icon_name(icon);
+    button.add_css_class("flat");
+    button.set_tooltip_text(Some(tooltip));
+    button.update_property(&[gtk::accessible::Property::Label(tooltip)]);
     button
 }
 
 pub fn populate(ui: &Rc<Ui>) {
-    while let Some(child) = ui.preset_list.first_child() {
-        ui.preset_list.remove(&child);
+    for pane in &ui.panes {
+        populate_pane(ui, pane);
     }
-    let (infos, warnings) = ui.state.borrow().store.list();
+}
+
+fn populate_pane(ui: &Rc<Ui>, pane: &crate::pages::ChainPane) {
+    while let Some(child) = pane.preset_list.first_child() {
+        pane.preset_list.remove(&child);
+    }
+    let (infos, warnings) = ui.state.borrow().preset_infos(pane.kind);
     let current = ui.state.borrow().loaded_preset().map(str::to_owned);
     for info in &infos {
         let row = adw::ActionRow::new();
@@ -78,27 +61,45 @@ pub fn populate(ui: &Rc<Ui>) {
         if current.as_deref() == Some(info.name.as_str()) {
             row.add_suffix(&gtk::Image::from_icon_name(format::ICON_COPIED));
         }
-        ui.preset_list.append(&row);
+        pane.preset_list.append(&row);
+    }
+    if pane.kind == PipelineKind::Input && infos.is_empty() {
+        pane.preset_list.append(&message_row(
+            t("No microphone presets yet"),
+            t("Save the input chain to create one"),
+        ));
     }
     if !warnings.is_empty() {
-        let row = adw::ActionRow::new();
-        row.set_title(t("Skipped files"));
-        row.set_subtitle(&warnings.join("\n"));
-        ui.preset_list.append(&row);
+        pane.preset_list
+            .append(&message_row(t("Skipped files"), &warnings.join("\n")));
     }
 }
 
-pub fn wire(ui: &Rc<Ui>, buttons: (gtk::Button, gtk::Button, gtk::Button, gtk::Button)) {
-    let (save, delete, import, export) = buttons;
+fn message_row(title: &str, subtitle: &str) -> adw::ActionRow {
+    let row = adw::ActionRow::new();
+    row.set_title(title);
+    row.set_subtitle(subtitle);
+    row.add_css_class("dim-label");
+    row
+}
+
+pub fn wire(ui: &Rc<Ui>) {
+    for pane in &ui.panes {
+        wire_pane(ui, pane);
+    }
+}
+
+fn wire_pane(ui: &Rc<Ui>, pane: &crate::pages::ChainPane) {
+    let kind = pane.kind;
+    let (save, delete, import, export) = pane.preset_buttons.clone();
 
     let ui_load = Rc::clone(ui);
-    ui.preset_list.connect_row_activated(move |_, row| {
+    pane.preset_list.connect_row_activated(move |_, row| {
         let name = row.widget_name().to_string();
         if name.is_empty() {
             return;
         }
-        let loaded = ui_load.state.borrow_mut().load_preset(&name);
-        match loaded {
+        match ui_load.state.borrow_mut().load_preset_section(kind, &name) {
             Ok(warnings) => {
                 if !warnings.is_empty() {
                     ui_load.show_banner(&tr(
@@ -173,6 +174,7 @@ pub fn wire(ui: &Rc<Ui>, buttons: (gtk::Button, gtk::Button, gtk::Button, gtk::B
 }
 
 pub fn prompt_save(ui: &Rc<Ui>) {
+    let kind = ui.active();
     let name = ui
         .state
         .borrow()
@@ -192,8 +194,7 @@ pub fn prompt_save(ui: &Rc<Ui>) {
                 ui.show_banner(t("A preset needs a name"));
                 return;
             }
-            let saved = ui.state.borrow_mut().save_preset(name.trim());
-            match saved {
+            match ui.state.borrow_mut().save_preset_section(kind, name.trim()) {
                 Ok(_) => {
                     populate(&ui);
                     ui.toast(t("Preset saved"));
@@ -210,7 +211,8 @@ pub fn prompt_save(ui: &Rc<Ui>) {
 }
 
 fn prompt_delete(ui: &Rc<Ui>) {
-    let (infos, _) = ui.state.borrow().store.list();
+    let kind = ui.active();
+    let (infos, _) = ui.state.borrow().preset_infos(kind);
     let user_presets: Vec<String> = infos
         .into_iter()
         .filter(|info| info.deletable())

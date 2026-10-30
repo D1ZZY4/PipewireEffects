@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use pwe_core::i18n::{t, tr};
 use pwe_core::{ALL_PIPELINES, PipelineKind};
 use pwe_engine::{EngineConfig, EngineHandle, EngineResult, EngineState, Snapshot, StatsSnapshot};
-use pwe_presets::{Preset, PresetError, PresetStore};
+use pwe_presets::{PresetError, PresetStore};
 use pwe_settings::{Settings, SettingsStore};
 
 use crate::chain::{Chain, Slot};
@@ -218,20 +218,45 @@ impl State {
         Ok(warnings)
     }
 
-    pub fn snapshot_preset(&self, name: &str) -> Preset {
-        let mut preset = Preset::new(name);
-        self.chain(PipelineKind::Output)
-            .snapshot(&mut preset.output);
-        self.chain(PipelineKind::Input).snapshot(&mut preset.input);
-        preset
+    pub fn load_preset_section(
+        &mut self,
+        kind: PipelineKind,
+        name: &str,
+    ) -> Result<Vec<String>, PresetError> {
+        let (preset, mut warnings) = self.store.load_with_warnings(name)?;
+        let section = preset.pipeline(kind).clone();
+        if kind == PipelineKind::Input
+            && !self.settings.process_input
+            && !section.effects.is_empty()
+        {
+            warnings.push(
+                t("the preset carries an input chain; turn on microphone processing to run it")
+                    .to_owned(),
+            );
+        }
+        self.chain_mut(kind).apply(&section, &mut warnings);
+        self.settings.preset = name.to_owned();
+        self.persist();
+        Ok(warnings)
     }
 
-    pub fn save_preset(&mut self, name: &str) -> Result<PathBuf, PresetError> {
-        let preset = self.snapshot_preset(name);
-        let path = self.store.save(&preset)?;
+    pub fn save_preset_section(
+        &mut self,
+        kind: PipelineKind,
+        name: &str,
+    ) -> Result<PathBuf, PresetError> {
+        let mut section = pwe_presets::Pipeline::default();
+        self.chain(kind).snapshot(&mut section);
+        let path = self.store.save_section(name, kind, &section)?;
         self.settings.preset = name.to_owned();
         self.persist();
         Ok(path)
+    }
+
+    pub fn preset_infos(&self, kind: PipelineKind) -> (Vec<pwe_presets::PresetInfo>, Vec<String>) {
+        let (infos, warnings) = self.store.list();
+        let covering = infos.into_iter().filter(|info| info.covers(kind)).collect();
+        (covering, warnings)
     }
 
     pub fn delete_preset(&mut self, name: &str) -> Result<(), PresetError> {
@@ -284,8 +309,7 @@ impl State {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use pwe_presets::PresetValue;
+    use pwe_presets::{Preset, PresetValue};
 
     #[test]
     fn a_blank_preset_snapshots_both_pipelines() {

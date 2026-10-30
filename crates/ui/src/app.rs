@@ -23,8 +23,9 @@ const STYLE: &str = "
 .numeric { font-feature-settings: \"tnum\"; }
 
 .chain-bypassed { opacity: 0.5; }
-.bypass-button:checked { background: alpha(@accent_bg_color, 0.22); color: @accent_color; }
-.pipeline-switcher button { font-weight: bold; }
+.chain-label { font-weight: bold; }
+.effects-button:checked { background: none; box-shadow: none; color: @accent_color; }
+.sidebar-pane { box-shadow: none; }
 ";
 
 #[derive(Debug, Clone)]

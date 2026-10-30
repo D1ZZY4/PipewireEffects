@@ -25,14 +25,14 @@ pub struct Ui {
     pub window: adw::ApplicationWindow,
     pub toast: adw::ToastOverlay,
     pub panes: [ChainPane; 2],
-    pub preset_list: gtk::ListBox,
-    pub bypass: gtk::ToggleButton,
     pub banner: adw::Banner,
     pub devices_view: DevicesView,
     pub preferences_view: PreferencesView,
     pub devices_dialog: adw::PreferencesDialog,
     pub preferences_dialog: adw::PreferencesDialog,
     pub stack: adw::ViewStack,
+    pub sidebar_stack: gtk::Stack,
+    pub split: adw::OverlaySplitView,
     pipeline_guard: Cell<bool>,
     signature: RefCell<ChainSignature>,
 }
@@ -48,19 +48,19 @@ impl Ui {
             window: workspace.window,
             toast: workspace.toast,
             panes: workspace.panes,
-            preset_list: workspace.preset_list,
-            bypass: workspace.bypass,
             banner: workspace.banner,
             devices_view: workspace.devices_view,
             preferences_view: workspace.preferences_view,
             devices_dialog: workspace.devices_dialog,
             preferences_dialog: workspace.preferences_dialog,
             stack: workspace.stack,
+            sidebar_stack: workspace.sidebar_stack,
+            split: workspace.split,
             pipeline_guard: Cell::new(false),
             signature: RefCell::new((PipelineKind::Output, (0, false, None))),
         });
 
-        ui.wire(workspace.preset_buttons);
+        ui.wire();
         presets_ui::populate(&ui);
         ui.sync_desktop_switches();
         ui.rebuild_chain();
@@ -85,6 +85,7 @@ impl Ui {
         self.state.borrow_mut().set_active(kind);
         self.pipeline_guard.set(true);
         self.stack.set_visible_child_name(page_name(kind));
+        self.sidebar_stack.set_visible_child_name(page_name(kind));
         self.pipeline_guard.set(false);
         self.rebuild_chain();
         self.rebuild_editor();
@@ -101,7 +102,7 @@ impl Ui {
             .set_developer_mode(state.settings.developer_mode);
     }
 
-    fn wire(self: &Rc<Self>, preset_buttons: (gtk::Button, gtk::Button, gtk::Button, gtk::Button)) {
+    fn wire(self: &Rc<Self>) {
         for pane in &self.panes {
             let ui = Rc::clone(self);
             pane.add_button.connect_clicked(move |_| {
@@ -118,28 +119,31 @@ impl Ui {
                 ui.state.borrow_mut().set_selected(Some(EffectSlot(value)));
                 ui.rebuild_editor();
             });
+
+            let ui = Rc::clone(self);
+            let kind = pane.kind;
+            pane.effects.connect_toggled(move |button| {
+                let bypassed = !button.is_active();
+                if ui.state.borrow().chain(kind).bypassed == bypassed {
+                    return;
+                }
+                if ui.state.borrow().active() != kind {
+                    ui.state.borrow_mut().set_active(kind);
+                }
+                ui.state.borrow_mut().set_bypass(bypassed);
+            });
         }
 
         let ui = Rc::clone(self);
-        self.bypass.connect_toggled(move |button| {
-            let wanted = button.is_active();
-            if ui.state.borrow().bypassed() == wanted {
-                return;
-            }
-            ui.state.borrow_mut().set_bypass(wanted);
-        });
-
-        let ui = Rc::clone(self);
         self.stack.connect_visible_child_name_notify(move |stack| {
-            let Some(name) = stack.visible_child_name() else {
-                return;
-            };
-            if let Some(kind) = pipeline_of(&name) {
+            if let Some(name) = stack.visible_child_name()
+                && let Some(kind) = pipeline_of(&name)
+            {
                 ui.set_pipeline(kind);
             }
         });
 
-        presets_ui::wire(self, preset_buttons);
+        presets_ui::wire(self);
 
         let ui = Rc::clone(self);
         self.banner.connect_button_clicked(move |_| {
@@ -176,22 +180,18 @@ impl Ui {
 
     pub fn rebuild_chain(self: &Rc<Self>) {
         let pane = self.pane();
-        while let Some(child) = pane.list.first_child() {
-            pane.list.remove(&child);
-        }
-        let (rows, total, running) = {
+        let (slots, running) = {
             let state = self.state.borrow();
             let chain = state.active_chain();
-            let rows: Vec<(EffectSlot, &'static str, bool)> = chain
+            let slots: Vec<(EffectSlot, &'static str, bool)> = chain
                 .slots
                 .iter()
                 .map(|slot| (slot.id, slot.kind, slot.enabled))
                 .collect();
-            (rows, chain.slots.len(), chain.running())
+            (slots, chain.running())
         };
-        for (id, kind, enabled) in rows {
-            pane.list.append(&chain_view::row(self, id, kind, enabled));
-        }
+        chain_view::populate(self, &pane.list, &slots);
+        let total = slots.len();
         pane.placeholder.set_visible(total == 0);
         pane.list.set_visible(total > 0);
         if !running && total == 0 {
@@ -199,6 +199,7 @@ impl Ui {
                 "Turn on microphone processing from the main menu, under Devices",
             )));
         }
+        presets_ui::populate(self);
         self.restore_selection();
     }
 
@@ -225,16 +226,19 @@ impl Ui {
 
     fn restore_selection(&self) {
         let pane = self.pane();
-        let position = {
-            let state = self.state.borrow();
-            let chain = state.active_chain();
-            chain
-                .slots
-                .iter()
-                .position(|slot| Some(slot.id) == chain.selected)
-        };
-        let row = position.and_then(|index| pane.list.row_at_index(index as i32));
-        pane.list.select_row(row.as_ref());
+        let selected = self.state.borrow().active_chain().selected;
+        let mut target: Option<gtk::ListBoxRow> = None;
+        let mut child = pane.list.first_child();
+        while let Some(current) = child {
+            if let Some(row) = current.downcast_ref::<gtk::ListBoxRow>()
+                && selected.map(|slot| slot.0.to_string()).as_deref() == Some(&row.widget_name())
+            {
+                target = Some(row.clone());
+                break;
+            }
+            child = current.next_sibling();
+        }
+        pane.list.select_row(target.as_ref());
     }
 
     pub fn show_banner(&self, message: &str) {
@@ -248,7 +252,7 @@ impl Ui {
 
     pub fn refresh(self: &Rc<Self>) {
         let kind = self.active();
-        let (snapshot, meters, stats, state, error) = {
+        let (snapshot, meters, stats, state, error, bypassed) = {
             let state = self.state.borrow();
             let snapshot = state.snapshot_of(kind);
             let meters = state
@@ -263,6 +267,7 @@ impl Ui {
                 state.stats_of(kind),
                 state.state_of(kind),
                 state.error_of(kind),
+                state.bypassed(),
             )
         };
         self.sync_view_signature();
@@ -271,15 +276,18 @@ impl Ui {
             .update(meters.input_peak_db, meters.input_rms_db);
         pane.meter_out
             .update(meters.output_peak_db, meters.output_rms_db);
-        if self.bypass.is_active() != snapshot.bypassed {
-            self.bypass.set_active(snapshot.bypassed);
-            self.bypass.set_tooltip_text(Some(if snapshot.bypassed {
-                t("The chain is bypassed; press to let the audio through")
-            } else {
-                t("Bypass the effect chain")
-            }));
+        for pane in &self.panes {
+            let bypassed = self.state.borrow().chain(pane.kind).bypassed;
+            if pane.effects.is_active() == bypassed {
+                pane.effects.set_active(!bypassed);
+                pane.effects.set_tooltip_text(Some(if bypassed {
+                    t("The chain is bypassed; switch it on to run the effects")
+                } else {
+                    t("The chain is running; switch it off to bypass the effects")
+                }));
+            }
         }
-        self.set_status(snapshot.bypassed);
+        self.set_status(bypassed);
         self.devices_view.update(&snapshot, &stats, state);
         self.preferences_view.update(&snapshot, state, &stats);
         if let Some(error) = error {

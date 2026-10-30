@@ -8,59 +8,69 @@ use crate::Ui;
 use crate::format;
 use crate::widgets;
 
+pub fn populate(ui: &Rc<Ui>, list: &gtk::ListBox, slots: &[(EffectSlot, &'static str, bool)]) {
+    while let Some(child) = list.first_child() {
+        list.remove(&child);
+    }
+    for (id, kind, enabled) in slots {
+        list.append(&row(ui, *id, kind, *enabled));
+    }
+}
+
 pub fn row(ui: &Rc<Ui>, id: EffectSlot, kind: &'static str, enabled: bool) -> gtk::ListBoxRow {
     let row = gtk::ListBoxRow::new();
     row.set_widget_name(&id.0.to_string());
     row.set_activatable(true);
+    row.set_tooltip_text(Some(format::effect_summary(kind)));
 
-    let container = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-    container.set_margin_top(6);
-    container.set_margin_bottom(6);
-    container.set_margin_start(10);
-    container.set_margin_end(6);
+    let container = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    container.set_margin_top(3);
+    container.set_margin_bottom(3);
+    container.set_margin_start(4);
+    container.set_margin_end(4);
 
-    let text = gtk::Box::new(gtk::Orientation::Vertical, 1);
-    text.set_hexpand(true);
-    text.set_valign(gtk::Align::Center);
+    let icon = widgets::effect_icon(kind, 16);
+    if !enabled {
+        icon.add_css_class("dim-label");
+    }
+
     let title = gtk::Label::new(Some(format::effect_label(kind)));
     title.set_xalign(0.0);
+    title.set_hexpand(true);
     title.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    let subtitle = gtk::Label::new(Some(format::effect_summary(kind)));
-    subtitle.set_xalign(0.0);
-    subtitle.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    subtitle.add_css_class("caption");
-    subtitle.add_css_class("dim-label");
+    title.add_css_class("chain-label");
     if !enabled {
         title.add_css_class("dim-label");
     }
-    text.append(&title);
-    text.append(&subtitle);
 
-    let toggle = gtk::Switch::new();
-    toggle.set_active(enabled);
-    toggle.set_valign(gtk::Align::Center);
-    toggle.set_tooltip_text(Some(t("Enable or disable this effect")));
-    {
-        let ui = Rc::clone(ui);
-        toggle.connect_active_notify(move |toggle| {
-            let wanted = toggle.is_active();
-            let current = ui.state.borrow().slot(id).map(|slot| slot.enabled);
-            if current == Some(wanted) {
-                return;
-            }
-            ui.state.borrow_mut().set_enabled(id, wanted);
-            ui.rebuild_chain();
-        });
-    }
+    let switch = gtk::Switch::new();
+    switch.set_active(enabled);
+    switch.set_valign(gtk::Align::Center);
+    switch.set_tooltip_text(Some(t("Enable or disable this effect")));
+    switch.update_property(&[
+        gtk::accessible::Property::Label(format::effect_label(kind)),
+        gtk::accessible::Property::Description(t("Enable or disable this effect")),
+    ]);
 
     let menu = row_menu(ui, id);
     menu.set_opacity(0.0);
     menu.set_can_target(false);
 
-    container.append(&widgets::effect_icon(kind, 16));
-    container.append(&text);
-    container.append(&toggle);
+    container.append(&icon);
+    container.append(&title);
+    container.append(&switch);
     container.append(&menu);
+
+    let ui_switch = Rc::clone(ui);
+    switch.connect_active_notify(move |switch| {
+        let wanted = switch.is_active();
+        let current = ui_switch.state.borrow().slot(id).map(|slot| slot.enabled);
+        if current == Some(wanted) {
+            return;
+        }
+        ui_switch.state.borrow_mut().set_enabled(id, wanted);
+        ui_switch.rebuild_chain();
+    });
 
     let revealed = menu.clone();
     let motion = gtk::EventControllerMotion::new();

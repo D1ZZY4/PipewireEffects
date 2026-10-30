@@ -285,10 +285,13 @@ impl DevicesView {
 fn copyable_row(title: &str) -> adw::ActionRow {
     let row = adw::ActionRow::new();
     row.set_title(title);
-    let copy = gtk::Button::with_label(t("Copy"));
+    let copy = gtk::Button::from_icon_name(format::ICON_COPY);
     copy.add_css_class("flat");
     copy.set_valign(gtk::Align::Center);
     copy.set_tooltip_text(Some(t("Copy this name to the clipboard")));
+    copy.update_property(&[gtk::accessible::Property::Label(t(
+        "Copy this name to the clipboard",
+    ))]);
     let source = row.clone();
     copy.connect_clicked(move |button| {
         let name = source.widget_name().to_string();
@@ -296,10 +299,10 @@ fn copyable_row(title: &str) -> adw::ActionRow {
             return;
         }
         button.display().clipboard().set_text(&name);
-        button.set_label(t("Copied"));
+        button.set_icon_name(format::ICON_COPIED);
         let button = button.clone();
         glib::timeout_add_local_once(std::time::Duration::from_millis(1200), move || {
-            button.set_label(t("Copy"));
+            button.set_icon_name(format::ICON_COPY);
         });
     });
     row.add_suffix(&copy);
@@ -340,37 +343,4 @@ pub fn device_labels(devices: &[(String, String)]) -> Vec<String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn pair(name: &str, description: &str) -> (String, String) {
-        (name.to_owned(), description.to_owned())
-    }
-
-    #[test]
-    fn unique_descriptions_are_used_as_labels() {
-        let labels = device_labels(&[
-            pair("alsa_output.a", "Built-in Audio"),
-            pair("bluez.1", "Headset"),
-        ]);
-        assert_eq!(labels, vec!["Built-in Audio", "Headset"]);
-    }
-
-    #[test]
-    fn repeated_descriptions_are_numbered() {
-        let labels = device_labels(&[
-            pair("alsa_output.a", "Built-in Audio Pro"),
-            pair("alsa_output.b", "Built-in Audio Pro"),
-        ]);
-        assert_eq!(
-            labels,
-            vec!["Built-in Audio Pro (1)", "Built-in Audio Pro (2)"]
-        );
-    }
-
-    #[test]
-    fn a_missing_description_falls_back_to_the_name() {
-        let labels = device_labels(&[pair("node.one", "")]);
-        assert_eq!(labels, vec!["node.one"]);
-    }
-}
+mod tests;

@@ -5,13 +5,10 @@ use pwe_core::i18n::t;
 use pwe_engine::{EngineState, Snapshot, StatsSnapshot};
 
 use crate::format;
-use crate::widgets;
 
 pub struct Diagnostics {
     counters: adw::PreferencesGroup,
     expander: adw::ExpanderRow,
-    state_row: adw::ActionRow,
-    state_icon: gtk::Image,
     pipeline_row: adw::ActionRow,
     rate_row: adw::ActionRow,
     quantum_row: adw::ActionRow,
@@ -35,12 +32,6 @@ impl Default for Diagnostics {
 
 impl Diagnostics {
     pub fn new() -> Self {
-        let state_row = adw::ActionRow::new();
-        state_row.set_title(t("State"));
-        let state_icon = gtk::Image::new();
-        state_icon.set_valign(gtk::Align::Center);
-        state_row.add_prefix(&state_icon);
-
         let pipeline_row = value_row(t("Pipeline"));
         let rate_row = value_row(t("Sample rate"));
         let quantum_row = value_row(t("Quantum"));
@@ -55,7 +46,6 @@ impl Diagnostics {
         expander.set_title(t("Engine counters"));
         expander.set_subtitle(t("Live values for the pipeline in view"));
         for row in [
-            &state_row,
             &pipeline_row,
             &rate_row,
             &quantum_row,
@@ -83,8 +73,6 @@ impl Diagnostics {
         Self {
             counters,
             expander,
-            state_row,
-            state_icon,
             pipeline_row,
             rate_row,
             quantum_row,
@@ -121,13 +109,11 @@ impl Diagnostics {
     pub fn update(
         &self,
         snapshot: &Snapshot,
-        state: EngineState,
+        _state: EngineState,
         stats: &StatsSnapshot,
         warnings: &[String],
     ) {
         self.pipeline_row.set_subtitle(snapshot.kind.label());
-        self.state_row.set_subtitle(state.label());
-        widgets::apply_state(&self.state_icon, state);
         self.rate_row.set_subtitle(&if snapshot.sample_rate == 0 {
             "—".to_owned()
         } else {

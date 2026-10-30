@@ -18,8 +18,10 @@ pub fn install(ui: &Rc<Ui>) {
     else {
         return;
     };
-    if state == "narrow" {
-        ui.window.set_default_size(720, 620);
+    match state.as_str() {
+        "narrow" => ui.window.set_default_size(720, 620),
+        "mobile" | "mobile-drawer" => ui.window.set_default_size(360, 740),
+        _ => {}
     }
     let ui = Rc::clone(ui);
     glib::timeout_add_seconds_local(2, move || {
@@ -111,7 +113,7 @@ fn apply(ui: &Rc<Ui>, state: &str) {
             load_default(ui);
             select_kind(ui, "equalizer");
         }
-        "presets" => ui.stack.set_visible_child_name("presets"),
+        "presets" => load_default(ui),
         "input" => {
             load_default(ui);
             ui.toggle_input(true);
@@ -137,8 +139,17 @@ fn apply(ui: &Rc<Ui>, state: &str) {
         "about" => reveal_about(ui),
         "save" => presets_ui::prompt_save(ui),
         "banner" => ui.show_banner("No output device matches 'Studio monitors'"),
-        "bypass" => ui.bypass.set_active(true),
+        "bypass" => ui.panes[ui.active().index()].effects.set_active(false),
         "narrow" => load_default(ui),
+        "mobile" => load_default(ui),
+        "mobile-drawer" => {
+            load_default(ui);
+            ui.split.set_show_sidebar(true);
+        }
+        "sidebar-hidden" => {
+            load_default(ui);
+            ui.split.set_show_sidebar(false);
+        }
         _ => {}
     }
 }
