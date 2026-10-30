@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PipeWire Effects 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/D1ZZY4/PipewireEffects/issues\n"
-"POT-Creation-Date: 2026-10-30 17:15+0700\n"
+"POT-Creation-Date: 2026-10-30 17:23+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1568,75 +1568,75 @@ msgstr ""
 msgid "Delete a user preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:70
+#: crates/ui/src/presets_ui.rs:69
 msgid "No microphone presets yet"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:71
+#: crates/ui/src/presets_ui.rs:70
 msgid "Save the input chain to create one"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:76
+#: crates/ui/src/presets_ui.rs:75
 msgid "Skipped files"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:127
+#: crates/ui/src/presets_ui.rs:125
 msgid "Built in"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:129
+#: crates/ui/src/presets_ui.rs:127
 msgid "User preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:131
+#: crates/ui/src/presets_ui.rs:129
 msgid "System preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:140
+#: crates/ui/src/presets_ui.rs:138
 msgid "Unload this preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:142
+#: crates/ui/src/presets_ui.rs:140
 msgid "Load this preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:172
+#: crates/ui/src/presets_ui.rs:170
 msgid "Update preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:173
+#: crates/ui/src/presets_ui.rs:171
 msgid "Revert changes"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:182 crates/ui/src/presets_ui.rs:184
+#: crates/ui/src/presets_ui.rs:180 crates/ui/src/presets_ui.rs:182
 msgid "Update or discard the changes to this preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:200
+#: crates/ui/src/presets_ui.rs:198
 msgid "Preset updated"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:203
+#: crates/ui/src/presets_ui.rs:201
 msgid "The preset could not be updated: {0}"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:227
+#: crates/ui/src/presets_ui.rs:225
 msgid "The preset loaded with warnings: {0}"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:236
+#: crates/ui/src/presets_ui.rs:234
 msgid "The preset could not be loaded: {0}"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:263
+#: crates/ui/src/presets_ui.rs:261
 msgid "{0} and {1} more"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:273
+#: crates/ui/src/presets_ui.rs:271
 msgid "Imported '{0}'"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:276
+#: crates/ui/src/presets_ui.rs:274
 msgid "Imported '{0}' with warnings: {1}"
 msgstr ""
 
