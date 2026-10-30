@@ -17,12 +17,3 @@ pub fn section_title(text: &str) -> gtk::Widget {
     label.set_margin_bottom(2);
     label.upcast()
 }
-
-pub fn apply_state(icon: &gtk::Image, state: pwe_engine::EngineState) {
-    for class in ["success", "warning", "error", "dim-label"] {
-        icon.remove_css_class(class);
-    }
-    let (name, class) = format::state_icon(state);
-    icon.set_icon_name(Some(name));
-    icon.add_css_class(class);
-}

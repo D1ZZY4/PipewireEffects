@@ -20,11 +20,6 @@ pub const ICON_SAVE: &str = "document-save-symbolic";
 pub const ICON_IMPORT: &str = "document-open-symbolic";
 pub const ICON_EXPORT: &str = "document-send-symbolic";
 
-pub const ICON_STATE_OK: &str = "object-select-symbolic";
-pub const ICON_STATE_WORKING: &str = "content-loading-symbolic";
-pub const ICON_STATE_ERROR: &str = "dialog-error-symbolic";
-pub const ICON_STATE_STOPPED: &str = "media-playback-stop-symbolic";
-
 pub const CHROME_ICONS: &[&str] = &[
     ICON_BYPASS,
     ICON_MENU,
@@ -47,10 +42,6 @@ pub const CHROME_ICONS: &[&str] = &[
     ICON_SAVE,
     ICON_IMPORT,
     ICON_EXPORT,
-    ICON_STATE_OK,
-    ICON_STATE_WORKING,
-    ICON_STATE_ERROR,
-    ICON_STATE_STOPPED,
 ];
 
 pub fn missing_icons(theme: &gtk::IconTheme) -> Vec<&'static str> {
@@ -163,16 +154,6 @@ pub fn duration_text(frames: u64, rate: u32) -> String {
         format!("{milliseconds:.1} ms")
     } else {
         format!("{milliseconds:.0} ms")
-    }
-}
-
-pub fn state_icon(state: pwe_engine::EngineState) -> (&'static str, &'static str) {
-    use pwe_engine::EngineState;
-    match state {
-        EngineState::Running => (ICON_STATE_OK, "success"),
-        EngineState::Starting => (ICON_STATE_WORKING, "warning"),
-        EngineState::Failed => (ICON_STATE_ERROR, "error"),
-        EngineState::Stopped => (ICON_STATE_STOPPED, "dim-label"),
     }
 }
 

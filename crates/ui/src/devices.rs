@@ -12,8 +12,6 @@ use crate::pages::WorkspaceActions;
 
 pub struct DevicesView {
     pipeline_group: adw::PreferencesGroup,
-    state_row: adw::ActionRow,
-    state_icon: gtk::Image,
     format_row: adw::ActionRow,
     quantum_row: adw::ActionRow,
     reconnect: gtk::Button,
@@ -25,7 +23,6 @@ pub struct DevicesView {
     microphone: adw::SwitchRow,
     source_row: adw::ActionRow,
     destination: RefCell<String>,
-    status: RefCell<String>,
     toggles: Rc<Cell<bool>>,
 }
 
@@ -36,12 +33,9 @@ impl DevicesView {
         let pipeline_group = adw::PreferencesGroup::new();
         pipeline_group.set_title(t("Pipeline"));
 
-        let state_row = adw::ActionRow::new();
-        state_row.set_title(t("State"));
-        state_row.set_subtitle(t("Connecting"));
-        let state_icon = gtk::Image::new();
-        state_icon.set_valign(gtk::Align::Center);
-        state_row.add_prefix(&state_icon);
+        let format_row = adw::ActionRow::new();
+        format_row.set_title(t("Format"));
+        format_row.set_subtitle(t("Waiting for the graph"));
         let reconnect = gtk::Button::with_label(t("Reconnect"));
         reconnect.add_css_class("flat");
         reconnect.set_valign(gtk::Align::Center);
@@ -51,17 +45,12 @@ impl DevicesView {
             let on_reconnect = Rc::clone(&actions.on_reconnect);
             reconnect.connect_clicked(move |_| on_reconnect());
         }
-        state_row.add_suffix(&reconnect);
-
-        let format_row = adw::ActionRow::new();
-        format_row.set_title(t("Format"));
-        format_row.set_subtitle(t("Waiting for the graph"));
+        format_row.add_suffix(&reconnect);
 
         let quantum_row = adw::ActionRow::new();
         quantum_row.set_title(t("Quantum"));
         quantum_row.set_subtitle("—");
 
-        pipeline_group.add(&state_row);
         pipeline_group.add(&format_row);
         pipeline_group.add(&quantum_row);
         page.add(&pipeline_group);
@@ -130,8 +119,6 @@ impl DevicesView {
 
         let view = Self {
             pipeline_group,
-            state_row,
-            state_icon,
             format_row,
             quantum_row,
             reconnect,
@@ -143,7 +130,6 @@ impl DevicesView {
             microphone,
             source_row,
             destination: RefCell::new(String::new()),
-            status: RefCell::new(String::new()),
             toggles,
         };
         (page, view)
@@ -160,12 +146,6 @@ impl DevicesView {
         let kind = snapshot.kind;
         self.pipeline_group
             .set_title(&tr("{0} pipeline", &[kind.label()]));
-        let status = format!("{} · {}", state.label(), kind.label());
-        if *self.status.borrow() != status {
-            self.state_row.set_subtitle(state.label());
-            apply_state(&self.state_icon, state);
-            *self.status.borrow_mut() = status;
-        }
         self.reconnect.set_visible(state == EngineState::Failed);
         self.format_row.set_subtitle(&if snapshot.sample_rate == 0 {
             t("Waiting for the graph").to_owned()
@@ -307,10 +287,6 @@ fn copyable_row(title: &str) -> adw::ActionRow {
     });
     row.add_suffix(&copy);
     row
-}
-
-fn apply_state(icon: &gtk::Image, state: EngineState) {
-    crate::widgets::apply_state(icon, state);
 }
 
 pub fn device_labels(devices: &[(String, String)]) -> Vec<String> {
