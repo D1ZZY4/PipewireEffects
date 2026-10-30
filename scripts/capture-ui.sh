@@ -11,6 +11,7 @@ app=${APP:-"$repo_root/target/release/pipewire-effects"}
 display_name=${WAYLAND_DISPLAY_NAME:-wayland-31}
 settle_seconds=${SETTLE_SECONDS:-3}
 capture_timeout=${CAPTURE_TIMEOUT:-40}
+state_attempts=${CAPTURE_ATTEMPTS:-3}
 keep_workdir=${KEEP_WORKDIR:-0}
 
 usage() {
@@ -28,6 +29,7 @@ Environment:
   WAYLAND_DISPLAY_NAME  private Wayland socket   (default wayland-31)
   SETTLE_SECONDS   wait after the shell is ready (default 3)
   CAPTURE_TIMEOUT  seconds to wait for one PNG   (default 40)
+  CAPTURE_ATTEMPTS launcher retries per state    (default 3)
   KEEP_WORKDIR     set to 1 to keep the logs and the private config
 
 States: chain editor equalizer presets devices preferences developer picker
@@ -84,6 +86,7 @@ export CAPTURE_APP="$app"
 export CAPTURE_DISPLAY="$display_name"
 export CAPTURE_SETTLE="$settle_seconds"
 export CAPTURE_TIMEOUT="$capture_timeout"
+export CAPTURE_ATTEMPTS="$state_attempts"
 export CAPTURE_REAL_RUNTIME="$real_runtime"
 
 dbus-run-session -- bash -c '
@@ -144,28 +147,36 @@ for state in $CAPTURE_STATES; do
     log="$CAPTURE_WORK/logs/app-$safe.log"
     rm -f "$png"
 
-    WAYLAND_DISPLAY="$CAPTURE_DISPLAY" GDK_BACKEND=wayland \
-        PIPEWIRE_EFFECTS_UI_STATE="$state" \
-        PIPEWIRE_EFFECTS_UI_CAPTURE="$png" \
-        "$CAPTURE_APP" >"$log" 2>&1 &
-    app_pid=$!
+    attempt=0
+    while [ ! -f "$png" ] && [ "$attempt" -lt "$CAPTURE_ATTEMPTS" ]; do
+        attempt=$((attempt + 1))
+        WAYLAND_DISPLAY="$CAPTURE_DISPLAY" GDK_BACKEND=wayland \
+            PIPEWIRE_EFFECTS_UI_STATE="$state" \
+            PIPEWIRE_EFFECTS_UI_CAPTURE="$png" \
+            "$CAPTURE_APP" >>"$log" 2>&1 &
+        app_pid=$!
 
-    waited=0
-    while [ ! -f "$png" ] && [ "$waited" -lt "$CAPTURE_TIMEOUT" ]; do
-        if ! kill -0 "$app_pid" 2>/dev/null; then
-            break
+        waited=0
+        while [ ! -f "$png" ] && [ "$waited" -lt "$CAPTURE_TIMEOUT" ]; do
+            if ! kill -0 "$app_pid" 2>/dev/null; then
+                break
+            fi
+            sleep 0.5
+            waited=$((waited + 1))
+        done
+        kill "$app_pid" 2>/dev/null
+        wait "$app_pid" 2>/dev/null
+
+        if [ ! -f "$png" ] && [ "$attempt" -lt "$CAPTURE_ATTEMPTS" ]; then
+            sleep 1
         fi
-        sleep 0.5
-        waited=$((waited + 1))
     done
-    kill "$app_pid" 2>/dev/null
-    wait "$app_pid" 2>/dev/null
 
     if [ -f "$png" ]; then
         line=$(grep -m1 "UI_CAPTURE" "$log" 2>/dev/null)
         printf "  %-14s %s\n" "$state" "${line:-captured}"
     else
-        printf "  %-14s FAILED (see %s)\n" "$state" "$log"
+        printf "  %-14s FAILED after %s attempt(s) (see %s)\n" "$state" "$attempt" "$log"
         failures=$((failures + 1))
     fi
 done
