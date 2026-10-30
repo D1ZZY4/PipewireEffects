@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PipeWire Effects 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/D1ZZY4/PipewireEffects/issues\n"
-"POT-Creation-Date: 2026-10-30 09:39+0700\n"
+"POT-Creation-Date: 2026-10-30 17:15+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -611,7 +611,7 @@ msgstr ""
 msgid "Amount"
 msgstr ""
 
-#: crates/dsp/src/effects/crystalizer.rs:23 crates/ui/src/format.rs:65
+#: crates/dsp/src/effects/crystalizer.rs:23 crates/ui/src/format.rs:67
 msgid "Effect"
 msgstr ""
 
@@ -907,7 +907,11 @@ msgstr ""
 msgid "the engine thread could not be started: {0}"
 msgstr ""
 
-#: crates/engine/src/processor.rs:94
+#: crates/engine/src/cpu/processor.rs:45
+msgid "No Vulkan compute device is available; the chain runs on the CPU"
+msgstr ""
+
+#: crates/engine/src/cpu/processor.rs:103
 msgid "the graph quantum is larger than the processing buffer"
 msgstr ""
 
@@ -927,11 +931,11 @@ msgstr ""
 msgid "Stopped"
 msgstr ""
 
-#: crates/engine/src/stream_setup.rs:200
+#: crates/engine/src/stream_setup.rs:201
 msgid "the {0} {1} stream failed: {2}"
 msgstr ""
 
-#: crates/engine/src/stream_setup.rs:212
+#: crates/engine/src/stream_setup.rs:214
 msgid "the {0} {1} stream left {2} for {3}"
 msgstr ""
 
@@ -1127,32 +1131,32 @@ msgstr ""
 msgid "{0} was skipped: {1}"
 msgstr ""
 
-#: crates/settings/src/store.rs:43 crates/settings/src/store.rs:54
+#: crates/services/src/store.rs:43 crates/services/src/store.rs:54
 msgid "{0} was ignored: {1}"
 msgstr ""
 
-#: crates/ui/src/app.rs:109
+#: crates/ui/src/app.rs:110
 msgid "{0} is running without a window"
 msgstr ""
 
-#: crates/ui/src/app.rs:153 crates/ui/src/state.rs:294
+#: crates/ui/src/app.rs:154 crates/ui/src/state.rs:289
 msgid "'{0}' could not be loaded: {1}"
 msgstr ""
 
-#: crates/ui/src/app.rs:262
+#: crates/ui/src/app.rs:263
 msgid "PipeWire Effects contributors"
 msgstr ""
 
-#: crates/ui/src/app.rs:268
+#: crates/ui/src/app.rs:269
 msgid ""
 "Runs application audio through a chain of effects on a virtual PipeWire sink."
 msgstr ""
 
-#: crates/ui/src/app.rs:277
+#: crates/ui/src/app.rs:278
 msgid "PipeWire Effects could not start"
 msgstr ""
 
-#: crates/ui/src/app.rs:278
+#: crates/ui/src/app.rs:279
 msgid "Close"
 msgstr ""
 
@@ -1168,64 +1172,68 @@ msgstr ""
 msgid "Enable or disable this effect"
 msgstr ""
 
-#: crates/ui/src/chain_view.rs:106
+#: crates/ui/src/chain_view.rs:91
 msgid "Move up"
 msgstr ""
 
-#: crates/ui/src/chain_view.rs:107
+#: crates/ui/src/chain_view.rs:92
 msgid "Move down"
 msgstr ""
 
-#: crates/ui/src/chain_view.rs:108
+#: crates/ui/src/chain_view.rs:93
 msgid "Remove"
 msgstr ""
 
-#: crates/ui/src/chain_view.rs:120
+#: crates/ui/src/chain_view.rs:105
 msgid "Reorder or remove this effect"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:50
+#: crates/ui/src/chrome.rs:55
 msgid "Main menu"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:59 crates/ui/src/chrome.rs:67
+#: crates/ui/src/chrome.rs:64 crates/ui/src/chrome.rs:72
 msgid "Effects"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:65
+#: crates/ui/src/chrome.rs:70
 msgid "Bypass the effect chain"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:69
+#: crates/ui/src/chrome.rs:74
 msgid ""
 "Runs the audio through the effect chain; turn it off to bypass the chain"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:78 crates/ui/src/pages.rs:92
+#: crates/ui/src/chrome.rs:83 crates/ui/src/pages.rs:106
 msgid "Devices"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:83 crates/ui/src/pages.rs:93
+#: crates/ui/src/chrome.rs:88 crates/ui/src/pages.rs:107
 msgid "Preferences"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:87
+#: crates/ui/src/chrome.rs:93 crates/ui/src/pages.rs:108
+msgid "Diagnostics"
+msgstr ""
+
+#: crates/ui/src/chrome.rs:99
 msgid "About PipeWire Effects"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:88
+#: crates/ui/src/chrome.rs:100
 msgid "Quit"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:149 crates/ui/src/chrome.rs:152
+#: crates/ui/src/chrome.rs:161 crates/ui/src/chrome.rs:164
 msgid "Show or hide the effect chain"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:154
+#: crates/ui/src/chrome.rs:166
 msgid "Shows or hides the effect chain and preset sidebar"
 msgstr ""
 
-#: crates/ui/src/devices.rs:34 crates/ui/src/diagnostics.rs:35
+#: crates/ui/src/devices.rs:34 crates/ui/src/diagnostics.rs:40
 msgid "Pipeline"
 msgstr ""
 
@@ -1245,7 +1253,7 @@ msgstr ""
 msgid "Rebuild the streams against the audio server"
 msgstr ""
 
-#: crates/ui/src/devices.rs:51 crates/ui/src/diagnostics.rs:37
+#: crates/ui/src/devices.rs:51 crates/ui/src/diagnostics.rs:42
 msgid "Quantum"
 msgstr ""
 
@@ -1326,52 +1334,76 @@ msgstr ""
 msgid "Copy this name to the clipboard"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:36
+#: crates/ui/src/diagnostics.rs:41
 msgid "Sample rate"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:38
+#: crates/ui/src/diagnostics.rs:43
 msgid "Ring occupancy"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:39
+#: crates/ui/src/diagnostics.rs:44
 msgid "Captured frames"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:40
+#: crates/ui/src/diagnostics.rs:45
 msgid "Processed frames"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:41
+#: crates/ui/src/diagnostics.rs:46
 msgid "Underruns"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:42
+#: crates/ui/src/diagnostics.rs:47
 msgid "Overruns"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:43
+#: crates/ui/src/diagnostics.rs:48
 msgid "Drift trims"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:46
+#: crates/ui/src/diagnostics.rs:49
+msgid "GPU blocks"
+msgstr ""
+
+#: crates/ui/src/diagnostics.rs:50
+msgid "GPU fallbacks"
+msgstr ""
+
+#: crates/ui/src/diagnostics.rs:51
+msgid "GPU disagreements"
+msgstr ""
+
+#: crates/ui/src/diagnostics.rs:54
 msgid "Engine counters"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:47
+#: crates/ui/src/diagnostics.rs:55
 msgid "Live values for the pipeline in view"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:63
+#: crates/ui/src/diagnostics.rs:74
 msgid "Engine"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:67
+#: crates/ui/src/diagnostics.rs:77
+msgid "Compute devices"
+msgstr ""
+
+#: crates/ui/src/diagnostics.rs:81
 msgid "Messages"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:69
+#: crates/ui/src/diagnostics.rs:83
 msgid "No messages"
+msgstr ""
+
+#: crates/ui/src/diagnostics.rs:130
+msgid "No Vulkan compute device was found."
+msgstr ""
+
+#: crates/ui/src/diagnostics.rs:133
+msgid "{0} detected."
 msgstr ""
 
 #: crates/ui/src/dialogs.rs:51 crates/ui/src/dialogs.rs:83
@@ -1402,223 +1434,351 @@ msgstr ""
 msgid "No effect selected"
 msgstr ""
 
-#: crates/ui/src/editor.rs:94 crates/ui/src/pages.rs:196
+#: crates/ui/src/editor.rs:94 crates/ui/src/pages.rs:215
 msgid "Add an effect to start shaping your audio."
 msgstr ""
 
-#: crates/ui/src/pages.rs:85
+#: crates/ui/src/pages.rs:98
 msgid "Dismiss"
 msgstr ""
 
-#: crates/ui/src/pages.rs:180
+#: crates/ui/src/pages.rs:199
 msgid "Add an effect to the chain"
 msgstr ""
 
-#: crates/ui/src/pages.rs:186 crates/ui/src/pages.rs:188
+#: crates/ui/src/pages.rs:205 crates/ui/src/pages.rs:207
 msgid "Close the effect chain"
 msgstr ""
 
-#: crates/ui/src/pages.rs:193
+#: crates/ui/src/pages.rs:212
 msgid "In"
 msgstr ""
 
-#: crates/ui/src/pages.rs:194
+#: crates/ui/src/pages.rs:213
 msgid "Out"
 msgstr ""
 
-#: crates/ui/src/pages.rs:239
-msgid "Presets"
+#: crates/ui/src/preferences.rs:11
+msgid "2 seconds"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:23
+#: crates/ui/src/preferences.rs:12
+msgid "5 seconds"
+msgstr ""
+
+#: crates/ui/src/preferences.rs:13
+msgid "10 seconds"
+msgstr ""
+
+#: crates/ui/src/preferences.rs:14
+msgid "30 seconds"
+msgstr ""
+
+#: crates/ui/src/preferences.rs:15
+msgid "60 seconds"
+msgstr ""
+
+#: crates/ui/src/preferences.rs:33
 msgid "Behaviour"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:25
+#: crates/ui/src/preferences.rs:35
 msgid "Start on login"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:27
+#: crates/ui/src/preferences.rs:37
 msgid "Begins processing as soon as you sign in, without a window"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:44
+#: crates/ui/src/preferences.rs:53
+msgid "Audio processing"
+msgstr ""
+
+#: crates/ui/src/preferences.rs:55
+msgid "Processing backend"
+msgstr ""
+
+#: crates/ui/src/preferences.rs:57
+msgid ""
+"GPU off-loads the gain stage; filters and dynamics stay on the CPU. Both "
+"compares them."
+msgstr ""
+
+#: crates/ui/src/preferences.rs:60
+msgid "CPU"
+msgstr ""
+
+#: crates/ui/src/preferences.rs:61
+msgid "GPU"
+msgstr ""
+
+#: crates/ui/src/preferences.rs:62
+msgid "Both"
+msgstr ""
+
+#: crates/ui/src/preferences.rs:83
+msgid "Presets"
+msgstr ""
+
+#: crates/ui/src/preferences.rs:85
+msgid "Auto-save preset edits"
+msgstr ""
+
+#: crates/ui/src/preferences.rs:87
+msgid "Writes the loaded preset and the settings back after an edit"
+msgstr ""
+
+#: crates/ui/src/preferences.rs:90
+msgid "Update interval"
+msgstr ""
+
+#: crates/ui/src/preferences.rs:91
+msgid "How often the automatic update runs"
+msgstr ""
+
+#: crates/ui/src/preferences.rs:126
 msgid "Troubleshooting"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:46
+#: crates/ui/src/preferences.rs:128
 msgid "Developer mode"
 msgstr ""
 
-#: crates/ui/src/preferences.rs:47
-msgid "Shows the engine counters and diagnostic messages below"
+#: crates/ui/src/preferences.rs:129
+msgid "Adds a Diagnostics entry to the main menu"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:16
+#: crates/ui/src/presets_ui.rs:27
 msgid "Save the current chain as a preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:18
+#: crates/ui/src/presets_ui.rs:29
 msgid "Import a preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:19
+#: crates/ui/src/presets_ui.rs:30
 msgid "Export the loaded preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:20
+#: crates/ui/src/presets_ui.rs:31
+msgid "Duplicate the loaded preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:32
 msgid "Delete a user preset"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:53
-msgid "Built in"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:55
-msgid "User preset"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:57
-msgid "System preset"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:68
+#: crates/ui/src/presets_ui.rs:70
 msgid "No microphone presets yet"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:69
+#: crates/ui/src/presets_ui.rs:71
 msgid "Save the input chain to create one"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:74
+#: crates/ui/src/presets_ui.rs:76
 msgid "Skipped files"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:107
+#: crates/ui/src/presets_ui.rs:127
+msgid "Built in"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:129
+msgid "User preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:131
+msgid "System preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:140
+msgid "Unload this preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:142
+msgid "Load this preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:172
+msgid "Update preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:173
+msgid "Revert changes"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:182 crates/ui/src/presets_ui.rs:184
+msgid "Update or discard the changes to this preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:200
+msgid "Preset updated"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:203
+msgid "The preset could not be updated: {0}"
+msgstr ""
+
+#: crates/ui/src/presets_ui.rs:227
 msgid "The preset loaded with warnings: {0}"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:116
+#: crates/ui/src/presets_ui.rs:236
 msgid "The preset could not be loaded: {0}"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:132
-msgid "Import preset"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:145
-msgid "Import failed: {0}"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:155
-msgid "Load a preset before exporting it"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:163
-msgid "Export preset"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:169
-msgid "Preset exported"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:171
-msgid "Export failed: {0}"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:186
-msgid "My preset"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:191
-msgid "Save preset"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:192
-msgid "The current effect chain is stored under this name."
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:194
-msgid "Save"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:197
-msgid "A preset needs a name"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:204
-msgid "Preset saved"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:208
-msgid "The preset could not be saved: {0}"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:226
-msgid "There are no user presets to delete"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:231
-msgid "Delete preset"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:261
-msgid "Delete preset?"
-msgstr ""
-
 #: crates/ui/src/presets_ui.rs:263
-msgid "'{0}' will be removed from your preset directory."
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:266
-msgid "Delete"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:272
-msgid "Preset deleted"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:275
-msgid "Could not delete: {0}"
-msgstr ""
-
-#: crates/ui/src/presets_ui.rs:292
 msgid "{0} and {1} more"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:302
+#: crates/ui/src/presets_ui.rs:273
 msgid "Imported '{0}'"
 msgstr ""
 
-#: crates/ui/src/presets_ui.rs:305
+#: crates/ui/src/presets_ui.rs:276
 msgid "Imported '{0}' with warnings: {1}"
 msgstr ""
 
-#: crates/ui/src/state.rs:209 crates/ui/src/state.rs:233
+#: crates/ui/src/presets_ui/commands.rs:42
+msgid "Import preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:55
+msgid "Import failed: {0}"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:65
+msgid "Load a preset before exporting it"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:73
+msgid "Export preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:79
+msgid "Preset exported"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:81
+msgid "Export failed: {0}"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:96
+msgid "My preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:101
+msgid "Save preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:102
+msgid "The current effect chain is stored under this name."
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:104
+msgid "Save"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:107
+#: crates/ui/src/presets_ui/commands.rs:144
+msgid "A preset needs a name"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:114
+msgid "Preset saved"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:118
+#: crates/ui/src/presets_ui/commands.rs:155
+msgid "The preset could not be saved: {0}"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:130
+msgid "Load a preset before cloning it"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:133
+msgid "{0} copy"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:138
+msgid "Clone preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:139
+msgid "The preset is copied under this name."
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:141
+msgid "Clone"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:151
+msgid "Preset duplicated"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:173
+msgid "There are no user presets to delete"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:178
+msgid "Delete preset"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:213
+msgid "Delete preset?"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:215
+msgid "'{0}' will be removed from your preset directory."
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:218
+msgid "Delete"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:224
+msgid "Preset deleted"
+msgstr ""
+
+#: crates/ui/src/presets_ui/commands.rs:227
+msgid "Could not delete: {0}"
+msgstr ""
+
+#: crates/ui/src/state.rs:219
+msgid "No Vulkan compute device is available; the CPU backend stays selected"
+msgstr ""
+
+#: crates/ui/src/state.rs:269
+msgid "the settings could not be saved: {0}"
+msgstr ""
+
+#: crates/ui/src/state/presets.rs:20 crates/ui/src/state/presets.rs:45
 msgid ""
 "the preset carries an input chain; turn on microphone processing to run it"
 msgstr ""
 
-#: crates/ui/src/state.rs:274
-msgid "the settings could not be saved: {0}"
-msgstr ""
-
-#: crates/ui/src/window.rs:157
+#: crates/ui/src/window.rs:128
 msgid "The effect could not be added; the chain may be full"
 msgstr ""
 
-#: crates/ui/src/window.rs:169
+#: crates/ui/src/window.rs:140
 msgid "The microphone pipeline could not start: {0}"
 msgstr ""
 
-#: crates/ui/src/window.rs:200
+#: crates/ui/src/window.rs:171
 msgid "Turn on microphone processing from the main menu, under Devices"
 msgstr ""
 
-#: crates/ui/src/window.rs:285
+#: crates/ui/src/window.rs:258
 msgid "The chain is bypassed; switch it on to run the effects"
 msgstr ""
 
-#: crates/ui/src/window.rs:287
+#: crates/ui/src/window.rs:260
 msgid "The chain is running; switch it off to bypass the effects"
+msgstr ""
+
+#: crates/ui/src/window/auto_save.rs:34
+msgid "Preset auto-saved"
 msgstr ""
