@@ -89,6 +89,14 @@ keeps working in the next.
 
 ### Fixed
 
+- Changing, saving or deleting a preset no longer closes the application. The
+  three preset handlers matched on the result of a `State` mutation while the
+  `RefCell` borrow was still alive (`match ui.state.borrow_mut() …`), and the
+  matched arm re-entered the interface, which borrows the same cell; the release
+  profile is compiled with `panic = "abort"`, so the first preset action aborted
+  the process. The result is bound to a local before it is matched, which drops
+  the borrow before the interface is touched, and the same ordering is applied to
+  the other handlers that react to a state mutation.
 - The screenshot harness no longer races the first frame of a dialog. Capturing a
   state that opens a dialog (the About window, the effect picker) occasionally
   found no render node and produced no PNG; the capture now retries until the
@@ -226,6 +234,16 @@ keeps working in the next.
 
 ### Changed
 
+- The *Devices* dialog no longer shows a *State* row. It repeated the pipeline
+  state that the chain's *Effects* toggle and the switcher already carry; the
+  *Format* and *Quantum* rows stay, and the *Reconnect* button, which used to
+  live on the removed row, now sits on the *Format* row and still appears only
+  when the engine has failed.
+- The voice suppressor's icon was redrawn. The previous mark put five strokes
+  about 2.5 px apart inside a 16 x 16 box, so at the size the chain rows and the
+  effect picker actually draw it (16 px) the strokes merged into an unreadable
+  blob. The new mark is a prohibition ring with a diagonal bar, drawn with fills
+  so that a symbolic icon recolours it correctly.
 - The interface shell was consolidated. The preset library moved from a page of
   its own into each pipeline's sidebar, the chain on/off *Effects* toggle moved
   from the header into that sidebar, and the sidebar is shown or hidden with a

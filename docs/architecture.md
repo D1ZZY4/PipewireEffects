@@ -228,9 +228,10 @@ occupying a page.
   toggle, and it drives that pipeline's bypass.
 - **Editor and meters**: the end side carries the chain's input and output meters
   above the editor for the selected effect.
-- **Devices** (menu): the engine status for the active pipeline, its node name
-  with a copy button, its routing hint, its destination chooser, a *Microphone*
-  switch and a *Reconnect* button that appears when the engine has failed.
+- **Devices** (menu): the format and quantum of the active pipeline, its node
+  name with a copy button, its routing hint, its destination chooser, a
+  *Microphone* switch and a *Reconnect* button that appears when the engine has
+  failed.
 - **Preferences** (menu): *Start on login* and a *Developer mode* switch. The
   engine counters and the diagnostic messages are shown in a *Diagnostics* group
   only while developer mode is on, and the choice is persisted.
@@ -743,7 +744,7 @@ pass, not a regression; the earlier walk, with the slider names and value text,
 remains the record for the interactive controls.
 
 `scripts/capture-ui.sh` was re-run unchanged; `scripts/update-po.sh` regenerates
-`po/pipewire-effects.pot` (374 messages), and
+`po/pipewire-effects.pot` (372 messages), and
 `make install DESTDIR=<staging> PREFIX=/usr` installed the
 binary, the desktop entry, both icon sets and the built-in preset into a staging
 tree and `make uninstall` removed exactly what it installed.
@@ -790,3 +791,20 @@ captures (`chain`, `editor`, `equalizer`, `presets`, `devices`, `preferences`,
 chain at −36.85 dB in and −42.85 dB out (a −6 dB gain stage) over 12 288 processed
 frames, and a −20 dB tone reduced by 20.00 dB over 16 384 captured frames with no
 underruns, overruns or trims.
+
+A later pass exercised the preset library by hand on the X11 backend under
+`Xvfb`, where the sidebar buttons can be clicked with `XTest`; the frames were
+taken from the X server with ImageMagick's `import -window root`, so they are a
+capture by another process rather than the window rendering itself. It found that
+loading, saving or deleting a preset aborted the process: each handler matched on
+the result of a `State` mutation while the `RefCell` borrow was still alive, and
+the matched arm re-entered the interface, which borrows the same cell; the release
+profile is built with `panic = "abort"`, so the panic ended the process. The
+result is bound to a local before it is matched now. The same clicks then loaded
+the built-in preset (eight effects appeared and the live meters read −1.4 dB in
+and −3.9 dB out), saved it under a new name (the file was written and the row
+became a user preset) and deleted it (the file was removed and the row returned
+to the built-in), with the process alive at every step. The shell helpers
+(`install_breakpoint`, `sidebar_toggle`) were moved from `pages.rs` into
+`chrome.rs` in the same pass, which brought every interface source file back
+under the 350-line limit.
