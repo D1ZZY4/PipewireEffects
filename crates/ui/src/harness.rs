@@ -155,7 +155,8 @@ fn apply(ui: &Rc<Ui>, state: &str) {
 }
 
 fn load_default(ui: &Rc<Ui>) {
-    match ui.state.borrow_mut().load_preset("Default") {
+    let loaded = ui.state.borrow_mut().load_preset("Default");
+    match loaded {
         Ok(warnings) if warnings.is_empty() => {}
         Ok(warnings) => ui.show_banner(&format!("The preset loaded with warnings: {warnings:?}")),
         Err(error) => {

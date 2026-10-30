@@ -99,7 +99,8 @@ fn wire_pane(ui: &Rc<Ui>, pane: &crate::pages::ChainPane) {
         if name.is_empty() {
             return;
         }
-        match ui_load.state.borrow_mut().load_preset_section(kind, &name) {
+        let loaded = ui_load.state.borrow_mut().load_preset_section(kind, &name);
+        match loaded {
             Ok(warnings) => {
                 if !warnings.is_empty() {
                     ui_load.show_banner(&tr(
@@ -128,12 +129,9 @@ fn wire_pane(ui: &Rc<Ui>, pane: &crate::pages::ChainPane) {
     import.connect_clicked(move |_| {
         let ui = Rc::clone(&ui_import);
         let window = ui.window.clone();
-        dialogs::choose_file(
-            &window,
-            t("Import preset"),
-            false,
-            None,
-            move |path| match ui.state.borrow().store.import(&path, None) {
+        dialogs::choose_file(&window, t("Import preset"), false, None, move |path| {
+            let imported = ui.state.borrow().store.import(&path, None);
+            match imported {
                 Ok((preset, warnings)) => {
                     populate(&ui);
                     let message = imported_banner(&preset.name, &warnings);
@@ -143,9 +141,11 @@ fn wire_pane(ui: &Rc<Ui>, pane: &crate::pages::ChainPane) {
                         ui.show_banner(&message);
                     }
                 }
-                Err(error) => ui.show_banner(&tr("Import failed: {0}", &[&error.to_string()])),
-            },
-        );
+                Err(error) => {
+                    ui.show_banner(&tr("Import failed: {0}", &[&error.to_string()]));
+                }
+            }
+        });
     });
 
     let ui_export = Rc::clone(ui);
@@ -163,10 +163,13 @@ fn wire_pane(ui: &Rc<Ui>, pane: &crate::pages::ChainPane) {
             t("Export preset"),
             true,
             Some(&suggested),
-            move |path| match ui.state.borrow().store.export(&name, &path) {
-                Ok(()) => ui.toast(t("Preset exported")),
-                Err(error) => {
-                    ui.show_banner(&tr("Export failed: {0}", &[&error.to_string()]));
+            move |path| {
+                let exported = ui.state.borrow().store.export(&name, &path);
+                match exported {
+                    Ok(()) => ui.toast(t("Preset exported")),
+                    Err(error) => {
+                        ui.show_banner(&tr("Export failed: {0}", &[&error.to_string()]));
+                    }
                 }
             },
         );
@@ -194,7 +197,8 @@ pub fn prompt_save(ui: &Rc<Ui>) {
                 ui.show_banner(t("A preset needs a name"));
                 return;
             }
-            match ui.state.borrow_mut().save_preset_section(kind, name.trim()) {
+            let saved = ui.state.borrow_mut().save_preset_section(kind, name.trim());
+            match saved {
                 Ok(_) => {
                     populate(&ui);
                     ui.toast(t("Preset saved"));
@@ -261,7 +265,8 @@ fn prompt_delete(ui: &Rc<Ui>) {
             ),
             t("Delete"),
             move || {
-                match ui_inner.state.borrow_mut().delete_preset(&name) {
+                let deleted = ui_inner.state.borrow_mut().delete_preset(&name);
+                match deleted {
                     Ok(()) => {
                         populate(&ui_inner);
                         ui_inner.toast(t("Preset deleted"));

@@ -163,7 +163,8 @@ impl Ui {
     }
 
     pub fn toggle_input(self: &Rc<Self>, enabled: bool) {
-        if let Err(error) = self.state.borrow_mut().set_input_enabled(enabled) {
+        let result = self.state.borrow_mut().set_input_enabled(enabled);
+        if let Err(error) = result {
             self.show_banner(&tr(
                 "The microphone pipeline could not start: {0}",
                 &[&error.to_string()],
