@@ -23,6 +23,7 @@ crates/dsp/src/effects/gate.rs
 crates/dsp/src/effects/limiter.rs
 crates/dsp/src/effects/maximizer.rs
 crates/dsp/src/effects/midside_equalizer.rs
+crates/dsp/src/effects/multiband.rs
 crates/dsp/src/effects/multiband_compressor.rs
 crates/dsp/src/effects/multiband_gate.rs
 crates/dsp/src/effects/reverb.rs

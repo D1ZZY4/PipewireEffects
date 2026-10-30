@@ -18,6 +18,7 @@ mod gate;
 mod limiter;
 mod maximizer;
 mod midside_equalizer;
+mod multiband;
 mod multiband_compressor;
 mod multiband_gate;
 mod reverb;

@@ -1,8 +1,8 @@
-use pwe_core::i18n::mark;
 use pwe_core::{AudioBuffer, AudioFormat, Effect, ParamSet, ParamSpec, ParamUnit, math};
 
 use crate::effects::crossover::{Crossover, MAX_BANDS};
 use crate::effects::dynamics::ballistics;
+use crate::effects::multiband;
 use crate::effects::util::MAX_CHANNELS;
 use crate::knob::Knob;
 
@@ -13,7 +13,6 @@ const ATTACK: usize = 3;
 const HOLD: usize = 4;
 const RELEASE: usize = 5;
 const MAKEUP: usize = 6;
-const DEFAULT_SPLITS: [f32; MAX_BANDS - 1] = [120.0, 800.0, 5_000.0];
 const DEFAULTS: [f32; 7] = [1.0, -40.0, 40.0, 5.0, 50.0, 300.0, 0.0];
 
 const BAND_IDS: [[&str; 7]; MAX_BANDS] = [
@@ -55,46 +54,11 @@ const BAND_IDS: [[&str; 7]; MAX_BANDS] = [
     ],
 ];
 
-const BAND_GROUPS: [&str; MAX_BANDS] = [
-    mark("Band 1"),
-    mark("Band 2"),
-    mark("Band 3"),
-    mark("Band 4"),
-];
-
 pub fn specs() -> Vec<ParamSpec> {
-    let mut specs = Vec::with_capacity(5 + MAX_BANDS * 7);
-    specs.push(
-        ParamSpec::float("bands", "Bands", ParamUnit::None)
-            .range(2.0, MAX_BANDS as f32, MAX_BANDS as f32)
-            .step(1.0)
-            .group("Crossovers")
-            .build(),
-    );
-    specs.push(
-        ParamSpec::float("split1", "Split 1", ParamUnit::Hertz)
-            .range(40.0, 1_000.0, DEFAULT_SPLITS[0])
-            .logarithmic()
-            .group("Crossovers")
-            .build(),
-    );
-    specs.push(
-        ParamSpec::float("split2", "Split 2", ParamUnit::Hertz)
-            .range(200.0, 8_000.0, DEFAULT_SPLITS[1])
-            .logarithmic()
-            .group("Crossovers")
-            .build(),
-    );
-    specs.push(
-        ParamSpec::float("split3", "Split 3", ParamUnit::Hertz)
-            .range(1_000.0, 16_000.0, DEFAULT_SPLITS[2])
-            .logarithmic()
-            .group("Crossovers")
-            .build(),
-    );
-    for band in 0..MAX_BANDS {
-        let ids = BAND_IDS[band];
-        let group = BAND_GROUPS[band];
+    let mut specs = multiband::crossover_specs();
+    specs.reserve(1 + MAX_BANDS * 7);
+    for (band, ids) in BAND_IDS.iter().enumerate() {
+        let group = multiband::band_group(band);
         specs.push(ParamSpec::boolean(ids[ENABLED], "Enabled", true).group(group));
         specs.push(
             ParamSpec::float(ids[THRESHOLD], "Threshold", ParamUnit::Decibel)
@@ -139,13 +103,7 @@ pub fn specs() -> Vec<ParamSpec> {
                 .build(),
         );
     }
-    specs.push(
-        ParamSpec::float("mix", "Mix", ParamUnit::Percent)
-            .range(0.0, 100.0, 100.0)
-            .step(1.0)
-            .group("Output")
-            .build(),
-    );
+    specs.push(multiband::mix_spec());
     specs
 }
 
@@ -166,16 +124,14 @@ pub struct MultibandGate {
 
 impl MultibandGate {
     pub fn new(params: ParamSet) -> Self {
-        let bands = std::array::from_fn(|band| {
-            std::array::from_fn(|param| Knob::new(&params, BAND_IDS[band][param], DEFAULTS[param]))
-        });
+        let bands = multiband::band_knobs(&params, &BAND_IDS, &DEFAULTS);
         Self {
             crossover: Crossover::default(),
             bands,
             count: Knob::new(&params, "bands", MAX_BANDS as f32),
-            split1: Knob::new(&params, "split1", DEFAULT_SPLITS[0]),
-            split2: Knob::new(&params, "split2", DEFAULT_SPLITS[1]),
-            split3: Knob::new(&params, "split3", DEFAULT_SPLITS[2]),
+            split1: Knob::new(&params, "split1", multiband::DEFAULT_SPLITS[0]),
+            split2: Knob::new(&params, "split2", multiband::DEFAULT_SPLITS[1]),
+            split3: Knob::new(&params, "split3", multiband::DEFAULT_SPLITS[2]),
             mix: Knob::new(&params, "mix", 100.0),
             envelope: [1.0; MAX_BANDS],
             hold_frames: [0; MAX_BANDS],
@@ -204,18 +160,16 @@ impl Effect for MultibandGate {
     }
 
     fn process(&mut self, buffer: &mut AudioBuffer) {
-        let count = (self.count.value().round() as usize).clamp(2, MAX_BANDS);
-        let splits = [
-            self.split1.value(),
-            self.split2.value(),
-            self.split3.value(),
-        ];
-        let signature = [count as f32, splits[0], splits[1], splits[2]];
-        if self.dirty || signature != self.signature {
-            self.signature = signature;
-            self.dirty = false;
-            self.crossover.design(count, self.rate, &splits);
-        }
+        let count = multiband::band_count(&self.count);
+        let splits = multiband::splits(&self.split1, &self.split2, &self.split3);
+        multiband::redesign(
+            &mut self.crossover,
+            &mut self.signature,
+            &mut self.dirty,
+            count,
+            splits,
+            self.rate,
+        );
         let mut attack = [0.0f32; MAX_BANDS];
         let mut release = [0.0f32; MAX_BANDS];
         let mut threshold = [0.0f32; MAX_BANDS];
@@ -286,75 +240,4 @@ impl Effect for MultibandGate {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn tone(frequency: f32, amplitude: f32, frames: usize, offset: usize) -> AudioBuffer {
-        let mut buffer = AudioBuffer::new(2, frames);
-        buffer.configure(2, frames).unwrap();
-        for channel in 0..2 {
-            let plan = buffer.channel_mut(channel);
-            for (index, sample) in plan.iter_mut().enumerate() {
-                *sample = amplitude
-                    * (std::f32::consts::TAU * frequency * (offset + index) as f32 / 48_000.0)
-                        .sin();
-            }
-        }
-        buffer
-    }
-
-    fn peak_after(effect: &mut MultibandGate, amplitude: f32, blocks: usize) -> f32 {
-        let frames = 1024;
-        let mut peak = 0.0f32;
-        for block in 0..blocks * 2 {
-            let mut buffer = tone(1_000.0, amplitude, frames, block * frames);
-            effect.process(&mut buffer);
-            if block + blocks >= blocks * 2 {
-                peak = peak.max(buffer.peak());
-            }
-        }
-        peak
-    }
-
-    #[test]
-    fn a_loud_signal_stays_open() {
-        let params = ParamSet::new(specs());
-        for ids in BAND_IDS {
-            params.set_f32(ids[THRESHOLD], -40.0).unwrap();
-        }
-        let mut effect = MultibandGate::new(params);
-        effect.prepare(AudioFormat::new(48_000, 2));
-        let peak = peak_after(&mut effect, 0.5, 32);
-        assert!((peak - 0.5).abs() < 0.05, "{peak}");
-    }
-
-    #[test]
-    fn a_quiet_signal_is_closed_by_the_range() {
-        let params = ParamSet::new(specs());
-        for ids in BAND_IDS {
-            params.set_f32(ids[THRESHOLD], -20.0).unwrap();
-            params.set_f32(ids[RANGE], 60.0).unwrap();
-            params.set_f32(ids[HOLD], 0.0).unwrap();
-            params.set_f32(ids[RELEASE], 10.0).unwrap();
-        }
-        let mut effect = MultibandGate::new(params);
-        effect.prepare(AudioFormat::new(48_000, 2));
-        let peak = peak_after(&mut effect, 0.001, 64);
-        let expected = 0.001 * math::db_to_gain(-60.0);
-        assert!((peak - expected).abs() < 1.0e-5, "{peak} {expected}");
-    }
-
-    #[test]
-    fn a_disabled_band_is_not_gated() {
-        let params = ParamSet::new(specs());
-        for ids in BAND_IDS {
-            params.set_f32(ids[ENABLED], 0.0).unwrap();
-            params.set_f32(ids[THRESHOLD], -20.0).unwrap();
-            params.set_f32(ids[RANGE], 60.0).unwrap();
-        }
-        let mut effect = MultibandGate::new(params);
-        effect.prepare(AudioFormat::new(48_000, 2));
-        let peak = peak_after(&mut effect, 0.001, 64);
-        assert!((peak - 0.001).abs() < 1.0e-4, "{peak}");
-    }
-}
+mod tests;
