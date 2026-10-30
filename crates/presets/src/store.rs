@@ -1,11 +1,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use pwe_core::PipelineKind;
 use pwe_core::i18n::tr;
 
 use crate::builtin;
 use crate::error::{PresetError, PresetResult};
-use crate::model::{Preset, validate_name};
+use crate::model::{Pipeline, Preset, validate_name};
 
 pub const EXTENSION: &str = "json";
 pub const APPLICATION_DIR: &str = "pipewire-effects";
@@ -15,11 +16,26 @@ pub struct PresetInfo {
     pub name: String,
     pub builtin: bool,
     pub user_file: Option<PathBuf>,
+    pub output: bool,
+    pub input: bool,
 }
 
 impl PresetInfo {
     pub fn deletable(&self) -> bool {
         self.user_file.is_some()
+    }
+
+    pub fn covers(&self, kind: PipelineKind) -> bool {
+        match kind {
+            PipelineKind::Output => self.output,
+            PipelineKind::Input => self.input,
+        }
+    }
+
+    fn with_sections(mut self, preset: &Preset) -> Self {
+        self.output |= !preset.output.is_empty();
+        self.input |= !preset.input.is_empty();
+        self
     }
 }
 
@@ -63,10 +79,16 @@ impl PresetStore {
     pub fn list(&self) -> (Vec<PresetInfo>, Vec<String>) {
         let mut infos: Vec<PresetInfo> = builtin::names()
             .into_iter()
-            .map(|name| PresetInfo {
-                name: name.to_owned(),
-                builtin: true,
-                user_file: None,
+            .map(|name| {
+                let sections = builtin::find(name).and_then(Result::ok);
+                let info = PresetInfo {
+                    name: name.to_owned(),
+                    builtin: true,
+                    user_file: None,
+                    output: false,
+                    input: false,
+                };
+                sections.map_or(info.clone(), |(preset, _)| info.with_sections(&preset))
             })
             .collect();
         let mut warnings = Vec::new();
@@ -116,15 +138,22 @@ impl PresetStore {
                         }
                         if let Some(existing) = infos.iter_mut().find(|info| info.name == name) {
                             existing.builtin = false;
+                            existing.output |= !preset.output.is_empty();
+                            existing.input |= !preset.input.is_empty();
                             if is_user {
                                 existing.user_file = Some(path);
                             }
                         } else {
-                            infos.push(PresetInfo {
-                                name,
-                                builtin: false,
-                                user_file: is_user.then_some(path),
-                            });
+                            infos.push(
+                                PresetInfo {
+                                    name,
+                                    builtin: false,
+                                    user_file: is_user.then_some(path),
+                                    output: false,
+                                    input: false,
+                                }
+                                .with_sections(&preset),
+                            );
                         }
                     }
                     Err(error) => warnings.push(tr(
@@ -168,6 +197,23 @@ impl PresetStore {
         let text = serde_json::to_string_pretty(preset)?;
         write_atomically(&path, &text)?;
         Ok(path)
+    }
+
+    pub fn save_section(
+        &self,
+        name: &str,
+        kind: PipelineKind,
+        section: &Pipeline,
+    ) -> PresetResult<PathBuf> {
+        validate_name(name)?;
+        let mut preset = match self.load(name) {
+            Ok(existing) => existing,
+            Err(PresetError::NotFound(_)) => Preset::new(name),
+            Err(error) => return Err(error),
+        };
+        preset.name = name.to_owned();
+        *preset.pipeline_mut(kind) = section.clone();
+        self.save(&preset)
     }
 
     pub fn delete(&self, name: &str) -> PresetResult<()> {

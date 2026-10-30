@@ -113,6 +113,12 @@ pub struct Pipeline {
     pub effects: Vec<EffectEntry>,
 }
 
+impl Pipeline {
+    pub fn is_empty(&self) -> bool {
+        self.effects.is_empty() && !self.bypassed
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Preset {
     pub schema_version: u32,

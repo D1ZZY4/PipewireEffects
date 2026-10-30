@@ -1,5 +1,7 @@
+use std::collections::BTreeMap;
+
 use super::*;
-use crate::model::Preset;
+use crate::model::{EffectEntry, Preset};
 
 fn scratch(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("pwe-presets-{name}-{}", std::process::id()));
@@ -190,4 +192,71 @@ fn an_import_reports_what_the_conversion_dropped() {
         "{warnings:?}"
     );
     fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_preset_reports_which_pipelines_it_covers() {
+    let dir = scratch("sections");
+    let mut preset = Preset::new("Split");
+    preset.output.effects.push(EffectEntry {
+        kind: "gain".to_owned(),
+        enabled: true,
+        params: BTreeMap::new(),
+    });
+    store_with(&dir).save(&preset).unwrap();
+    let (infos, _) = store_with(&dir).list();
+    let entry = infos.iter().find(|info| info.name == "Split").unwrap();
+    assert!(entry.covers(PipelineKind::Output));
+    assert!(!entry.covers(PipelineKind::Input));
+
+    let (builtins, _) = PresetStore::with_dirs(scratch("sections-builtin"), Vec::new()).list();
+    let default = builtins.iter().find(|info| info.name == "Default").unwrap();
+    assert!(default.covers(PipelineKind::Output));
+    assert!(!default.covers(PipelineKind::Input));
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn saving_one_pipeline_keeps_the_other_section() {
+    let dir = scratch("save-section");
+    let store = store_with(&dir);
+    let mut preset = Preset::new("Both");
+    preset.input.bypassed = true;
+    store.save(&preset).unwrap();
+
+    let mut output = Pipeline::default();
+    output.effects.push(EffectEntry {
+        kind: "limiter".to_owned(),
+        enabled: true,
+        params: BTreeMap::new(),
+    });
+    store
+        .save_section("Both", PipelineKind::Output, &output)
+        .unwrap();
+
+    let loaded = store.load("Both").unwrap();
+    assert_eq!(loaded.output.effects.len(), 1);
+    assert!(loaded.input.bypassed);
+}
+
+#[test]
+fn saving_a_new_pipeline_section_creates_the_preset() {
+    let dir = scratch("save-new-section");
+    let store = store_with(&dir);
+    let mut input = Pipeline::default();
+    input.effects.push(EffectEntry {
+        kind: "gate".to_owned(),
+        enabled: false,
+        params: BTreeMap::new(),
+    });
+    store
+        .save_section("Mic", PipelineKind::Input, &input)
+        .unwrap();
+    let loaded = store.load("Mic").unwrap();
+    assert_eq!(loaded.input.effects.len(), 1);
+    assert!(loaded.output.effects.is_empty());
+}
+
+fn store_with(dir: &Path) -> PresetStore {
+    PresetStore::with_dirs(dir.to_path_buf(), Vec::new())
 }
