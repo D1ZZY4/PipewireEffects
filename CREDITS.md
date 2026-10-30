@@ -13,13 +13,17 @@ understand how a PipeWire effects processor should behave: presenting itself to
 the system as an ordinary audio device, letting the user own the effect order,
 and exposing real meters rather than decorative ones.
 
-No source code, resource or asset was copied, with one documented exception: the
+No source code, resource or asset was copied, with two documented exceptions: the
 cross-talk canceller in `crates/dsp/src/effects/crosstalk.rs` is a port of
 EasyEffects' own native implementation of that effect, by Antti S. Lankila, and
 carries its delay-line layout, correction-filter constants and phantom-centre
-mode. Both projects are GPL-3.0-or-later. Everything else is an independent Rust
-implementation; the debt is one of ideas. `docs/reference-audit.md` records
-exactly which files were consulted and what was taken from them.
+mode; and the voice suppressor's symbolic icon
+(`data/icons/hicolor/symbolic/apps/pipewire-effects-voice_suppressor-symbolic.svg`)
+reuses the path data of the Adwaita icon theme's `action-unavailable-symbolic`.
+Both projects' licences are compatible with this one. Everything else is an
+independent Rust implementation and an original icon; the debt is one of ideas.
+`docs/reference-audit.md` records exactly which files were consulted and what was
+taken from them.
 
 ## Standing on
 
@@ -45,6 +49,10 @@ interface patterns expressed as widgets. LGPL-2.1-or-later.
 **[gtk4-rs](https://github.com/gtk-rs/gtk4-rs)** and
 **[libadwaita-rs](https://gitlab.gnome.org/World/Rust/libadwaita-rs)**, with
 `glib`, `gio` and `cairo-rs` beneath them. MIT.
+
+The **Adwaita icon theme** by the GNOME Project, LGPL-3.0-or-later or
+CC-BY-SA-3.0 - the palette of symbolic icon names the interface draws from, and
+the path data behind one of the icons the application ships (see above).
 
 ### DSP references
 
