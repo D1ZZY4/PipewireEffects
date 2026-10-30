@@ -53,8 +53,6 @@ pub fn row(ui: &Rc<Ui>, id: EffectSlot, kind: &'static str, enabled: bool) -> gt
     ]);
 
     let menu = row_menu(ui, id);
-    menu.set_opacity(0.0);
-    menu.set_can_target(false);
 
     container.append(&icon);
     container.append(&title);
@@ -71,19 +69,6 @@ pub fn row(ui: &Rc<Ui>, id: EffectSlot, kind: &'static str, enabled: bool) -> gt
         ui_switch.state.borrow_mut().set_enabled(id, wanted);
         ui_switch.rebuild_chain();
     });
-
-    let revealed = menu.clone();
-    let motion = gtk::EventControllerMotion::new();
-    motion.connect_enter(move |_, _, _| {
-        revealed.set_opacity(1.0);
-        revealed.set_can_target(true);
-    });
-    let hidden = menu.clone();
-    motion.connect_leave(move |_| {
-        hidden.set_opacity(0.0);
-        hidden.set_can_target(false);
-    });
-    container.add_controller(motion);
 
     let popup_menu = menu.clone();
     let gesture = gtk::GestureClick::new();
@@ -103,9 +88,9 @@ fn row_menu(ui: &Rc<Ui>, id: EffectSlot) -> gtk::MenuButton {
     list.set_margin_start(6);
     list.set_margin_end(6);
 
-    let move_up = menu_entry(t("Move up"), format::ICON_MOVE_UP);
-    let move_down = menu_entry(t("Move down"), format::ICON_MOVE_DOWN);
-    let remove = menu_entry(t("Remove"), format::ICON_REMOVE);
+    let move_up = widgets::menu_entry(t("Move up"), format::ICON_MOVE_UP);
+    let move_down = widgets::menu_entry(t("Move down"), format::ICON_MOVE_DOWN);
+    let remove = widgets::menu_entry(t("Remove"), format::ICON_REMOVE);
     remove.add_css_class("destructive-action");
     list.append(&move_up);
     list.append(&move_down);
@@ -145,19 +130,5 @@ fn row_menu(ui: &Rc<Ui>, id: EffectSlot) -> gtk::MenuButton {
         popover_remove.popdown();
     });
 
-    button
-}
-
-fn menu_entry(label: &str, icon: &str) -> gtk::Button {
-    let content = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    let image = gtk::Image::from_icon_name(icon);
-    let text = gtk::Label::new(Some(label));
-    text.set_xalign(0.0);
-    text.set_hexpand(true);
-    content.append(&image);
-    content.append(&text);
-    let button = gtk::Button::new();
-    button.set_child(Some(&content));
-    button.add_css_class("flat");
     button
 }
