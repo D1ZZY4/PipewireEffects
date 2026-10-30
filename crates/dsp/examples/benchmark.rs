@@ -103,7 +103,7 @@ fn sweep(frames: usize, blocks: usize, baseline: f64) {
         report(descriptor.id, seconds.max(0.0), frames);
     }
     let all = seconds_per_block(chain(), frames, blocks) - baseline;
-    report("all twenty", all.max(0.0), frames);
+    report("all twenty-three", all.max(0.0), frames);
 }
 
 fn main() -> ExitCode {
