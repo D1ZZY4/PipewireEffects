@@ -9,7 +9,7 @@ use crate::presets_ui;
 
 mod navigation;
 
-use navigation::{find_switch_row, open_main_menu, scroll_to_bottom};
+use navigation::{find_switch_row, open_main_menu, open_preset_menu, scroll_to_bottom};
 
 pub const STATE_VARIABLE: &str = "PIPEWIRE_EFFECTS_UI_STATE";
 pub const CAPTURE_VARIABLE: &str = "PIPEWIRE_EFFECTS_UI_CAPTURE";
@@ -95,15 +95,7 @@ fn capture(ui: &Ui, path: &str) -> bool {
 fn apply(ui: &Rc<Ui>, state: &str) {
     if let Some(kind) = state.strip_prefix("effect:") {
         load_default(ui);
-        if !ui
-            .state
-            .borrow()
-            .slots()
-            .iter()
-            .any(|slot| slot.kind == kind)
-        {
-            ui.add_effect(kind);
-        }
+        ensure_effect(ui, kind);
         select_kind(ui, kind);
         return;
     }
@@ -118,6 +110,29 @@ fn apply(ui: &Rc<Ui>, state: &str) {
             select_kind(ui, "equalizer");
         }
         "presets" => load_default(ui),
+        "modified" => {
+            load_default(ui);
+            ensure_effect(ui, "delay");
+            ui.rebuild_chain();
+        }
+        "preset-menu" => {
+            load_default(ui);
+            ensure_effect(ui, "delay");
+            ui.rebuild_chain();
+            open_preset_menu(ui);
+        }
+        "unloaded" => {
+            load_default(ui);
+            ui.state
+                .borrow_mut()
+                .unload_preset(pwe_core::PipelineKind::Output);
+            ui.rebuild_chain();
+            ui.rebuild_editor();
+        }
+        "clone" => {
+            load_default(ui);
+            presets_ui::prompt_clone(ui);
+        }
         "input" => {
             load_default(ui);
             ui.toggle_input(true);
@@ -187,6 +202,14 @@ fn apply(ui: &Rc<Ui>, state: &str) {
         "picker-tone" => open_picker(ui, true),
         "about" => reveal_about(ui),
         "save" => presets_ui::prompt_save(ui),
+        "delete" => {
+            let saved = ui
+                .state
+                .borrow_mut()
+                .save_preset_section(pwe_core::PipelineKind::Output, "Delete me");
+            let _ = saved;
+            presets_ui::prompt_delete(ui);
+        }
         "banner" => ui.show_banner("No output device matches 'Studio monitors'"),
         "bypass" => ui.panes[ui.active().index()].effects.set_active(false),
         "narrow" => load_default(ui),

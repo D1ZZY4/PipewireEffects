@@ -257,6 +257,27 @@ fn saving_a_new_pipeline_section_creates_the_preset() {
     assert!(loaded.output.effects.is_empty());
 }
 
+#[test]
+fn duplicating_a_preset_writes_a_copy_under_the_new_name() {
+    let dir = scratch("duplicate");
+    let store = store_with(&dir);
+    let path = store.duplicate("Default", "Default copy").unwrap();
+    assert!(path.ends_with("Default copy.json"));
+    let source = store.load("Default").unwrap();
+    let copy = store.load("Default copy").unwrap();
+    assert_eq!(copy.name, "Default copy");
+    assert!(!copy.output.effects.is_empty());
+    assert_eq!(copy.output.effects.len(), source.output.effects.len());
+}
+
+#[test]
+fn duplicating_refuses_an_invalid_target_or_a_missing_source() {
+    let dir = scratch("duplicate-invalid");
+    let store = store_with(&dir);
+    assert!(store.duplicate("Default", "../escape").is_err());
+    assert!(store.duplicate("Absent", "Copy").is_err());
+}
+
 fn store_with(dir: &Path) -> PresetStore {
     PresetStore::with_dirs(dir.to_path_buf(), Vec::new())
 }

@@ -5,6 +5,15 @@ use gtk::glib;
 
 use crate::Ui;
 
+pub(super) fn open_preset_menu(ui: &Rc<Ui>) {
+    let list = ui.panes[ui.active().index()].preset_list.clone();
+    glib::timeout_add_local_once(std::time::Duration::from_millis(500), move || {
+        if let Some(button) = find_menu_button(list.upcast_ref()) {
+            button.popup();
+        }
+    });
+}
+
 pub(super) fn open_main_menu(ui: &Rc<Ui>) {
     let window = ui.window.clone();
     glib::timeout_add_local_once(std::time::Duration::from_millis(500), move || {
@@ -16,7 +25,10 @@ pub(super) fn open_main_menu(ui: &Rc<Ui>) {
     });
 }
 
-pub(super) fn find_menu_button_by_icon(widget: &gtk::Widget, icon: &str) -> Option<gtk::MenuButton> {
+pub(super) fn find_menu_button_by_icon(
+    widget: &gtk::Widget,
+    icon: &str,
+) -> Option<gtk::MenuButton> {
     if let Some(button) = widget.downcast_ref::<gtk::MenuButton>()
         && button.icon_name().as_deref() == Some(icon)
     {
@@ -25,6 +37,20 @@ pub(super) fn find_menu_button_by_icon(widget: &gtk::Widget, icon: &str) -> Opti
     let mut child = widget.first_child();
     while let Some(current) = child {
         if let Some(found) = find_menu_button_by_icon(&current, icon) {
+            return Some(found);
+        }
+        child = current.next_sibling();
+    }
+    None
+}
+
+pub(super) fn find_menu_button(widget: &gtk::Widget) -> Option<gtk::MenuButton> {
+    if let Some(button) = widget.downcast_ref::<gtk::MenuButton>() {
+        return Some(button.clone());
+    }
+    let mut child = widget.first_child();
+    while let Some(current) = child {
+        if let Some(found) = find_menu_button(&current) {
             return Some(found);
         }
         child = current.next_sibling();

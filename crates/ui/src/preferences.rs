@@ -2,13 +2,24 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use adw::prelude::*;
-use pwe_core::i18n::t;
+use pwe_core::i18n::{mark, t};
 
 use crate::pages::WorkspaceActions;
+
+const INTERVAL_SECONDS: [u32; 5] = [2, 5, 10, 30, 60];
+const INTERVAL_LABELS: [&str; 5] = [
+    mark("2 seconds"),
+    mark("5 seconds"),
+    mark("10 seconds"),
+    mark("30 seconds"),
+    mark("60 seconds"),
+];
 
 pub struct PreferencesView {
     autostart: adw::SwitchRow,
     developer: adw::SwitchRow,
+    auto_save: adw::SwitchRow,
+    auto_save_interval: adw::ComboRow,
     backend: adw::ComboRow,
     toggles: Rc<Cell<bool>>,
 }
@@ -68,6 +79,49 @@ impl PreferencesView {
         processing.add(&backend);
         page.add(&processing);
 
+        let presets = adw::PreferencesGroup::new();
+        presets.set_title(t("Presets"));
+        let auto_save = adw::SwitchRow::new();
+        auto_save.set_title(t("Auto-save preset edits"));
+        auto_save.set_subtitle(t(
+            "Writes the loaded preset and the settings back after an edit",
+        ));
+        let auto_save_interval = adw::ComboRow::new();
+        auto_save_interval.set_title(t("Update interval"));
+        auto_save_interval.set_subtitle(t("How often the automatic update runs"));
+        auto_save_interval.set_sensitive(false);
+        let model = gtk::StringList::new(&[]);
+        for label in INTERVAL_LABELS {
+            model.append(t(label));
+        }
+        auto_save_interval.set_model(Some(&model));
+        {
+            let flag = Rc::clone(&toggles);
+            let on_auto_save = Rc::clone(&actions.on_auto_save);
+            let interval = auto_save_interval.clone();
+            auto_save.connect_active_notify(move |row| {
+                interval.set_sensitive(row.is_active());
+                if flag.get() {
+                    return;
+                }
+                on_auto_save(row.is_active());
+            });
+        }
+        {
+            let flag = Rc::clone(&toggles);
+            let on_interval = Rc::clone(&actions.on_auto_save_interval);
+            auto_save_interval.connect_selected_notify(move |row| {
+                if flag.get() {
+                    return;
+                }
+                let index = (row.selected() as usize).min(INTERVAL_SECONDS.len() - 1);
+                on_interval(INTERVAL_SECONDS[index]);
+            });
+        }
+        presets.add(&auto_save);
+        presets.add(&auto_save_interval);
+        page.add(&presets);
+
         let troubleshooting = adw::PreferencesGroup::new();
         troubleshooting.set_title(t("Troubleshooting"));
         let developer = adw::SwitchRow::new();
@@ -90,6 +144,8 @@ impl PreferencesView {
         let view = Self {
             autostart,
             developer,
+            auto_save,
+            auto_save_interval,
             backend,
             toggles,
         };
@@ -105,6 +161,23 @@ impl PreferencesView {
     pub fn set_developer_mode(&self, enabled: bool) {
         self.toggles.set(true);
         self.developer.set_active(enabled);
+        self.toggles.set(false);
+    }
+
+    pub fn set_auto_save(&self, enabled: bool) {
+        self.toggles.set(true);
+        self.auto_save.set_active(enabled);
+        self.auto_save_interval.set_sensitive(enabled);
+        self.toggles.set(false);
+    }
+
+    pub fn set_auto_save_interval(&self, seconds: u32) {
+        let index = INTERVAL_SECONDS
+            .iter()
+            .position(|value| *value == seconds)
+            .unwrap_or(INTERVAL_SECONDS.len() - 1);
+        self.toggles.set(true);
+        self.auto_save_interval.set_selected(index as u32);
         self.toggles.set(false);
     }
 

@@ -25,6 +25,8 @@ impl PipelineSettings {
     }
 }
 
+pub const DEFAULT_AUTO_SAVE_INTERVAL: u32 = 10;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -34,6 +36,8 @@ pub struct Settings {
     pub process_input: bool,
     pub autostart: bool,
     pub developer_mode: bool,
+    pub auto_save: bool,
+    pub auto_save_interval: u32,
     pub audio_backend: String,
 }
 
@@ -46,6 +50,8 @@ impl Default for Settings {
             process_input: false,
             autostart: false,
             developer_mode: false,
+            auto_save: false,
+            auto_save_interval: DEFAULT_AUTO_SAVE_INTERVAL,
             audio_backend: "both".to_owned(),
         }
     }
@@ -92,6 +98,15 @@ mod tests {
         assert_eq!(settings.output.device, "usb");
         assert_eq!(settings.input.device, AUTO);
         assert!(!settings.autostart);
+    }
+
+    #[test]
+    fn a_document_without_the_auto_save_fields_keeps_the_defaults() {
+        let settings: Settings =
+            serde_json::from_str("{\"preset\":\"Default\"}").expect("should parse");
+        assert!(!settings.auto_save);
+        assert_eq!(settings.auto_save_interval, DEFAULT_AUTO_SAVE_INTERVAL);
+        assert_eq!(settings.audio_backend, "both");
     }
 
     #[test]

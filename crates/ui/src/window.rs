@@ -19,9 +19,10 @@ use crate::preferences::PreferencesView;
 use crate::presets_ui;
 use crate::state::State;
 
+mod auto_save;
 mod wiring;
 
-type ChainSignature = (PipelineKind, (usize, bool, Option<EffectSlot>));
+type ChainSignature = (PipelineKind, (usize, bool, Option<EffectSlot>, bool));
 
 pub struct Ui {
     pub state: Rc<RefCell<State>>,
@@ -41,6 +42,7 @@ pub struct Ui {
     pub split: adw::OverlaySplitView,
     pipeline_guard: Cell<bool>,
     signature: RefCell<ChainSignature>,
+    auto_save_clock: Cell<std::time::Instant>,
 }
 
 impl Ui {
@@ -66,7 +68,8 @@ impl Ui {
             sidebar_stack: workspace.sidebar_stack,
             split: workspace.split,
             pipeline_guard: Cell::new(false),
-            signature: RefCell::new((PipelineKind::Output, (0, false, None))),
+            signature: RefCell::new((PipelineKind::Output, (0, false, None, false))),
+            auto_save_clock: Cell::new(std::time::Instant::now()),
         });
 
         ui.wire();
@@ -109,6 +112,10 @@ impl Ui {
             .set_autostart(state.settings.autostart);
         self.preferences_view
             .set_developer_mode(state.settings.developer_mode);
+        self.preferences_view
+            .set_auto_save(state.settings.auto_save);
+        self.preferences_view
+            .set_auto_save_interval(state.settings.auto_save_interval);
         self.preferences_view
             .set_audio_backend(&state.settings.audio_backend);
         self.diagnostics_action
@@ -262,6 +269,7 @@ impl Ui {
             self.banner.set_title(&error);
             self.banner.set_revealed(true);
         }
+        self.auto_save();
     }
 
     fn set_status(&self, bypassed: bool) {
@@ -283,6 +291,7 @@ impl Ui {
                     chain.slots.len(),
                     chain.running(),
                     chain.slots.iter().map(|slot| slot.id).max(),
+                    state.is_modified(state.active()),
                 ),
             )
         };

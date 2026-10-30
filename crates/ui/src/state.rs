@@ -1,15 +1,16 @@
-use std::path::PathBuf;
-
-use pwe_core::i18n::{t, tr};
+use pwe_core::i18n::tr;
 use pwe_core::{ALL_PIPELINES, PipelineKind};
 use pwe_engine::{EngineConfig, EngineHandle, EngineResult, EngineState, Snapshot, StatsSnapshot};
-use pwe_presets::{PresetError, PresetStore};
+use pwe_presets::{Pipeline, PresetStore};
 use pwe_services::{Settings, SettingsStore};
 
 use crate::chain::{Chain, Slot};
 
+mod presets;
+
 pub struct State {
     chains: [Chain; 2],
+    baselines: [Option<Pipeline>; 2],
     active: PipelineKind,
     pub store: PresetStore,
     settings_store: SettingsStore,
@@ -32,6 +33,7 @@ impl State {
         };
         let mut state = Self {
             chains: [Chain::new(Some(output)), Chain::new(input)],
+            baselines: [None, None],
             active: PipelineKind::Output,
             store: PresetStore::from_environment(),
             settings_store,
@@ -192,6 +194,22 @@ impl State {
         self.persist();
     }
 
+    pub fn set_auto_save(&mut self, enabled: bool) {
+        if self.settings.auto_save == enabled {
+            return;
+        }
+        self.settings.auto_save = enabled;
+        self.persist();
+    }
+
+    pub fn set_auto_save_interval(&mut self, seconds: u32) {
+        if self.settings.auto_save_interval == seconds {
+            return;
+        }
+        self.settings.auto_save_interval = seconds;
+        self.persist();
+    }
+
     pub fn set_audio_backend(&mut self, value: &str) {
         if self.settings.audio_backend == value {
             return;
@@ -225,82 +243,22 @@ impl State {
         }
     }
 
+    pub fn auto_save_active(&mut self) -> bool {
+        let kind = self.active;
+        if !self.settings.auto_save || !self.is_modified(kind) {
+            return false;
+        }
+        let Some(name) = self.settings.preset().map(str::to_owned) else {
+            return false;
+        };
+        self.save_preset_section(kind, &name).is_ok()
+    }
+
     pub fn restart(&mut self, kind: PipelineKind) -> EngineResult<()> {
         let chain = self.chain_mut(kind);
         if let Some(engine) = chain.engine_mut() {
             engine.restart()?;
             chain.reapply();
-        }
-        Ok(())
-    }
-
-    pub fn load_preset(&mut self, name: &str) -> Result<Vec<String>, PresetError> {
-        let (preset, mut warnings) = self.store.load_with_warnings(name)?;
-        for kind in ALL_PIPELINES {
-            let section = preset.pipeline(kind).clone();
-            if kind == PipelineKind::Input
-                && !self.settings.process_input
-                && !section.effects.is_empty()
-            {
-                warnings.push(
-                    t("the preset carries an input chain; turn on microphone processing to run it")
-                        .to_owned(),
-                );
-            }
-            let chain = self.chain_mut(kind);
-            chain.apply(&section, &mut warnings);
-        }
-        self.settings.preset = name.to_owned();
-        self.persist();
-        Ok(warnings)
-    }
-
-    pub fn load_preset_section(
-        &mut self,
-        kind: PipelineKind,
-        name: &str,
-    ) -> Result<Vec<String>, PresetError> {
-        let (preset, mut warnings) = self.store.load_with_warnings(name)?;
-        let section = preset.pipeline(kind).clone();
-        if kind == PipelineKind::Input
-            && !self.settings.process_input
-            && !section.effects.is_empty()
-        {
-            warnings.push(
-                t("the preset carries an input chain; turn on microphone processing to run it")
-                    .to_owned(),
-            );
-        }
-        self.chain_mut(kind).apply(&section, &mut warnings);
-        self.settings.preset = name.to_owned();
-        self.persist();
-        Ok(warnings)
-    }
-
-    pub fn save_preset_section(
-        &mut self,
-        kind: PipelineKind,
-        name: &str,
-    ) -> Result<PathBuf, PresetError> {
-        let mut section = pwe_presets::Pipeline::default();
-        self.chain(kind).snapshot(&mut section);
-        let path = self.store.save_section(name, kind, &section)?;
-        self.settings.preset = name.to_owned();
-        self.persist();
-        Ok(path)
-    }
-
-    pub fn preset_infos(&self, kind: PipelineKind) -> (Vec<pwe_presets::PresetInfo>, Vec<String>) {
-        let (infos, warnings) = self.store.list();
-        let covering = infos.into_iter().filter(|info| info.covers(kind)).collect();
-        (covering, warnings)
-    }
-
-    pub fn delete_preset(&mut self, name: &str) -> Result<(), PresetError> {
-        self.store.delete(name)?;
-        if self.loaded_preset() == Some(name) {
-            self.settings.preset.clear();
-            self.persist();
         }
         Ok(())
     }
@@ -351,7 +309,6 @@ fn backend_of(value: &str) -> pwe_engine::gpu::AudioBackend {
 #[cfg(test)]
 mod tests {
     use pwe_presets::{Preset, PresetValue};
-
     #[test]
     fn a_blank_preset_snapshots_both_pipelines() {
         let preset = Preset::new("Chain");

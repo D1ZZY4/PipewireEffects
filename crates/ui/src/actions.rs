@@ -43,6 +43,15 @@ pub fn workspace_actions(state: &Rc<RefCell<State>>) -> WorkspaceActions {
         Rc::new(move |enabled: bool| state.borrow_mut().set_developer_mode(enabled))
             as Rc<dyn Fn(bool)>
     };
+    let on_auto_save = {
+        let state = Rc::clone(state);
+        Rc::new(move |enabled: bool| state.borrow_mut().set_auto_save(enabled)) as Rc<dyn Fn(bool)>
+    };
+    let on_auto_save_interval = {
+        let state = Rc::clone(state);
+        Rc::new(move |seconds: u32| state.borrow_mut().set_auto_save_interval(seconds))
+            as Rc<dyn Fn(u32)>
+    };
     let on_audio_backend = {
         let state = Rc::clone(state);
         Rc::new(move |value: String| state.borrow_mut().set_audio_backend(&value))
@@ -54,6 +63,8 @@ pub fn workspace_actions(state: &Rc<RefCell<State>>) -> WorkspaceActions {
         on_autostart,
         on_reconnect,
         on_developer_mode,
+        on_auto_save,
+        on_auto_save_interval,
         on_audio_backend,
     }
 }

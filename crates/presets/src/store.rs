@@ -247,6 +247,12 @@ impl PresetStore {
         let text = serde_json::to_string_pretty(&preset)?;
         write_atomically(destination, &text)
     }
+
+    pub fn duplicate(&self, source: &str, target: &str) -> PresetResult<PathBuf> {
+        let mut preset = self.load(source)?;
+        preset.name = target.to_owned();
+        self.save(&preset)
+    }
 }
 
 fn read_preset(path: &Path) -> PresetResult<(Preset, Vec<String>)> {

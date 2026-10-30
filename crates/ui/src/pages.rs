@@ -3,7 +3,7 @@ use std::rc::Rc;
 use adw::prelude::*;
 use gtk::gio;
 use pwe_core::i18n::t;
-use pwe_core::{PipelineKind, ALL_PIPELINES};
+use pwe_core::{ALL_PIPELINES, PipelineKind};
 
 use crate::chrome::{
     dialog, effects_toggle, header_controls, install, install_breakpoint, install_dialog,
@@ -15,7 +15,6 @@ use crate::format;
 use crate::meter::LevelDisplay;
 use crate::preferences::PreferencesView;
 use crate::presets_ui;
-use crate::widgets;
 
 pub fn page_name(kind: PipelineKind) -> &'static str {
     match kind {
@@ -37,6 +36,8 @@ pub struct WorkspaceActions {
     pub on_autostart: Rc<dyn Fn(bool)>,
     pub on_reconnect: Rc<dyn Fn()>,
     pub on_developer_mode: Rc<dyn Fn(bool)>,
+    pub on_auto_save: Rc<dyn Fn(bool)>,
+    pub on_auto_save_interval: Rc<dyn Fn(u32)>,
     pub on_audio_backend: Rc<dyn Fn(String)>,
 }
 
@@ -46,7 +47,13 @@ pub struct ChainPane {
     pub content: gtk::ScrolledWindow,
     pub list: gtk::ListBox,
     pub preset_list: gtk::ListBox,
-    pub preset_buttons: (gtk::Button, gtk::Button, gtk::Button, gtk::Button),
+    pub preset_buttons: (
+        gtk::Button,
+        gtk::Button,
+        gtk::Button,
+        gtk::Button,
+        gtk::Button,
+    ),
     pub placeholder: gtk::Widget,
     pub editor_host: gtk::Box,
     pub add_button: gtk::Button,
@@ -246,15 +253,11 @@ fn chain_sidebar(
     close_button: &gtk::Button,
     add_button: &gtk::Button,
 ) -> gtk::Box {
-    let presets_header = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    presets_header.set_margin_top(14);
-    presets_header.append(&widgets::section_title(t("Presets")));
-
     let body = gtk::Box::new(gtk::Orientation::Vertical, 4);
     body.append(list);
-    body.append(&presets_header);
-    body.append(preset_list);
+    body.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
     body.append(preset_actions);
+    body.append(preset_list);
 
     let scroll = gtk::ScrolledWindow::new();
     scroll.set_vexpand(true);

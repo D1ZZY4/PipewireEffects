@@ -25,6 +25,7 @@ const STYLE: &str = "
 .chain-bypassed { opacity: 0.5; }
 .chain-label { font-weight: bold; }
 .effects-button:checked { background: none; box-shadow: none; color: @accent_color; }
+.preset-save { color: @accent_color; }
 .sidebar-pane { box-shadow: none; }
 ";
 
