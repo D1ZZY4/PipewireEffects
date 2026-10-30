@@ -9,6 +9,7 @@ description = "PipeWire audio engine for PipewireEffects"
 [dependencies]
 pwe-core.workspace = true
 crossbeam-queue.workspace = true
+ash.workspace = true
 pipewire.workspace = true
 rtrb.workspace = true
 

@@ -1,0 +1,18 @@
+#version 450
+layout(local_size_x = 64) in;
+
+layout(set = 0, binding = 0) readonly buffer Source { float data[]; } source_data;
+layout(set = 0, binding = 1) writeonly buffer Destination { float data[]; } destination_data;
+
+layout(push_constant) uniform Parameters {
+    float factor;
+    uint count;
+} parameters;
+
+void main() {
+    uint index = gl_GlobalInvocationID.x;
+    if (index >= parameters.count) {
+        return;
+    }
+    destination_data.data[index] = source_data.data[index] * parameters.factor;
+}

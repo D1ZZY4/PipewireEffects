@@ -1,6 +1,6 @@
 use crate::audio::{AudioBuffer, AudioFormat};
 use crate::command::ChainCommand;
-use crate::effect::Effect;
+use crate::effect::{Accelerator, Effect};
 use crate::error::{CoreError, CoreResult};
 
 struct Slot {
@@ -13,6 +13,7 @@ pub struct EffectChain {
     capacity: usize,
     bypassed: bool,
     format: AudioFormat,
+    accelerator: Option<Box<dyn Accelerator>>,
 }
 
 impl EffectChain {
@@ -23,7 +24,12 @@ impl EffectChain {
             capacity,
             bypassed: false,
             format,
+            accelerator: None,
         }
+    }
+
+    pub fn set_accelerator(&mut self, accelerator: Option<Box<dyn Accelerator>>) {
+        self.accelerator = accelerator;
     }
 
     pub fn capacity(&self) -> usize {
@@ -75,10 +81,22 @@ impl EffectChain {
         if self.bypassed {
             return;
         }
+        let deadline_ns = block_budget_ns(buffer.frames(), self.format.rate());
         for slot in &mut self.slots {
-            if slot.enabled {
-                slot.effect.process(buffer);
+            if !slot.enabled {
+                continue;
             }
+            if let Some(gain) = slot.effect.elementwise_gain() {
+                let offloaded = self
+                    .accelerator
+                    .as_mut()
+                    .is_some_and(|accelerator| accelerator.scale(buffer, gain, deadline_ns));
+                if !offloaded {
+                    apply_gain(buffer, gain);
+                }
+                continue;
+            }
+            slot.effect.process(buffer);
         }
     }
 
@@ -121,6 +139,20 @@ impl EffectChain {
             }
         }
     }
+}
+
+fn apply_gain(buffer: &mut AudioBuffer, gain: f32) {
+    for channel in buffer.channels_mut() {
+        for sample in channel {
+            *sample *= gain;
+        }
+    }
+}
+
+fn block_budget_ns(frames: usize, rate: u32) -> u64 {
+    let frames = frames as u64;
+    let rate = u64::from(rate.max(8_000));
+    frames.saturating_mul(1_000_000_000) / rate / 2
 }
 
 #[cfg(test)]
@@ -216,6 +248,76 @@ mod tests {
         chain.apply(ChainCommand::Remove(1), |e| retired.push(e));
         assert_eq!(chain.ids(), vec!["b", "a"]);
         assert_eq!(retired.len(), 1);
+    }
+
+    #[test]
+    fn an_accelerator_takes_over_the_elementwise_stage() {
+        struct Doubler {
+            calls: usize,
+        }
+
+        impl Accelerator for Doubler {
+            fn scale(&mut self, buffer: &mut AudioBuffer, gain: f32, _deadline_ns: u64) -> bool {
+                self.calls += 1;
+                apply_gain(buffer, gain * 2.0);
+                true
+            }
+        }
+
+        struct Elementwise;
+
+        impl Effect for Elementwise {
+            fn id(&self) -> &'static str {
+                "elementwise"
+            }
+            fn prepare(&mut self, _format: AudioFormat) {}
+            fn reset(&mut self) {}
+            fn process(&mut self, _buffer: &mut AudioBuffer) {
+                panic!("the elementwise stage should have been off-loaded");
+            }
+            fn elementwise_gain(&mut self) -> Option<f32> {
+                Some(0.5)
+            }
+        }
+
+        let mut chain = chain();
+        chain.push(Box::new(Elementwise)).unwrap();
+        chain.set_accelerator(Some(Box::new(Doubler { calls: 0 })));
+        let mut buf = buffer();
+        chain.process(&mut buf);
+        assert!((buf.channel(0)[0] - 1.0).abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn a_declined_acceleration_falls_back_to_the_cpu() {
+        struct Declining;
+
+        impl Accelerator for Declining {
+            fn scale(&mut self, _buffer: &mut AudioBuffer, _gain: f32, _deadline_ns: u64) -> bool {
+                false
+            }
+        }
+
+        struct Elementwise;
+
+        impl Effect for Elementwise {
+            fn id(&self) -> &'static str {
+                "elementwise"
+            }
+            fn prepare(&mut self, _format: AudioFormat) {}
+            fn reset(&mut self) {}
+            fn process(&mut self, _buffer: &mut AudioBuffer) {}
+            fn elementwise_gain(&mut self) -> Option<f32> {
+                Some(0.5)
+            }
+        }
+
+        let mut chain = chain();
+        chain.push(Box::new(Elementwise)).unwrap();
+        chain.set_accelerator(Some(Box::new(Declining)));
+        let mut buf = buffer();
+        chain.process(&mut buf);
+        assert!((buf.channel(0)[0] - 0.5).abs() < 1.0e-6);
     }
 
     #[test]

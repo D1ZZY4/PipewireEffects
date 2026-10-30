@@ -37,6 +37,7 @@ pub struct WorkspaceActions {
     pub on_autostart: Rc<dyn Fn(bool)>,
     pub on_reconnect: Rc<dyn Fn()>,
     pub on_developer_mode: Rc<dyn Fn(bool)>,
+    pub on_audio_backend: Rc<dyn Fn(String)>,
 }
 
 pub struct ChainPane {

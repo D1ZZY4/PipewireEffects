@@ -2,7 +2,7 @@ use pipewire::stream::Stream;
 use rtrb::Consumer;
 
 use crate::capture::CaptureState;
-use crate::processor::Processor;
+use crate::cpu::Processor;
 use crate::streams::samples_to_bytes;
 
 pub struct StreamCapture {

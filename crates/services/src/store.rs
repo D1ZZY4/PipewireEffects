@@ -128,7 +128,9 @@ mod tests {
         let store = SettingsStore::with_path(scratch("pipeline").join(FILE_NAME));
         let mut settings = Settings::default();
         settings.pipeline_mut(PipelineKind::Input).device = "mic".to_owned();
+        settings.audio_backend = "gpu".to_owned();
         store.save(&settings).expect("should save");
         assert_eq!(store.load().pipeline(PipelineKind::Input).device, "mic");
+        assert_eq!(store.load().audio_backend, "gpu");
     }
 }

@@ -12,7 +12,7 @@ pub mod pipeline;
 pub use audio::{AudioBuffer, AudioFormat};
 pub use chain::EffectChain;
 pub use command::ChainCommand;
-pub use effect::Effect;
+pub use effect::{Accelerator, Effect};
 pub use error::CoreError;
 pub use meter::LevelMeter;
 pub use param::{ParamHandle, ParamKind, ParamSet, ParamSpec, ParamUnit, ParamValue};

@@ -43,11 +43,17 @@ pub fn workspace_actions(state: &Rc<RefCell<State>>) -> WorkspaceActions {
         Rc::new(move |enabled: bool| state.borrow_mut().set_developer_mode(enabled))
             as Rc<dyn Fn(bool)>
     };
+    let on_audio_backend = {
+        let state = Rc::clone(state);
+        Rc::new(move |value: String| state.borrow_mut().set_audio_backend(&value))
+            as Rc<dyn Fn(String)>
+    };
     WorkspaceActions {
         on_target,
         on_input,
         on_autostart,
         on_reconnect,
         on_developer_mode,
+        on_audio_backend,
     }
 }

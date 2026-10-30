@@ -31,7 +31,7 @@ crates/dsp/src/effects/stereo_tools.rs
 crates/dsp/src/effects/voice_suppressor.rs
 crates/engine/src/config.rs
 crates/engine/src/error.rs
-crates/engine/src/processor.rs
+crates/engine/src/cpu/processor.rs
 crates/engine/src/runtime.rs
 crates/engine/src/shared.rs
 crates/engine/src/stream_setup.rs

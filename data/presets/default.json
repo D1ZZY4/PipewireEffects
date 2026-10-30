@@ -91,6 +91,11 @@
           "release": 50.0,
           "input_gain": 0.0
         }
+      },
+      {
+        "kind": "gain",
+        "enabled": true,
+        "params": {}
       }
     ]
   }

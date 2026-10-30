@@ -138,6 +138,22 @@ fn apply(ui: &Rc<Ui>, state: &str) {
                 }
             });
         }
+        "gpu" => {
+            load_default(ui);
+            ensure_effect(ui, "gain");
+            ui.rebuild_chain();
+            ui.state.borrow_mut().set_audio_backend("both");
+            ui.state.borrow_mut().set_developer_mode(true);
+            ui.sync_desktop_switches();
+            ui.diagnostics_view.expand();
+            activate(ui, "win.diagnostics");
+            let ui = Rc::clone(ui);
+            glib::timeout_add_local_once(std::time::Duration::from_millis(700), move || {
+                if let Some(page) = ui.diagnostics_dialog.visible_page() {
+                    scroll_to_bottom(page.upcast_ref());
+                }
+            });
+        }
         "menu" => {
             load_default(ui);
             open_main_menu(ui);
@@ -199,6 +215,18 @@ fn load_default(ui: &Rc<Ui>) {
     }
     ui.rebuild_chain();
     ui.rebuild_editor();
+}
+
+fn ensure_effect(ui: &Rc<Ui>, kind: &str) {
+    if !ui
+        .state
+        .borrow()
+        .slots()
+        .iter()
+        .any(|slot| slot.kind == kind)
+    {
+        ui.add_effect(kind);
+    }
 }
 
 fn select(ui: &Rc<Ui>, index: usize) {

@@ -1,7 +1,7 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use adw::prelude::*;
-use pwe_core::i18n::t;
+use pwe_core::i18n::{t, tr};
 use pwe_engine::{EngineState, Snapshot, StatsSnapshot};
 
 use crate::format;
@@ -18,6 +18,11 @@ pub struct Diagnostics {
     underrun_row: adw::ActionRow,
     overrun_row: adw::ActionRow,
     trim_row: adw::ActionRow,
+    gpu_blocks_row: adw::ActionRow,
+    gpu_fallbacks_row: adw::ActionRow,
+    gpu_disagreements_row: adw::ActionRow,
+    compute_row: adw::ActionRow,
+    compute_reported: Cell<bool>,
     messages_group: adw::PreferencesGroup,
     empty_row: adw::ActionRow,
     message_rows: RefCell<Vec<adw::ActionRow>>,
@@ -41,6 +46,9 @@ impl Diagnostics {
         let underrun_row = value_row(t("Underruns"));
         let overrun_row = value_row(t("Overruns"));
         let trim_row = value_row(t("Drift trims"));
+        let gpu_blocks_row = value_row(t("GPU blocks"));
+        let gpu_fallbacks_row = value_row(t("GPU fallbacks"));
+        let gpu_disagreements_row = value_row(t("GPU disagreements"));
 
         let expander = adw::ExpanderRow::new();
         expander.set_title(t("Engine counters"));
@@ -55,6 +63,9 @@ impl Diagnostics {
             &underrun_row,
             &overrun_row,
             &trim_row,
+            &gpu_blocks_row,
+            &gpu_fallbacks_row,
+            &gpu_disagreements_row,
         ] {
             expander.add_row(row);
         }
@@ -62,6 +73,9 @@ impl Diagnostics {
         let counters = adw::PreferencesGroup::new();
         counters.set_title(t("Engine"));
         counters.add(&expander);
+
+        let compute_row = value_row(t("Compute devices"));
+        counters.add(&compute_row);
 
         let messages_group = adw::PreferencesGroup::new();
         messages_group.set_title(t("Messages"));
@@ -86,6 +100,11 @@ impl Diagnostics {
             underrun_row,
             overrun_row,
             trim_row,
+            gpu_blocks_row,
+            gpu_fallbacks_row,
+            gpu_disagreements_row,
+            compute_row,
+            compute_reported: Cell::new(false),
             messages_group,
             empty_row,
             message_rows: RefCell::new(Vec::new()),
@@ -95,6 +114,25 @@ impl Diagnostics {
 
     pub fn page(&self) -> &adw::PreferencesPage {
         &self.page
+    }
+
+    pub fn refresh_compute_devices(&self) {
+        self.report_compute_devices();
+    }
+
+    fn report_compute_devices(&self) {
+        if self.compute_reported.get() {
+            return;
+        }
+        self.compute_reported.set(true);
+        let found = pwe_engine::gpu::devices();
+        let subtitle = if found.is_empty() {
+            t("No Vulkan compute device was found.").to_owned()
+        } else {
+            let names: Vec<&str> = found.iter().map(|device| device.name.as_str()).collect();
+            tr("{0} detected.", &[&names.join(", ")])
+        };
+        self.compute_row.set_subtitle(&subtitle);
     }
 
     pub fn expand(&self) {
@@ -108,6 +146,7 @@ impl Diagnostics {
         stats: &StatsSnapshot,
         warnings: &[String],
     ) {
+        self.report_compute_devices();
         self.pipeline_row.set_subtitle(snapshot.kind.label());
         self.rate_row.set_subtitle(&if snapshot.sample_rate == 0 {
             "—".to_owned()
@@ -135,6 +174,12 @@ impl Diagnostics {
             .set_subtitle(&t_samples(stats.overrun_samples));
         self.trim_row
             .set_subtitle(&format::grouped(stats.trim_events));
+        self.gpu_blocks_row
+            .set_subtitle(&format::grouped(stats.gpu_blocks));
+        self.gpu_fallbacks_row
+            .set_subtitle(&format::grouped(stats.gpu_fallbacks));
+        self.gpu_disagreements_row
+            .set_subtitle(&format::grouped(stats.gpu_disagreements));
         self.sync_messages(warnings);
     }
 

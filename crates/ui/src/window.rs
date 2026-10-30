@@ -109,6 +109,8 @@ impl Ui {
             .set_autostart(state.settings.autostart);
         self.preferences_view
             .set_developer_mode(state.settings.developer_mode);
+        self.preferences_view
+            .set_audio_backend(&state.settings.audio_backend);
         self.diagnostics_action
             .set_enabled(state.settings.developer_mode);
     }

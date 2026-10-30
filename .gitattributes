@@ -12,6 +12,7 @@
 *.desktop text eol=lf
 *.png binary
 *.wav binary
+*.spv binary
 
 # The lock file is checked in deliberately, so that builds are reproducible and
 # CI caches are meaningful, but it should not count towards the language

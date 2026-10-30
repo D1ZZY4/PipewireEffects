@@ -52,10 +52,15 @@ impl Effect for Gain {
     }
 
     fn process(&mut self, buffer: &mut AudioBuffer) {
+        if let Some(gain) = self.elementwise_gain() {
+            util::apply_gain(buffer, gain);
+        }
+    }
+
+    fn elementwise_gain(&mut self) -> Option<f32> {
         let target = self.target_gain();
         self.smoothed.set_target(target);
-        let gain = self.smoothed.advance();
-        util::apply_gain(buffer, gain);
+        Some(self.smoothed.advance())
     }
 }
 
@@ -94,6 +99,20 @@ mod tests {
             "{}",
             buf.channel(0)[0]
         );
+    }
+
+    #[test]
+    fn the_offloadable_gain_matches_the_applied_gain() {
+        let params = ParamSet::new(specs());
+        params.set_f32("gain", -6.0).unwrap();
+        let mut offload = Gain::new(params.clone());
+        let mut local = Gain::new(params);
+        offload.prepare(AudioFormat::new(48_000, 2));
+        local.prepare(AudioFormat::new(48_000, 2));
+        let gain = offload.elementwise_gain().expect("the gain is elementwise");
+        let mut buf = buffer();
+        local.process(&mut buf);
+        assert!((buf.channel(0)[0] - 0.5 * gain).abs() < 1.0e-6);
     }
 
     #[test]

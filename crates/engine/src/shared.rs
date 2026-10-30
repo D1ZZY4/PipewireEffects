@@ -60,6 +60,9 @@ pub struct Stats {
     trim_events: AtomicU64,
     buffer_frames: AtomicU64,
     ring_occupancy: AtomicU64,
+    gpu_blocks: AtomicU64,
+    gpu_fallbacks: AtomicU64,
+    gpu_disagreements: AtomicU64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -71,6 +74,9 @@ pub struct StatsSnapshot {
     pub trim_events: u64,
     pub buffer_frames: u64,
     pub ring_occupancy: u64,
+    pub gpu_blocks: u64,
+    pub gpu_fallbacks: u64,
+    pub gpu_disagreements: u64,
 }
 
 impl Stats {
@@ -81,6 +87,9 @@ impl Stats {
     counter!(trim_events);
     counter!(buffer_frames);
     counter!(ring_occupancy);
+    counter!(gpu_blocks);
+    counter!(gpu_fallbacks);
+    counter!(gpu_disagreements);
 
     pub fn add_captured(&self, frames: u64) {
         self.captured_frames.fetch_add(frames, Ordering::Relaxed);
@@ -110,6 +119,18 @@ impl Stats {
         self.ring_occupancy.store(samples, Ordering::Relaxed);
     }
 
+    pub fn record_gpu_block(&self) {
+        self.gpu_blocks.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_gpu_fallback(&self) {
+        self.gpu_fallbacks.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_gpu_disagreement(&self) {
+        self.gpu_disagreements.fetch_add(1, Ordering::Relaxed);
+    }
+
     pub fn snapshot(&self) -> StatsSnapshot {
         StatsSnapshot {
             captured_frames: self.captured_frames(),
@@ -119,6 +140,9 @@ impl Stats {
             trim_events: self.trim_events(),
             buffer_frames: self.buffer_frames(),
             ring_occupancy: self.ring_occupancy(),
+            gpu_blocks: self.gpu_blocks(),
+            gpu_fallbacks: self.gpu_fallbacks(),
+            gpu_disagreements: self.gpu_disagreements(),
         }
     }
 }

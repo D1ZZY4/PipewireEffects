@@ -20,11 +20,13 @@ impl State {
     pub fn new() -> EngineResult<Self> {
         let settings_store = SettingsStore::from_environment();
         let (settings, warning) = settings_store.load_with_warning();
-        let output = EngineHandle::spawn(EngineConfig::for_kind(PipelineKind::Output))?;
+        let mut output_config = EngineConfig::for_kind(PipelineKind::Output);
+        output_config.backend = backend_of(&settings.audio_backend);
+        let output = EngineHandle::spawn(output_config)?;
         let input = if settings.process_input {
-            Some(EngineHandle::spawn(EngineConfig::for_kind(
-                PipelineKind::Input,
-            ))?)
+            let mut input_config = EngineConfig::for_kind(PipelineKind::Input);
+            input_config.backend = backend_of(&settings.audio_backend);
+            Some(EngineHandle::spawn(input_config)?)
         } else {
             None
         };
@@ -156,7 +158,9 @@ impl State {
         }
         self.settings.process_input = enabled;
         if enabled {
-            let engine = EngineHandle::spawn(EngineConfig::for_kind(PipelineKind::Input))?;
+            let mut config = EngineConfig::for_kind(PipelineKind::Input);
+            config.backend = backend_of(&self.settings.audio_backend);
+            let engine = EngineHandle::spawn(config)?;
             self.chain_mut(PipelineKind::Input).start(engine);
             self.apply_device(PipelineKind::Input);
         } else {
@@ -186,6 +190,39 @@ impl State {
         }
         self.settings.developer_mode = enabled;
         self.persist();
+    }
+
+    pub fn set_audio_backend(&mut self, value: &str) {
+        if self.settings.audio_backend == value {
+            return;
+        }
+        if value != "cpu" && !pwe_engine::gpu::available() {
+            self.warn(&tr(
+                "No Vulkan compute device is available; the CPU backend stays selected",
+                &[],
+            ));
+            return;
+        }
+        self.settings.audio_backend = value.to_owned();
+        self.persist();
+        self.respawn_engines();
+    }
+
+    fn respawn_engines(&mut self) {
+        for kind in ALL_PIPELINES {
+            if !self.chain(kind).running() {
+                continue;
+            }
+            let mut config = EngineConfig::for_kind(kind);
+            config.backend = backend_of(&self.settings.audio_backend);
+            match EngineHandle::spawn(config) {
+                Ok(engine) => {
+                    self.chain_mut(kind).start(engine);
+                    self.apply_device(kind);
+                }
+                Err(error) => self.warn(&error.to_string()),
+            }
+        }
     }
 
     pub fn restart(&mut self, kind: PipelineKind) -> EngineResult<()> {
@@ -305,6 +342,10 @@ impl State {
         let device = self.settings.pipeline(kind).device.clone();
         self.chain(kind).set_target_device(device);
     }
+}
+
+fn backend_of(value: &str) -> pwe_engine::gpu::AudioBackend {
+    pwe_engine::gpu::AudioBackend::parse(value)
 }
 
 #[cfg(test)]

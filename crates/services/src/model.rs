@@ -25,7 +25,7 @@ impl PipelineSettings {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     pub output: PipelineSettings,
@@ -34,6 +34,21 @@ pub struct Settings {
     pub process_input: bool,
     pub autostart: bool,
     pub developer_mode: bool,
+    pub audio_backend: String,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            output: PipelineSettings::default(),
+            input: PipelineSettings::default(),
+            preset: String::new(),
+            process_input: false,
+            autostart: false,
+            developer_mode: false,
+            audio_backend: "both".to_owned(),
+        }
+    }
 }
 
 impl Settings {
@@ -77,6 +92,16 @@ mod tests {
         assert_eq!(settings.output.device, "usb");
         assert_eq!(settings.input.device, AUTO);
         assert!(!settings.autostart);
+    }
+
+    #[test]
+    fn the_processing_backend_round_trips_through_the_document() {
+        let settings: Settings =
+            serde_json::from_str("{\"audio_backend\":\"both\"}").expect("should parse");
+        assert_eq!(settings.audio_backend, "both");
+        let text = serde_json::to_string(&settings).expect("should write");
+        let reloaded: Settings = serde_json::from_str(&text).expect("should parse again");
+        assert_eq!(reloaded.audio_backend, "both");
     }
 
     #[test]

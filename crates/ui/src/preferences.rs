@@ -9,6 +9,7 @@ use crate::pages::WorkspaceActions;
 pub struct PreferencesView {
     autostart: adw::SwitchRow,
     developer: adw::SwitchRow,
+    backend: adw::ComboRow,
     toggles: Rc<Cell<bool>>,
 }
 
@@ -37,6 +38,36 @@ impl PreferencesView {
         behaviour.add(&autostart);
         page.add(&behaviour);
 
+        let processing = adw::PreferencesGroup::new();
+        processing.set_title(t("Audio processing"));
+        let backend = adw::ComboRow::new();
+        backend.set_title(t("Processing backend"));
+        backend.set_subtitle(t(
+            "GPU off-loads the gain stage; filters and dynamics stay on the CPU. Both compares them.",
+        ));
+        let model = gtk::StringList::new(&[]);
+        model.append(t("CPU"));
+        model.append(t("GPU"));
+        model.append(t("Both"));
+        backend.set_model(Some(&model));
+        {
+            let flag = Rc::clone(&toggles);
+            let on_backend = Rc::clone(&actions.on_audio_backend);
+            backend.connect_selected_notify(move |row| {
+                if flag.get() {
+                    return;
+                }
+                let value = match row.selected() {
+                    1 => "gpu",
+                    2 => "both",
+                    _ => "cpu",
+                };
+                on_backend(value.to_owned());
+            });
+        }
+        processing.add(&backend);
+        page.add(&processing);
+
         let troubleshooting = adw::PreferencesGroup::new();
         troubleshooting.set_title(t("Troubleshooting"));
         let developer = adw::SwitchRow::new();
@@ -59,6 +90,7 @@ impl PreferencesView {
         let view = Self {
             autostart,
             developer,
+            backend,
             toggles,
         };
         (page, view)
@@ -73,6 +105,17 @@ impl PreferencesView {
     pub fn set_developer_mode(&self, enabled: bool) {
         self.toggles.set(true);
         self.developer.set_active(enabled);
+        self.toggles.set(false);
+    }
+
+    pub fn set_audio_backend(&self, value: &str) {
+        let index = match value {
+            "gpu" => 1,
+            "both" => 2,
+            _ => 0,
+        };
+        self.toggles.set(true);
+        self.backend.set_selected(index);
         self.toggles.set(false);
     }
 }

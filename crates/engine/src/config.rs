@@ -61,6 +61,7 @@ pub struct EngineConfig {
     pub node_description: String,
     pub channels: usize,
     pub bypassed: bool,
+    pub backend: crate::gpu::AudioBackend,
 }
 
 impl Default for EngineConfig {
@@ -78,6 +79,7 @@ impl EngineConfig {
             node_description: virtual_node_description(kind).to_owned(),
             channels: 2,
             bypassed: false,
+            backend: crate::gpu::AudioBackend::Cpu,
         }
     }
 

@@ -11,8 +11,8 @@ use pwe_core::{ChainCommand, Effect, PipelineKind};
 
 use crate::capture::CaptureState;
 use crate::config::{EngineConfig, MAX_QUANTUM_FRAMES};
+use crate::cpu::Processor;
 use crate::error::{EngineError, EngineResult};
-use crate::processor::Processor;
 use crate::processors::{PlaybackState, StreamCapture};
 use crate::shared::{EngineState, Shared};
 use crate::stream_spec::{self, NodeSpec};
@@ -127,6 +127,7 @@ fn create_downstream(
         Arc::clone(&setup.shared),
         Arc::clone(&setup.rate),
         setup.config.channels,
+        setup.config.backend,
     );
     processor.prepare(pwe_core::AudioFormat::new(
         setup.rate.load(Ordering::Relaxed).max(48_000),

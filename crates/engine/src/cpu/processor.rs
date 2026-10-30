@@ -31,14 +31,23 @@ impl Processor {
         shared: Arc<Shared>,
         rate: Arc<AtomicU32>,
         channels: usize,
+        backend: crate::gpu::AudioBackend,
     ) -> Self {
         let channels = channels.max(1);
         let rate_value = rate.load(Ordering::Relaxed).max(48_000);
         let format = AudioFormat::new(rate_value, channels);
         let mut meter = LevelMeter::new();
         meter.set_rate(rate_value);
+        let mut chain = EffectChain::new(crate::config::MAX_EFFECTS, format);
+        let accelerator = backend.accelerator(MAX_QUANTUM_FRAMES * channels, Arc::clone(&shared));
+        if backend != crate::gpu::AudioBackend::Cpu && accelerator.is_none() {
+            shared.add_warning(
+                t("No Vulkan compute device is available; the chain runs on the CPU").to_owned(),
+            );
+        }
+        chain.set_accelerator(accelerator);
         Self {
-            chain: EffectChain::new(crate::config::MAX_EFFECTS, format),
+            chain,
             commands,
             retired,
             held: Vec::with_capacity(crate::engine::RETIRE_QUEUE_CAPACITY),
@@ -182,7 +191,14 @@ mod tests {
         let retired = Arc::new(ArrayQueue::new(8));
         let rate = Arc::new(AtomicU32::new(48_000));
         let (_producer, mut consumer) = rtrb::RingBuffer::new(4096);
-        let mut processor = Processor::new(commands, retired, Arc::clone(&shared), rate, 2);
+        let mut processor = Processor::new(
+            commands,
+            retired,
+            Arc::clone(&shared),
+            rate,
+            2,
+            crate::gpu::AudioBackend::Cpu,
+        );
 
         let mut destination = vec![0.0f32; 2048];
         processor.process(&mut consumer, 1024, &mut destination);
@@ -197,7 +213,14 @@ mod tests {
         let retired = Arc::new(ArrayQueue::new(8));
         let rate = Arc::new(AtomicU32::new(48_000));
         let (mut producer, mut consumer) = rtrb::RingBuffer::new(8192);
-        let mut processor = Processor::new(commands, retired, Arc::clone(&shared), rate, 2);
+        let mut processor = Processor::new(
+            commands,
+            retired,
+            Arc::clone(&shared),
+            rate,
+            2,
+            crate::gpu::AudioBackend::Cpu,
+        );
 
         for value in [0.5f32, -0.5].iter().cycle().take(2048) {
             producer.push(*value).unwrap();
@@ -216,7 +239,14 @@ mod tests {
         let retired = Arc::new(ArrayQueue::new(8));
         let rate = Arc::new(AtomicU32::new(48_000));
         let (mut producer, mut consumer) = rtrb::RingBuffer::new(16_384);
-        let mut processor = Processor::new(commands, retired, Arc::clone(&shared), rate, 2);
+        let mut processor = Processor::new(
+            commands,
+            retired,
+            Arc::clone(&shared),
+            rate,
+            2,
+            crate::gpu::AudioBackend::Cpu,
+        );
         processor.follow_rate();
         processor.target_samples = 480;
 
@@ -244,6 +274,7 @@ mod tests {
             Arc::clone(&shared),
             rate,
             2,
+            crate::gpu::AudioBackend::Cpu,
         );
 
         let params = ParamSet::new(pwe_dsp_specs());
@@ -273,8 +304,14 @@ mod tests {
         let rate = Arc::new(AtomicU32::new(48_000));
         let (producer, mut consumer) = rtrb::RingBuffer::new(8192);
         let mut capture = CaptureState::new(producer, Arc::clone(&shared), Arc::clone(&rate), 2);
-        let mut processor =
-            Processor::new(commands, retired, Arc::clone(&shared), Arc::clone(&rate), 2);
+        let mut processor = Processor::new(
+            commands,
+            retired,
+            Arc::clone(&shared),
+            Arc::clone(&rate),
+            2,
+            crate::gpu::AudioBackend::Cpu,
+        );
 
         let frames = 1024;
         let samples: Vec<f32> = (0..frames)
