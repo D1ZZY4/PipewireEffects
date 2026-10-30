@@ -7,6 +7,10 @@ use crate::Ui;
 use crate::dialogs;
 use crate::presets_ui;
 
+mod navigation;
+
+use navigation::scroll_to_bottom;
+
 pub const STATE_VARIABLE: &str = "PIPEWIRE_EFFECTS_UI_STATE";
 pub const CAPTURE_VARIABLE: &str = "PIPEWIRE_EFFECTS_UI_CAPTURE";
 const CAPTURE_ATTEMPTS: u32 = 24;
@@ -201,22 +205,6 @@ fn open_picker(ui: &Rc<Ui>, scroll_to_end: bool) {
     glib::timeout_add_local_once(std::time::Duration::from_millis(700), move || {
         scroll_to_bottom(dialog.upcast_ref());
     });
-}
-
-fn scroll_to_bottom(widget: &gtk::Widget) -> bool {
-    if let Some(scrolled) = widget.downcast_ref::<gtk::ScrolledWindow>() {
-        let adjustment = scrolled.vadjustment();
-        adjustment.set_value(adjustment.upper());
-        return true;
-    }
-    let mut child = widget.first_child();
-    while let Some(current) = child {
-        if scroll_to_bottom(&current) {
-            return true;
-        }
-        child = current.next_sibling();
-    }
-    false
 }
 
 fn reveal_about(ui: &Rc<Ui>) {
