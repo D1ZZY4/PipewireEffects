@@ -87,7 +87,7 @@ mod tests {
 
     fn scratch(name: &str) -> PathBuf {
         let directory =
-            std::env::temp_dir().join(format!("pwe-settings-{name}-{}", std::process::id()));
+            std::env::temp_dir().join(format!("pwe-services-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&directory);
         directory
     }

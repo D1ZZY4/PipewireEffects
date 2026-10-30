@@ -1,10 +1,10 @@
 [package]
-name = "pwe-settings"
+name = "pwe-services"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Persistent settings and desktop integration for PipeWire Effects"
+description = "Persistent services and desktop integration for PipeWire Effects"
 
 [dependencies]
 pwe-core.workspace = true

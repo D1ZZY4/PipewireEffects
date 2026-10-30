@@ -48,7 +48,7 @@ crates/presets/src/ee/params/tone.rs
 crates/presets/src/error.rs
 crates/presets/src/model.rs
 crates/presets/src/store.rs
-crates/settings/src/store.rs
+crates/services/src/store.rs
 crates/ui/src/app.rs
 crates/ui/src/chain.rs
 crates/ui/src/chain_view.rs

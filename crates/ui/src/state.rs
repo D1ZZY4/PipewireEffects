@@ -4,7 +4,7 @@ use pwe_core::i18n::{t, tr};
 use pwe_core::{ALL_PIPELINES, PipelineKind};
 use pwe_engine::{EngineConfig, EngineHandle, EngineResult, EngineState, Snapshot, StatsSnapshot};
 use pwe_presets::{PresetError, PresetStore};
-use pwe_settings::{Settings, SettingsStore};
+use pwe_services::{Settings, SettingsStore};
 
 use crate::chain::{Chain, Slot};
 
@@ -170,9 +170,9 @@ impl State {
     }
 
     pub fn set_autostart(&mut self, enabled: bool) -> Result<(), String> {
-        pwe_settings::set_enabled(
+        pwe_services::set_enabled(
             enabled,
-            &format!("{} --no-window", pwe_settings::DEFAULT_EXEC),
+            &format!("{} --no-window", pwe_services::DEFAULT_EXEC),
         )
         .map_err(|error| error.to_string())?;
         self.settings.autostart = enabled;

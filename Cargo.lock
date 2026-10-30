@@ -780,7 +780,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pwe-settings"
+name = "pwe-services"
 version = "0.1.0"
 dependencies = [
  "pwe-core",
@@ -798,7 +798,7 @@ dependencies = [
  "pwe-dsp",
  "pwe-engine",
  "pwe-presets",
- "pwe-settings",
+ "pwe-services",
 ]
 
 [[package]]

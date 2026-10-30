@@ -245,7 +245,7 @@ pwe-core  ◄── pwe-dsp  ◄── pwe-engine ◄── pwe-ui ◄── pip
 | `pwe-core` | Buffers, parameter specifications and atomics, the effect contract, the chain, meters, realtime helpers, the pipeline kinds |
 | `pwe-dsp` | Biquad design, the twenty-three effects, the effect registry |
 | `pwe-presets` | Preset schema, validation, storage, built-ins |
-| `pwe-settings` | The settings document, its store and the autostart entry |
+| `pwe-services` | The settings document, its store and the autostart entry |
 | `pwe-engine` | PipeWire streams, the virtual sink and virtual source, realtime processors, device discovery, statistics |
 | `pwe-ui` | GTK4/libadwaita interface |
 | `pipewire-effects` | The binary and its command line |
