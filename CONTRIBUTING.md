@@ -34,17 +34,18 @@ Three rules, applied without exception.
 
 ### 1. No file is longer than 350 lines
 
-When a file approaches the limit, split it. The module system is the tool for
-this: a module is a file plus a directory of the same name.
+When a file approaches the limit, split it. Every module is a directory with a
+`mod.rs`, and a module's submodules are directories below it.
 
 ```text
-editor.rs          the module root: what it is for, and what it re-exports
-editor/controls.rs one concern
-editor/grouping.rs another concern
+editor/mod.rs           the module root: what it is for, and what it re-exports
+editor/controls/mod.rs  one concern
+editor/grouping/mod.rs  another concern
 ```
 
-There is no `mod.rs`. The root file carries the module's name and its
-submodules live in the matching directory.
+A module with tests carries a colocated `tests/tests.rs`, declared with
+`#[cfg(test)] #[path = "tests/tests.rs"] mod tests;`, so the tests still run as
+`<module>::tests::*`.
 
 ### 2. No comments
 
@@ -84,23 +85,23 @@ the UI.
 ### 3. Failures must be visible
 
 If your change introduces a way for audio to be dropped, delayed or invented,
-add a counter to `Stats` in `crates/engine/src/shared.rs` and surface it. A
+add a counter to `Stats` in `crates/engine/src/shared/mod.rs` and surface it. A
 pipeline that quietly glitches is worse than one that reports it.
 
 ## Adding an effect
 
-1. Create `crates/dsp/src/effects/your_effect.rs`, or a directory of the same
+1. Create `crates/dsp/src/effects/your_effect/mod.rs`, or a directory of the same
    name if it needs more than one file.
 2. Write a `specs()` function that describes each control with a `ParamSpec`.
    Give every parameter a stable identifier, a label and a unit: the identifier
    becomes part of the preset format and must not change later.
 3. Implement the `pwe_core::Effect` trait. Read parameters once per block with
    `Knob`; never allocate in `process`.
-4. Add an `EffectDescriptor` to `EFFECTS` in `crates/dsp/src/registry.rs`, giving
+4. Add an `EffectDescriptor` to `EFFECTS` in `crates/dsp/src/effects/registry/mod.rs`, giving
    it the effect's `specs` function. That is the only registration step; the
    interface picks the effect up automatically.
-5. Add behavioural tests to `crates/dsp/tests/`, in a file named for what it
-   tests.
+5. Add behavioural tests to `crates/dsp/src/effects/your_effect/tests/tests.rs`,
+   measuring the result rather than asserting that the code ran.
 
 Nothing in `crates/ui` needs to change. If it does, the effect is reaching
 across a boundary it should not know about and the design needs another look.
@@ -154,11 +155,16 @@ directory that holds the `LC_MESSAGES` trees.
 Every change needs tests that would fail without it. Two kinds are expected
 where they apply:
 
-- **Unit tests** for logic, next to the code, in a `#[cfg(test)]` module.
-- **Behavioural tests** for anything that processes audio, in
-  `crates/dsp/tests/`. Measure the result rather than asserting that the code
-  ran: an equaliser boost must measure the right number of decibels at the right
+- **Unit tests** for logic, in the module's colocated `tests/tests.rs`.
+- **Behavioural tests** for anything that processes audio, in that module's
+  `tests/tests.rs`. Measure the result rather than asserting that the code ran:
+  an equaliser boost must measure the right number of decibels at the right
   frequency, and a limiter must be shown never to exceed its ceiling.
+
+The crate-level test directories are reserved for the two kinds that cannot live
+in a module: `crates/dsp/tests/benchmark.rs` is the CPU baseline, and
+`crates/engine/tests/live_*.rs` are the runs that need a daemon or a Vulkan
+device.
 
 The live tests need a running PipeWire daemon and are ignored by default:
 
@@ -171,8 +177,8 @@ If your change touches the engine, please run them and paste the output.
 ## Before you open a pull request
 
 ```sh
-cargo fmt --all
-cargo clippy --workspace --all-targets
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace
 ```
 

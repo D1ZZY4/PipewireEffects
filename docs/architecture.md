@@ -22,6 +22,53 @@ pwe-core  ◄── pwe-services ───────────────�
 | `pwe-ui` | GTK4/libadwaita widgets, the chain model, the engine bridge | DSP internals |
 | `pipewire-effects` | Process entry point and the command line | Everything else |
 
+### Module layout
+
+Every module is a directory with a `mod.rs`, and every module that has tests
+carries a colocated `tests/` directory:
+
+```text
+crate/src/
+├── lib.rs
+├── <module>/
+│   ├── mod.rs
+│   └── tests/
+│       └── tests.rs
+└── <module>/<submodule>/
+    ├── mod.rs
+    └── tests/
+        └── tests.rs
+```
+
+A module's tests live in `tests/tests.rs` and are declared with
+`#[cfg(test)] #[path = "tests/tests.rs"] mod tests;`, so `cargo test` still
+runs them as `<module>::tests::*`. `crates/ui/src/views/chain_view/` is the one
+module with no tests of its own, because it only assembles GTK widgets; its
+behaviour is exercised through the interface instead. The crate-level
+integration tests stay where Cargo expects them (`crates/dsp/tests/`,
+`crates/engine/tests/`).
+
+### Dependencies
+
+The workspace has nine direct dependencies. `gtk` (gtk4) 0.11.5, `adw`
+(libadwaita) 0.9.2 and `pipewire` 0.10.1 come from the GTK-rs and PipeWire-rs
+ecosystems; the manifests ask for GTK 4.10 and PipeWire 0.3.49, the declared
+minimum, and the build here compiles against GTK 4.24, libadwaita 1.10 and
+PipeWire 1.6.10. `ash` 0.38 provides the Vulkan compute bindings. `nnnoiseless`
+0.5.2 is the only DSP dependency. `rtrb` 0.4.1 is the realtime ring and
+`crossbeam-queue` 0.3.14 the bounded command queues. `serde` and `serde_json`
+carry the preset and settings documents.
+
+All nine are at the latest published version. `cargo update --dry-run` reports
+that the lockfile already holds the highest Rust-1.92-compatible set, and the
+versions in `Cargo.lock` match the newest release on crates.io for each:
+gtk4 0.11.5, libadwaita 0.9.2, pipewire 0.10.1, ash 0.38.0, nnnoiseless 0.5.2,
+rtrb 0.4.1, crossbeam-queue 0.3.14, serde 1.0.229 and serde_json 1.0.154.
+`cargo tree -d` reports only `bitflags` 2.13.2, reached through both the GTK and
+the PipeWire build graphs at the same version, so no crate is present in two
+versions. The baseline rule still applies: a release that raised the minimum GTK,
+libadwaita or PipeWire would be rejected regardless of its version number.
+
 Dependencies point one way. `pwe-dsp` depends only on `pwe-core` and on
 `nnnoiseless`, the Rust port of RNNoise that the noise reduction stage runs;
 `nnnoiseless` is the only DSP dependency and it is confined to that one effect.
@@ -31,7 +78,7 @@ filter testable against its analytic frequency response without an audio device.
 types; it can be tested without PipeWire or GTK.
 
 Nothing outside `pwe-dsp` names a concrete effect. The registry in
-`crates/dsp/src/registry.rs` is the single list of effect identifiers, the
+`crates/dsp/src/effects/registry/mod.rs` is the single list of effect identifiers, the
 functions that build their parameter specifications, and the constructors that
 turn a `ParamSet` into a `Box<dyn Effect>`. The interface renders whatever
 specifications it finds.
@@ -98,7 +145,7 @@ device. If neither an explicit choice nor the metadata names a usable device, th
 engine falls back to the highest `priority.session` among the discovered devices
 of the right direction that are not itself and are not virtual.
 
-`crates/engine/src/defaults.rs` owns the metadata watch, `crates/engine/src/target.rs`
+`crates/engine/src/defaults/mod.rs` owns the metadata watch, `crates/engine/src/target/mod.rs`
 owns the resolution policy, and both are covered without an audio server.
 
 ## 3. Realtime rules
@@ -296,8 +343,11 @@ occupying a page.
   failed.
 - **Preferences** (menu): *Start on login*; a *Processing backend* chooser with
   *CPU*, *GPU* and *Both* (the default), which restarts the running pipelines on
-  the selected backend; an *Auto-save preset edits* switch with an *Update
-  interval* chooser; and a *Developer mode* switch. When auto-save is on, an
+  the selected backend; a *Spectrum range* chooser for the decibel span the
+  analyser is drawn across; a *Preset autoload* group whose *Remember* button
+  stores the loaded preset for the current device and whose *Forget* button
+  removes that rule; an *Auto-save preset edits* switch with an *Update interval*
+  chooser; and a *Developer mode* switch. When auto-save is on, an
   edit to the loaded preset is written back to that preset after the chosen
   interval has passed without further changes. *Developer mode* adds a
   *Diagnostics* entry to the main menu; the entry is absent while the switch is
@@ -305,10 +355,13 @@ occupying a page.
   compute devices, the GPU block/fallback/disagreement counters and the
   diagnostic messages. Every choice is persisted.
 - **Chain rows**: one flat line per effect, in processing order - the effect's
-  symbolic icon, its name, an on/off `gtk::Switch` and the row menu. The icon is
-  drawn in the theme's foreground colour, not the accent, and dims while the
-  effect is disabled, as does the name; the switch carries the accent and is the
-  enable control. Clicking the row selects it for the editor; the summary is the
+  symbolic icon, its name, a level bar for that stage's output, an on/off
+  `gtk::Switch` and the row menu. The icon is drawn in the theme's foreground
+  colour, not the accent, and dims while the effect is disabled, as does the
+  name; the switch carries the accent and is the enable control. The level bar is
+  the stage's own peak, measured after it runs and published with the global
+  meters, so it reads the level the stage actually produced rather than the
+  chain's input. Clicking the row selects it for the editor; the summary is the
   row's tooltip, and move up/down and remove are behind a menu button that is
   always visible; a secondary click opens the same menu. The rows
   carry no category headers and no position numbers: the visible order is the
@@ -323,23 +376,31 @@ occupying a page.
   comes from the `group` field of each specification. A float row keeps its label
   on one line and gives the scale a 120 px floor, so a 360 px window ellipsizes a
   long label instead of breaking it across lines.
-- **Equalizer**: an analytic magnitude response drawn with cairo above the band
-  sliders, recomputed from the live parameter values on every redraw.
+- **Equalizer**: thirty third-octave bands from 20 Hz to 16 kHz, grouped into
+  *Lows*, *Mids* and *Highs*; an analytic magnitude response drawn with cairo above
+  the band sliders, recomputed from the live parameter values on every redraw.
 - **Dialogs**: effect picker with search, and the name, confirm and file dialogs
   used by the preset library.
-- **Meters**: `gtk::LevelBar` for peak with an RMS offset marker, plus a numeric
-  readout. Both meters run through `LevelMeter`, so the two readouts of one
-  pipeline are comparable when its chain is empty.
+- **Meters**: two cards, each a `gtk::DrawingArea` that draws one cairo bar per
+  channel on a 44-segment scale, with an RMS marker and a decaying peak hold,
+  plus the loudest channel's level in decibels. Both meters run through
+  `LevelMeter`, so the two readouts of one pipeline are comparable when its chain
+  is empty. The output card also carries the pipeline's EBU R128 short-term
+  loudness in LUFS, measured on the processed buffer by the same `Loudness`
+  implementation the auto gain uses and published through atomics; it reads
+  `-inf LUFS` until three seconds of audio have been measured.
 - **Spectrum**: a `gtk::DrawingArea` under the meters draws the 48 band levels of
   the audio leaving the chain as bars on a logarithmic axis, with 100 Hz, 1 kHz
   and 10 kHz grid lines and a caption naming the loudest band and its level. The
   bars are drawn in the same data colour as the equalizer's response curve and
   the grid in the widget's own foreground colour, so both are legible in either
-  appearance. The band levels are a real measurement of the processed audio,
-  recomputed every third block by the pipeline's own analyser and read from an
-  atomic snapshot by the 50 ms poll; a pipeline with no engine, and an engine
-  that has been stopped or shut down, reads the floor and the caption is empty
-  rather than the last frame that happened to be measured.
+  appearance. The decibel range is a Preferences choice (wide, standard or loud)
+  and is persisted as `spectrum_range`; the bars are redrawn through whichever
+  range is selected. The band levels are a real measurement of the processed
+  audio, recomputed every third block by the pipeline's own analyser and read
+  from an atomic snapshot by the 50 ms poll; a pipeline with no engine, and an
+  engine that has been stopped or shut down, reads the floor and the caption is
+  empty rather than the last frame that happened to be measured.
 - **Banner**: engine errors and conversion warnings appear in an `adw::Banner`
   with a *Dismiss* button. The meter's hold and RMS markers and the equalizer's
   band markers are drawn from the widget's own foreground colour, so each stays
@@ -354,7 +415,7 @@ occupying a page.
   the first version's 1024-point transform, 22 of the 48 bands sat below the
   window's resolution and reported one shared bin under nine different frequency
   labels.
-- It applies a Hann window and the FFT of `crates/dsp/src/fft.rs`, then converts
+- It applies a Hann window and the FFT of `crates/dsp/src/primitives/fft/mod.rs`, then converts
   each bin to power with the window-energy correction
   `1 / (N · Σw²)`, so the bin powers sum to the signal's mean square.
 - A band's level is the integral of that power between its edges, using a
@@ -424,6 +485,16 @@ checks them against the live icon theme at startup and in a test. Every palette
 name is part of the Adwaita theme: a name that only exists in an unrelated theme
 would be drawn with a foreign glyph.
 
+The effect glyphs are symbolic SVG files. GTK 4.22 and later parse a
+`-symbolic.svg` in traditional symbolic mode and derive each element's fill and
+stroke from its symbolic CSS class: without a class the element is filled with
+the foreground colour and its `stroke` attribute is ignored. The files therefore
+mark every drawing element either `foreground-fill` or
+`transparent-fill foreground-stroke`; the older librsvg path ignores the classes
+and uses the standard `fill` and `stroke` attributes, so both renderers draw the
+same glyph. `format`'s icon test checks the classes as well as the files, and the
+Add-effect picker is captured in both appearances after any icon change.
+
 The application icon was redrawn as a hand-written vector - a gradient ring
 around five pill-shaped level bars over soft background washes on a full-bleed
 rounded tile - so it stays legible from 32 px up and follows the shell's corner
@@ -485,7 +556,7 @@ without a system preset directory. There are six: *Default*, *Podcast voice*,
 JSON file under `data/presets/`, `make install` writes it into the system
 directory under its preset name — the store takes a preset's name from the file
 stem, so the installed file name has to be the preset name — and the tests in
-`crates/presets/src/builtin.rs` assert that every built-in parses, that it names
+`crates/presets/src/builtin/mod.rs` assert that every built-in parses, that it names
 only effects the registry has, and that it sets only parameters those effects
 declare.
 
@@ -503,7 +574,9 @@ declare.
   "developer_mode": false,
   "auto_save": false,
   "auto_save_interval": 10,
-  "audio_backend": "both"
+  "audio_backend": "both",
+  "spectrum_range": 0,
+  "autoload": { "alsa_output.usb": "Podcast voice" }
 }
 ```
 
@@ -511,6 +584,13 @@ It is written atomically through a temporary file, and a damaged document falls
 back to the defaults with a message instead of stopping the application. The
 document is what makes the device choice and the loaded preset survive a restart;
 previously both were lost.
+
+The `autoload` map is the per-device preset rule. When a pipeline resolves a
+device name, `window.refresh` compares it with the last one it saw and loads the
+mapped preset on an idle callback, so a device change restores its preset without
+a manual step. *Remember* and *Forget* in Preferences edit the map, a rule for a
+device that is absent is kept, and a rule whose preset no longer exists reports
+the load error in the banner instead of dropping the rule silently.
 
 `pwe-services` also owns the autostart entry. *Start on login* writes
 `$XDG_CONFIG_HOME/autostart/io.github.D1ZZY4.PipewireEffects.desktop` with
@@ -520,7 +600,7 @@ opens its interface.
 
 The binary parses its own flags before GTK sees them: `--help`, `--version`,
 `--preset NAME`, `--device NAME`, `--no-window`, `--list-presets` and
-`--list-devices`. `crates/app/src/cli.rs` owns the parsing and is covered by
+`--list-devices`. `crates/app/src/cli/mod.rs` owns the parsing and is covered by
 tests; the parsing is deliberately hand-written rather than pulling in an
 argument-parsing dependency for seven flags. The application is started with
 `Application::run_with_args` and only the program name, so GLib's own argument
@@ -544,9 +624,11 @@ installed into the system here.
 
 ## 11. Verification
 
-- `cargo test --workspace`: 466 tests, no audio device needed.
-  Two of them need a display and skip themselves without one: the bundled icon
-  lookup and the icon-theme check.
+- `cargo test --workspace`: 504 tests, no audio device needed.
+  Eleven further tests are `#[ignore]`d and run explicitly against a running
+  daemon and a Vulkan device: the nine live integration tests, the CPU baseline
+  and the GPU timing measurement. Two of the counted tests need a display and skip
+  themselves without one: the bundled icon lookup and the icon-theme check.
 - The R128 measurement is checked against the standard's own calibration: a
   full-scale sine measures about 0 LUFS, a −23 dBFS sine measures −23 LUFS within
   0.4 LU, a 10 dB step moves the measurement by 10 LU, and silence is not
@@ -563,6 +645,13 @@ installed into the system here.
 - The De-esser is checked for a live detector change: moving *Sibilance* while it
   runs must release a tone the detector was holding, which fails if the band-pass
   is only computed once.
+- The voice suppressor is checked for both of its gates: a centre of the two
+  channels is attenuated, an out-of-phase signal is preserved, a zero mix is
+  transparent, a *Maximum instantaneous frequency* below the tone lets it through,
+  and a *Minimum kurtosis* above the bin's local kurtosis lets it through. The
+  local kurtosis of a flat magnitude triplet is asserted below that of a peaked
+  one, and the reference preset conversion is checked to transfer the
+  `minimum-kurtosis` key and to default it to the reference's 1.
 - The limiter is checked as a lookahead limiter and not as a clipper: with a
   20 ms lookahead a full-scale burst must keep its sine shape, which is asserted
   as a crest factor within 0.03 of √2 (a clipped sine drops below it) with the
@@ -606,7 +695,10 @@ installed into the system here.
   band above the Nyquist of an 8 kHz graph must stay at the floor, at most a
   quarter of the bands may sit below the analysis resolution, a quantum shorter
   than the transform must report nothing until the history is full, and the band
-  centres must rise and span the audio range. The signal generator keeps its
+  centres must rise and span the audio range. A quiet tone is checked at five
+  frequencies (100 Hz, 440 Hz, 1 kHz, 5 kHz and 12 kHz) and must read its own
+  level within 1.5 dB at each, which pins that the calibration does not drift
+  with frequency or amplitude. The signal generator keeps its
   phase across blocks, because a tone that restarts every block is not a tone:
   that mistake made an earlier version of these tests pass by luck.
 - The engine publishes that measurement rather than a stored value: a full-scale
@@ -622,7 +714,15 @@ installed into the system here.
   descriptor and its parameter table cannot drift apart.
 - Every effect's symbolic icon is checked against `data/`: the file named by
   `format::effect_icon` must exist, must draw from `currentColor`, must be a
-  16 px symbolic icon, and must keep each tag on one line. The line-break rule is
+  16 px symbolic icon, must carry the GTK symbolic classes, and must keep each
+  tag on one line. GTK 4.22 and later draw a `-symbolic.svg` in traditional
+  symbolic mode: the fill and the stroke are re-derived from the element's CSS
+  class, so an element without a class is painted as a solid fill and its
+  `stroke` attribute is dropped. A stroke-only element therefore needs
+  `class="transparent-fill foreground-stroke"`, and a filled element needs
+  `class="foreground-fill"`; the test fails if either is missing, which is the
+  regression that made the multiband, expander, maximizer, de-esser, auto gain
+  and loudness glyphs render as blank or solid blobs. The line-break rule is
   cosmetic — `rsvg-convert` and the gdk-pixbuf SVG loader were measured to render
   the two spellings byte-identically — so the test enforces a formatting
   convention, not a rendering requirement.
@@ -630,6 +730,13 @@ installed into the system here.
   `rtrb` producer and consumer.
 - The two meters are checked against each other: an empty chain must report the
   same input and output level for the same block.
+- The per-effect meters are checked in the chain: each slot reports the peak of
+  its own output, and a disabled slot or a bypassed chain reports none. The
+  engine converts the linear peak to decibels and round-trips the snapshot.
+- The loudness meter is checked at both ends: the `Meters` snapshot reads the
+  floor before anything is published and round-trips a published value, and the
+  realtime processor pushes a half-scale 997 Hz tone through the ring and must
+  publish a finite short-term loudness between −30 and 0 LUFS.
 - Presets are round-tripped through JSON, hostile names are rejected, malformed
   files are skipped.
 - Reference presets are converted against the keys and labels the reference
@@ -677,11 +784,15 @@ installed into the system here.
 - `PIPEWIRE_EFFECTS_UI_STATE=<state>` drives the real window into one state after
   it is mapped, so a screenshot can be taken of a specific screen. The states are
   `chain`, `editor`, `equalizer`, `presets`, `modified`, `preset-menu`,
-  `unloaded`, `clone`, `input`, `devices`, `preferences`, `developer`, `gpu`,
+  `unloaded`, `clone`, `input`, `devices`, `preferences`, `preferences-bottom`,
+  `developer`, `gpu`,
   `menu`, `menu-developer`, `dev-live`, `picker`, `picker-tone`, `about`, `save`,
-  `delete`, `banner`, `bypass`, `narrow`, `mobile`, `mobile-drawer`,
-  `sidebar-hidden` and `effect:<kind>`, which loads the built-in preset, adds the
-  named effect if it is absent and selects it. `devices`, `preferences` and
+  `delete`, `banner`, `bypass`, `spectrum-loud`, `narrow`, `mobile`,
+  `mobile-drawer`, `sidebar-hidden` and `effect:<kind>`, which loads the
+  built-in preset, adds the named effect if it is absent and selects it. A `@WxH` suffix on any state sets
+  the window's default size before it is mapped, so a long editor can be captured
+  whole; `effect:voice_suppressor@1040x1000` is the state the interface review used
+  for a page taller than the default window. `devices`, `preferences` and
   `diagnostics` activate the `win.devices`, `win.preferences` and
   `win.diagnostics` actions, so the menu wiring is exercised too, and `dev-live`
   flips the real *Developer mode* switch the way a pointer would. This is the
@@ -813,6 +924,19 @@ the headroom is now 3.1× rather than the 6.4× the previous run recorded. The
 per-effect figures move with the load on the machine, so a re-measurement is the
 only way to reproduce them on other hardware.
 
+The final run, after the loudness meter, the per-stage level meters and the
+all-pass compensation in the crossover were added, measured the same
+thirty-effect chain at 6 806.96 μs per 1024-frame block, 3.1× realtime and 31.9 %
+of one core. The per-effect figures from that run included multiband compressor
+436.66 μs, multiband gate 350.42 μs, spectrum analyser 115.83 μs and the loudness
+meter 14.17 μs, which is 0.07 % of one core. The multiband effects default to four
+bands; eight are selectable and cost more, because the compensated crossover adds
+an all-pass for every band below a split. The chain total also includes one peak
+scan per stage for the level bars, which the earlier totals did not. The loudness
+meter is a second R128 instance, one two-biquad weighting cascade per sample on
+the processor's output buffer, and it allocates nothing. The chain finishes inside
+a third of the 21.3 ms deadline.
+
 **The sidechain filters bypass rather than compute.** Running three high-pass and
 three low-pass biquads per channel per sample whether or not they are engaged
 cost the compressor 111 μs per block against 58 μs once a disabled filter
@@ -839,6 +963,16 @@ compressor 317.69 μs (1.5 %); spectrum analyser 116.98 μs (0.55 %); bass loudn
 machine rather than a regression: it is four biquads per sample and moves with
 cache and scheduling state. The per-effect numbers are reproducible to that
 order; the chain total is reproducible to within about 5 %.
+
+The pass that expanded the equalizer and the mid/side equalizer to thirty bands
+re-measured the same test with the desktop running. The thirty-effect chain cost
+6 635.91 μs per 1024-frame block, 3.2× realtime and 31.1 % of one core. The
+equalizer measured 334.46 μs (1.57 %) and the mid/side equalizer 353.60 μs
+(1.66 %), against 0.09–0.17 ms for the ten-band equalizer: both stages now run
+thirty biquads per channel per sample instead of ten, and the mid/side stage runs
+sixty because it filters the matrix channels separately. The spectrum analyser
+measured 112.61 μs (0.53 %) and the loudness meter 17.29 μs (0.08 %). The chain
+still finishes inside a third of the 21.3 ms deadline.
 
 
 ### Processing backend selection (CPU, GPU, Both)
@@ -1106,7 +1240,7 @@ pass, not a regression; the earlier walk, with the slider names and value text,
 remains the record for the interactive controls.
 
 `scripts/capture-ui.sh` was re-run unchanged; `scripts/update-po.sh` regenerates
-`po/pipewire-effects.pot` (504 messages), and
+`po/pipewire-effects.pot` (527 messages), and
 `make install DESTDIR=<staging> PREFIX=/usr` installed the
 binary, the desktop entry, both icon sets and the built-in preset into a staging
 tree and `make uninstall` removed exactly what it installed.
@@ -1221,7 +1355,7 @@ whether a *Diagnostics* entry exists in the main menu; the entry is a
 `win.diagnostics` action is enabled from the persisted developer-mode setting,
 so the menu can never show a dead entry. The counters, the detected compute
 devices and the messages live in the `Diagnostics` dialog
-(`crates/ui/src/diagnostics.rs`, `crates/ui/src/pages.rs`) and the Preferences
+(`crates/ui/src/diagnostics/mod.rs`, `crates/ui/src/pages/mod.rs`) and the Preferences
 page no longer carries them. The menu was captured with
 `scripts/capture-screen.sh`: `menu` shows *Devices*, *Preferences*, *About
 PipeWire Effects* and *Quit* with no *Diagnostics*, and `menu-developer` shows
@@ -1344,11 +1478,100 @@ the live path. What it captured, and what the captures and logs showed:
 - The window smoke test (`PIPEWIRE_EFFECTS_SMOKE_TEST=1`) reported
   `state=Running devices=8 rate=48000 failures=0` and exited 0.
 
-The pass also found and corrected one session-hygiene problem before it could
-affect the captures: `default.configured.audio.sink` still named
-`pipewire-effects-sink` from an earlier experiment, so the application's own sink
-would have become the session default as soon as an instance started. It was
-restored to the real `bluez_output.AC_1F_37_E5_36_35.1` device with
-`wpctl set-default 157`, and both metadata keys were verified against it before
-any capture ran. No device profile, stored volume, default route or system
-setting was changed for the captures themselves.
+The pass that added the voice suppressor's kurtosis gate, the loudness meter and
+the per-effect level bars re-ran the harness on the isolated headless session. In
+the light appearance it captured `chain`, `narrow` and the voice suppressor editor
+at 1280x868 (`effect:voice_suppressor@1040x1000`, the `@WxH` size hint added to
+the harness so a page taller than the window fits in one capture); in the dark
+appearance it captured `chain`, `preferences` and the same editor. The editor
+renders *Minimum kurtosis* as a slider reading `1.00` between *Phase difference*
+and *Inverted mode*, with no clipping or overlap. The output meter card carries
+the loudness line, which reads `-inf LUFS` while the pipeline has no audio, in
+both appearances. `TONE=1 scripts/capture-screen.sh` with a 440 Hz tone then
+measured the input at `-41.1 dB`, the output at `-44.0 dB`, the spectrum caption
+at `441 Hz -44.1 dB` and the loudness at `-44.8 LUFS`, and the five enabled chain
+rows drew a lit level bar while the four disabled rows drew none, which is the
+per-stage metering working on real audio rather than at the floor.
+`scripts/update-po.sh` regenerated a 527-message template; `po/POTFILES.in`
+gained `crates/ui/src/views/meter/mod.rs`, which had been missing and would have dropped
+the meter's new tooltip from the catalog. A later capture set added
+`preferences-bottom`, which scrolls the Preferences dialog to the *Preset
+autoload* group with its *Remember* and *Forget* buttons, and `spectrum-loud`,
+which draws the analyser through the *Loud* range while a 440 Hz tone flows. The
+final live run passed all nine tests, including the two GPU tests with zero
+disagreements; the earlier failures in this session were deadline fallbacks under
+a load average of six to nine, which section 12 explains.
+
+The same run found a session-hygiene problem before the first capture: the
+session's `default.configured.audio.sink` still named `pipewire-effects-sink`
+from an earlier experiment, so every desktop stream was routed into the chain and
+the first capture read the whole desktop at `0.2 dB` instead of the tone. The
+real `bluez_output.AC_1F_37_E5_36_35.1` device was restored with
+`wpctl set-default 157`; both metadata keys were verified against it before the
+capture that produced the figures above, and again after it. No device profile,
+stored volume, default route or system setting was changed for the captures
+themselves.
+
+The pass that expanded the equalizer and the mid/side equalizer to thirty bands
+and moved the level meters onto the chain rows re-ran the harness on the isolated
+headless Wayland session in the light and the dark appearance.
+`effect:equalizer@1120x2300` renders the thirty bands in three groups (*Lows*,
+*Mids*, *Highs*) with the built-in *Default* preset's values on the bands that
+carry them - 62 Hz at +1.8 dB, 125 Hz at -0.6 dB and 8 kHz at +0.2 dB - which is
+the same curve the ten-band version drew, now on the bands those identifiers have
+always named. The tall captures in `target/ui-verify-tall` and
+`target/ui-verify-tall-dark` show the whole editor in both appearances with no
+clipping.
+
+The first capture of the change found a regression the tests could not see. The
+per-stage level bar was a 40 px horizontal widget inside the row, so *Bass
+enhancer*, *Reverberation* and *Stereo tools* were ellipsized to `Bass en…`,
+`Reverbe…` and `Stereo t…` at 1040 px. The bar moved under the name as a 3 px
+meter and is hidden while a stage is digitally silent; the re-capture renders
+every effect name in full (`target/ui-verify-fix/chain-prefer-light.png`). The
+*Preset autoload* group's *Forget* row gained a subtitle so the two rows have the
+same height (`target/ui-verify-light/preferences-bottom-prefer-light.png`).
+
+The effect picker had a second affordance problem: its list scrolled directly
+under the search field and its overlay scrollbar only appeared on hover, so a
+list scrolled to the middle showed a row cut in half against the search box with
+no sign that content sat above it. The dialog now draws a separator under the
+search field, keeps the scrollbar visible, and resets the scroll to the top when
+the filter changes. The dark capture
+(`target/ui-verify-picker-dark/picker-prefer-dark.png`) shows the boundary and
+the scrollbar; the `picker-tone` harness state still scrolls to the end on
+purpose so the last category can be photographed.
+
+`TONE=1 scripts/capture-screen.sh` captured the running chain with a -20 dB
+440 Hz sine. With the chain empty, the input meter, the output meter and the
+spectrum all read -41.1 dB and the loudness read -41.8 LUFS
+(`target/ui-verify-probe/unloaded-prefer-light.png`). With the built-in *Default*
+preset the same tone read -41.1 dB in, -44.0 dB out (the preset's -2.5 dB
+equalizer output gain and -0.5 dB bass enhancer trim), 441 Hz -44.1 dB in the
+spectrum and -42.9 LUFS, and the five enabled rows drew a lit level bar while the
+four disabled rows drew none (`target/ui-verify-tone2`). The *Diagnostics*
+capture from the harness run read 42 GPU blocks, 0 fallbacks, 0 disagreements and
+`Intel(R) HD Graphics 620 (KBL GT2) detected`, which is the proof that the
+persisted *Both* backend reached the engine
+(`target/ui-verify-light/gpu-prefer-light.png`). All nine live tests passed in
+the same session, the two Vulkan ones included (6 and 4 GPU blocks, 0 fallbacks,
+0 disagreements).
+
+The icon pass reviewed the Add-effect picker after a report that *Multiband
+compressor*, *Multiband gate*, *Auto gain*, *Expander*, *Maximizer*, *De-esser*
+and *Loudness* had no glyph or a solid blob. The files and the gresource were
+correct, so the fault was in how GTK draws them: since 4.22 the SVG renderer
+treats a `-symbolic.svg` as a traditional symbolic icon and replaces each
+element's fill and stroke with values derived from its CSS class, so
+`fill="none"` and `stroke` were ignored and every path was painted as a filled
+foreground shape. Stroke-only glyphs with no enclosed area disappeared and open
+curves filled their interior. All drawing elements in the 31 effect icons now
+carry `foreground-fill` or `transparent-fill foreground-stroke`, which librsvg
+ignores and GTK honours, and the icon test asserts the classes for every effect.
+The capture set `target/ui-verify-icons` and `target/ui-verify-icons-dark`
+contains `picker`, `picker-middle` and `picker-tone` in both appearances: the
+middle capture shows *Multiband compressor*, *Multiband gate*, *Expander*,
+*Maximizer*, *De-esser*, *Auto gain* and *Loudness* each with its outlined
+glyph, and the dark set shows the same glyphs recoloured to the light
+foreground. The new `picker-middle` harness state scrolls the real list to that
+section by an adjustment fraction rather than by a fixed pixel offset.

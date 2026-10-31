@@ -13,11 +13,69 @@ keeps working in the next.
 
 ### Added
 
+- A thirty-band equalizer: the effect covers 20 Hz to 16 kHz in third-octave
+  steps instead of ten octave bands, and the editor splits the bands into
+  *Lows*, *Mids* and *Highs* so the page stays navigable. The ten original bands
+  keep their parameter identifiers and frequencies and the twenty new bands sit
+  between them, so a preset saved before the expansion loads with the same curve.
+  The mid/side equalizer inherits the same thirty bands. A reference equalizer
+  document is folded onto the nearest of the thirty bands instead of the nearest
+  of ten, and a test asserts that the conversion's band tables match the effect's.
+- Preset autoload per device: *Remember* in Preferences stores the loaded preset
+  for the resolved device node in the settings document, *Forget* removes the
+  rule, and a pipeline that resolves a different device loads the mapped preset
+  on an idle callback. The rule is keyed on the node name; the reference also
+  stores and matches the device profile and description. A unit test round-trips
+  the rules through the document.
+- A *Spectrum range* chooser in Preferences: wide (-72 to +6 dB, the default),
+  standard (-60 to 0 dB) or loud (-48 to +12 dB). It is persisted as
+  `spectrum_range` in the settings document, applied to both pipelines, and the
+  analyser redraws through the selected span; a test asserts every range has a
+  positive span and that the value round-trips through the document.
+- Eight bands are now available on the multiband compressor and the multiband
+  gate, up from four, with seven split frequencies; four remain the default so
+  the shipped chain keeps its cost. The crossover now applies the all-pass
+  compensation for every band below a split and keeps a separate compensation
+  chain per band, because a shared one advanced the same filter twice per sample;
+  the eight bands sum within about 0.5 dB. The reference conversion transfers all
+  eight bands instead of reporting the ones above four.
+- A level bar on every chain row, measured after that stage runs and published
+  with the global meters, so the per-stage meters the reference exposes are part
+  of the chain instead of a plugin that consumes a slot. The chain records each
+  slot's peak, the engine converts it to decibels, and the 50 ms poll writes it to
+  the row; a disabled slot and a bypassed chain report no level.
+- Tempo sync on the delay: a *Tempo* control of 20–300 BPM and a per-channel
+  *Left sync* / *Right sync* division from `1/1` to `1/32`, which replace the
+  millisecond time on that channel when it is set. A quarter note at 120 BPM
+  lands at 24 000 samples at 48 kHz, which is the new test.
+- The reference's six room characters on the reverberation (*Small*, *Medium*,
+  *Large*, *Tunnel-like*, *Large/smooth*, *Experimental*), each retuning the comb
+  and all-pass lengths and the stereo spread; the reference's `room-size` label is
+  converted onto it, and an unknown label stays at *Large* and is reported.
+- The voice suppressor's local-kurtosis gate, so *Minimum kurtosis* is a working
+  control instead of a reference setting the conversion reported and dropped.
+  The kurtosis of the magnitude spectrum over the three bins around each bin is
+  compared with the parameter (the reference's 0–100 range, default 1), and a bin
+  below it is not treated as voice. A reference `minimum-kurtosis` is transferred,
+  the out-of-phase, zero-mix and instantaneous-frequency tests still pass, and two
+  new tests pin that a threshold above the tone's local kurtosis releases it and
+  that a flat magnitude triplet reads below a peaked one.
+- A loudness meter on the output meter card: the EBU R128 short-term loudness of
+  the processed audio in LUFS, measured by the same `Loudness` implementation the
+  auto gain uses, published through atomics and refreshed with the meters. The
+  momentary and integrated values are measured and published too. The readout
+  shows `-inf LUFS` until three seconds of audio have been measured. A unit test
+  round-trips the published values, and a processor test pushes a half-scale tone
+  through the real ring and asserts a finite short-term value between −30 and
+  0 LUFS.
+- The CPU baseline times the loudness measurement next to the spectrum analyser,
+  so the cost of the new meter in the audio path has a reproducible figure.
+
 - A *Loudness* compensator, the twenty-seventh effect: an equal-loudness contour
   with the reference's five standards (Flat, ISO 226:2003, Fletcher-Munson,
   Robinson-Dadson, ISO 226:2023), an output volume, and hard clipping with a
   clipping range. Its contour follows the output volume, so a full volume is flat
-  and a quiet one lifts the bass and the treble. `crates/dsp/src/r128.rs` also
+  and a quiet one lifts the bass and the treble. `crates/dsp/src/analysis/r128/mod.rs` also
   gained the momentary and short-term windows the reference reports.
 - The crystalizer now splits thirteen bands, each with its own intensity in
   decibels, a *Mute* and a *Bypass*, matching the reference's `band0`...`band12`
@@ -42,7 +100,7 @@ keeps working in the next.
 
 - A pitch shift effect, the twenty-fifth, and a bass loudness effect, the
   twenty-sixth. Pitch shift is a phase vocoder:
-  `crates/dsp/src/effects/pitch_shift.rs` runs a 2048-point Hann-windowed STFT at
+  `crates/dsp/src/effects/pitch_shift/mod.rs` runs a 2048-point Hann-windowed STFT at
   75 % overlap, recovers each bin's instantaneous frequency from the phase
   advance, remaps the bins by the shift ratio and propagates the synthesis
   phases, then sums the frames back by overlap-add. It exposes *Semitones*
@@ -170,8 +228,8 @@ keeps working in the next.
 
 - A multiband compressor, a multiband gate and a voice suppressor, and the two
   primitives they need: a hand-written iterative radix-2 FFT
-  (`crates/dsp/src/fft.rs`) and a Linkwitz-Riley crossover
-  (`crates/dsp/src/effects/crossover.rs`). The multiband effects split the
+  (`crates/dsp/src/primitives/fft/mod.rs`) and a Linkwitz-Riley crossover
+  (`crates/dsp/src/effects/crossover/mod.rs`). The multiband effects split the
   spectrum into up to four bands; the voice suppressor attenuates centred voice
   from the inter-channel correlation and phase difference in the frequency
   domain. Each maps its EasyEffects preset block and is marked *Partial* in
@@ -239,7 +297,7 @@ keeps working in the next.
   diagnostic messages are shown only while it is on, and the choice survives a
   restart in the settings file.
 - `ParamUnit::Lufs`, and an EBU R128 loudness measurement in
-  `crates/dsp/src/r128.rs`: ITU-R BS.1770 K-weighting for the running sample
+  `crates/dsp/src/analysis/r128/mod.rs`: ITU-R BS.1770 K-weighting for the running sample
   rate, 400 ms blocks at a 100 ms hop, the absolute −70 LUFS and relative −10 LU
   gates, and the −0.691 offset.
 - A preset can be unloaded and duplicated. The check button on a preset row is
@@ -276,6 +334,83 @@ keeps working in the next.
   entry is absent while the switch is off.
 
 ### Fixed
+
+- The effect glyphs in the Add-effect picker, the chain and the editors were
+  painted as solid silhouettes or disappeared entirely: *Multiband compressor*,
+  *Multiband gate* and *Auto gain* were blank, while *Expander*, *Maximizer*,
+  *De-esser* and *Loudness* showed filled blobs. GTK 4.22 and later render a
+  `-symbolic.svg` in traditional symbolic mode and derive fill and stroke from
+  the symbolic CSS class, ignoring the standard `fill="none"` and `stroke`
+  attributes, so every stroke-only path became a filled outline region. All
+  drawing elements now carry `foreground-fill` or
+  `transparent-fill foreground-stroke`, and the icon test asserts the classes.
+  The picker was captured with every category visible in both appearances
+  (`target/ui-verify-icons`).
+- The effect picker scrolled its list directly under the search field, and its
+  overlay scrollbar was invisible until it was hovered, so a list scrolled to the
+  middle showed a row cut in half against the search box with no sign that more
+  content sat above it. A separator now marks the boundary, the scrollbar is
+  always drawn, and changing the filter resets the scroll to the top so the first
+  match is visible.
+- The per-stage level bar added to every chain row took 40 px from the effect
+  name, so at the 1040 px window *Bass enhancer*, *Reverberation* and *Stereo
+  tools* were drawn as `Bass en…`, `Reverbe…` and `Stereo t…`. The bar moved
+  under the name as a 3 px meter, which gives the label the width it had before
+  the bar existed, and it is hidden while the stage is digitally silent so an
+  idle chain has no line under every name. The captures in `target/ui-verify-fix`
+  show every effect name in full.
+- The mid/side reference conversion wrote each folded band by position, which
+  named the wrong frequency once the equalizer's band identifiers stopped being
+  in frequency order. It now derives the `mid_`/`side_` identifier from the
+  equalizer's own band table, so a converted mid/side band lands on the band it
+  names.
+- The multiband split defaults were 80, 200 and 500 Hz for a four-band chain,
+  which put all three crossovers in the bass and left 500 Hz to 20 kHz as one
+  band. The first three splits default to 120, 800 and 5 000 Hz again, the values
+  the four-band effect used before the eight-band change, with four more splits
+  above them for five to eight bands. A test pins the four-band values so a later
+  change cannot move them silently.
+- The multiband converter reported its own `bandN` keys as "band* was left at
+  its default" even though it consumed them, because it used the plain `skipped`
+  helper instead of `skipped_with_bands`. A reference multiband preset now loads
+  without that spurious warning, and the test that asserts a clean eight-band
+  load catches it.
+- `crates/ui/src/views/meter/mod.rs` was missing from `po/POTFILES.in`. The file carried no
+  message of its own before the loudness meter, so nothing was visibly missing,
+  but its new tooltip string was dropped from the template. The file is listed
+  now and the string is extracted.
+- Two source files with user-facing messages were missing from
+  `po/POTFILES.in` and their strings were absent from the template:
+  `crates/presets/src/ee/params/speech/mod.rs` (the `vad.*` warning) and
+  `crates/ui/src/window/autoload/mod.rs` (the autoload-warnings banner). Both are
+  listed now.
+- Five label tables were not wrapped in `pwe_core::i18n::mark`, so their strings
+  never reached the template: the stereo-tools routing modes (pre-existing), the
+  reverb characters, the delay tempo divisions, the multiband split names, and
+  the crystalizer's `Low`/`Mid`/`High` groups. The mid/side equalizer's `Mid
+  bands` and `Side bands` group names were also plain literals passed through a
+  helper. All are marked now, and `scripts/update-po.sh` writes a 578-message
+  template from 84 files.
+- A regression test now guards the catalog: `registry::tests::
+  the_translation_template_carries_every_label_the_registry_publishes` reads the
+  committed template and fails if any effect label, summary, parameter label,
+  parameter group or choice label the registry publishes is missing from it. The
+  earlier claim that no omission existed beyond `meter.rs` was wrong; this test
+  is the check that would have caught all of the above.
+- `docs/feature-matrix.md` never listed five of the effects the registry
+  implements: the mid/side equalizer, the maximizer, the crossfeed, the crosstalk
+  canceller and the exciter. Each has a row now with its reference evidence,
+  parameters and tests, so every registered effect is traceable from the matrix.
+- `docs/feature-matrix.md` still said the voice suppressor's
+  `maximum-instantaneous-frequency` and `minimum-kurtosis` were reported rather
+  than applied, which stopped being true when the frequency gate was added and is
+  now false for the kurtosis gate too. Both keys are recorded as transferred.
+- `docs/reference-audit.md` still said autotune "needs a pitch-detection stage and
+  is not written", which stopped being true when the effect was added. The
+  dependency note now describes the vocoder the three pitch effects share.
+- `docs/architecture.md` described the two meters as `gtk::LevelBar` widgets. They
+  are `gtk::DrawingArea` cards that draw their own segments, RMS marker and hold,
+  and the section now says so.
 
 - Stereo tools reports the reference's `dry` and `wet` instead of listing them
   as handled and dropping them. Both keys were in the effect's handled list but
@@ -448,7 +583,7 @@ keeps working in the next.
   `Unknown option ...` and exited with status 1 instead of starting. The autostart
   entry, which is `pipewire-effects --no-window`, therefore did nothing at
   sign-in. The application is now run with only its program name, and the options
-  are read by the parser in `crates/app/src/cli.rs`.
+  are read by the parser in `crates/app/src/cli/mod.rs`.
 
 ### Changed
 
@@ -570,7 +705,7 @@ keeps working in the next.
   path.
 - The multiband compressor and the multiband gate no longer carry two copies of
   their crossover parameters, band-knob construction and redesign gate; those
-  live in `crates/dsp/src/effects/multiband.rs`, and each effect keeps only its
+  live in `crates/dsp/src/effects/multiband/mod.rs`, and each effect keeps only its
   own parameters and its own per-band maths. The two test modules and the Devices
   test module moved into files of their own (`multiband_compressor/tests.rs`,
   `multiband_gate/tests.rs`, `devices/tests.rs`), which brings every hand-written
@@ -593,13 +728,13 @@ keeps working in the next.
   treats a virtual device.
 - `docs/feature-matrix.md` documents the reference conversion per effect.
 - The stale claim in `docs/reference-audit.md` that auto gain is an RMS
-  measurement was corrected: the R128 measurement in `crates/dsp/src/r128.rs`
+  measurement was corrected: the R128 measurement in `crates/dsp/src/analysis/r128/mod.rs`
   implements the standard, and the audit now says so. The test counts in
   `docs/feature-matrix.md`, `docs/architecture.md` and `README.md` were brought
   in line with the suite at the time, and a merged table row in `scripts/README.md` was
   split again.
 - `SECURITY.md` claimed the crate contains no `unsafe` blocks, which stopped
-  being true when the gettext FFI was added to `crates/core/src/i18n.rs`. Its
+  being true when the gettext FFI was added to `crates/core/src/i18n/mod.rs`. Its
   scope section and design notes now describe that module accurately.
 - `SECURITY.md` no longer describes `unsafe` blocks that do not exist in the
   codebase.
@@ -613,7 +748,7 @@ keeps working in the next.
 - A malformed row in the spectrum analyser table of `docs/feature-matrix.md`
   carried six cells in a four-column table; it is a single row again.
 - The harness state list in `docs/architecture.md` and the description of the
-  narrow layout now name every state `crates/ui/src/harness.rs` implements and
+  narrow layout now name every state `crates/ui/src/harness/mod.rs` implements and
   the switcher policy it actually sets, and the translation template's message
   count was brought up to date.
 - The *Bass loudness* and *Loudness* symbolic icons were drawn from sharp

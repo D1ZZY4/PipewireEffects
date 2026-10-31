@@ -175,9 +175,12 @@ in `docs/feature-matrix.md`:
 - Deep-learning noise suppression (needs ONNX model files and a runtime). RNNoise
   is the exception: it was adopted, through the `nnnoiseless` crate, because it is
   plain Rust with no model file to install.
-- Pitch shifting and autotune. Pitch shifting is implemented here as a native
-  phase vocoder (`crates/dsp/src/effects/pitch_shift.rs`); autotune still needs a
-  pitch-detection stage and is not written.
+- Pitch shifting, autotune and the harmonizer. Pitch shifting is implemented here
+  as a native phase vocoder (`crates/dsp/src/effects/pitch_shift/mod.rs`); autotune
+  adds a normalised autocorrelation pitch detector and drives the same vocoder,
+  and the harmonizer runs two vocoder voices and sums them with the dry signal.
+  The reference's SoundTouch modes, formant preservation and transient handling
+  have no equivalent here.
 
 ## 6. Licence position
 
@@ -187,7 +190,7 @@ EasyEffects is GPL-3.0-or-later. This project is also GPL-3.0-or-later
 **One effect is a port, and it is recorded as one.** The cross-talk canceller
 (`src/crosstalk_canceller.{cpp,hpp}`) is one of the few effects EasyEffects
 implements itself rather than wrapping a third-party plugin. It was written by
-Antti S. Lankila for EasyEffects, and `crates/dsp/src/effects/crosstalk.rs`
+Antti S. Lankila for EasyEffects, and `crates/dsp/src/effects/crosstalk/mod.rs`
 reproduces its structure: the 200–500 µs delay line, the six correction biquads
 that shape the contralateral head-transfer function, the decay applied to the
 reciprocal path, and the phantom-centre mode. That is a derivative work, which
@@ -223,8 +226,8 @@ The reference directory was not modified at any point.
 | One `pw_filter` per effect | `pipewire-rs` 0.10 exposes no `pw_filter` binding; two `pw_stream`s with a ring buffer are used instead. Documented in `docs/architecture.md`. |
 | A mutex and a worker object around every effect | The audio thread here allocates nothing, locks nothing and frees nothing; parameters are atomics and structure changes travel through a bounded lock-free queue. |
 | Third-party plugin wrappers | Replaced with native Rust DSP for a self-contained binary; the plugin-based effects are listed as unimplemented rather than faked. |
-| 30-band equalizer with per-band type/Q and channel splitting | A 10-band octave equalizer with a shared bandwidth and output gain. Reduction recorded in the matrix. |
-| EBU R128 loudness (libebur128) | Implemented here from scratch: `crates/dsp/src/r128.rs` applies the ITU-R BS.1770 K-weighting for the running sample rate, 400 ms blocks at a 100 ms hop, the absolute −70 LUFS and relative −10 LU gates, and the −0.691 offset, over a rolling 30-second window. Auto gain drives its gain from that measurement. |
+| 30-band equalizer with per-band type/Q and channel splitting | A 30-band third-octave equalizer (20 Hz – 16 kHz) with a shared bandwidth and output gain. Per-band type and Q and the channel split remain reductions, recorded in the matrix. |
+| EBU R128 loudness (libebur128) | Implemented here from scratch: `crates/dsp/src/analysis/r128/mod.rs` applies the ITU-R BS.1770 K-weighting for the running sample rate, 400 ms blocks at a 100 ms hop, the absolute −70 LUFS and relative −10 LU gates, and the −0.691 offset, over a rolling 30-second window. Auto gain drives its gain from that measurement. |
 | KConfig settings | Plain JSON presets plus runtime-only engine settings. |
 | Metadata-driven default device | `default.audio.sink` is read before the sink is created and watched while the engine runs; `priority.session` remains the fallback |
-| The local socket server | Not implemented. The command line options are implemented (`crates/app/src/cli.rs`); there is no socket control surface. |
+| The local socket server | Not implemented. The command line options are implemented (`crates/app/src/cli/mod.rs`); there is no socket control surface. |

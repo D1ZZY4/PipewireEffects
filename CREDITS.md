@@ -14,7 +14,7 @@ the system as an ordinary audio device, letting the user own the effect order,
 and exposing real meters rather than decorative ones.
 
 No source code, resource or asset was copied, with two documented exceptions: the
-cross-talk canceller in `crates/dsp/src/effects/crosstalk.rs` is a port of
+cross-talk canceller in `crates/dsp/src/effects/crosstalk/mod.rs` is a port of
 EasyEffects' own native implementation of that effect, by Antti S. Lankila, and
 carries its delay-line layout, correction-filter constants and phantom-centre
 mode; and the harmonizer, autotune, autogain, noise reduction, crossfeed, bass
@@ -57,12 +57,12 @@ the path data behind one of the icons the application ships (see above).
 ### DSP references
 
 **Robert Bristow-Johnson's ["Audio EQ Cookbook"](https://www.w3.org/TR/audio-eq-cookbook/)**
-- the formulas behind every biquad in `crates/dsp/src/biquad.rs`. The tests that
+- the formulas behind every biquad in `crates/dsp/src/primitives/biquad/mod.rs`. The tests that
 hold each design to its analytic frequency response exist because the maths is
 written down properly.
 
 **Freeverb** by Jezar at Dreampoint - the comb and all-pass topology behind
-`crates/dsp/src/effects/reverb.rs`, reimplemented with rate-dependent tuning.
+`crates/dsp/src/effects/reverb/mod.rs`, reimplemented with rate-dependent tuning.
 
 **[RNNoise](https://gitlab.xiph.org/xiph/rnnoise)** by Jean-Marc Valin and the
 Xiph.Org Foundation, and the Rust reimplementation
@@ -80,6 +80,7 @@ its authors' work, not this project's. BSD-3-Clause.
 | [`rtrb`](https://crates.io/crates/rtrb) | The realtime-safe single-producer/single-consumer ring buffer | MIT / Apache-2.0 |
 | [`serde`](https://crates.io/crates/serde) + [`serde_json`](https://crates.io/crates/serde_json) | The preset file format | MIT / Apache-2.0 |
 | [`nnnoiseless`](https://crates.io/crates/nnnoiseless) | The noise reduction stage, which is RNNoise in Rust (and, through it, `easyfft`/`realfft`/`rustfft` and `once_cell`) | BSD-3-Clause |
+| [`ash`](https://crates.io/crates/ash) | The Vulkan compute backend used by the `GPU` and `Both` processing modes | MIT / Apache-2.0 |
 | [`gtk4`](https://crates.io/crates/gtk4) | The interface | MIT |
 | [`libadwaita`](https://crates.io/crates/libadwaita) | GNOME widgets and patterns | MIT |
 

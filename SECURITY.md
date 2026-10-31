@@ -28,10 +28,12 @@ Only the latest release is supported. There are no maintenance branches.
 
 Worth reporting:
 
-- Memory safety problems. The application is safe Rust except for one isolated
-  FFI module: `crates/core/src/i18n.rs` declares the gettext and libc functions
-  it calls and reads the `char *` they return. A report would most likely mean a
-  bug in the standard library, in `pipewire-rs`, or in one of the other
+- Memory safety problems. The application is safe Rust except for two isolated
+  areas: `crates/core/src/i18n/mod.rs`, which declares the gettext and libc
+  functions it calls and reads the `char *` they return, and
+  `crates/engine/src/processing/gpu/`, which drives Vulkan compute through `ash`
+  and maps two host-visible buffers. A report would most likely mean a bug in the
+  standard library, in `ash`, in `pipewire-rs`, or in one of the other
   dependencies rather than in this code.
 - Denial of service: a preset, a parameter value, or a stream format that makes
   the audio thread hang, allocate without bound, or panic.
@@ -64,13 +66,22 @@ For readers auditing this codebase:
 - Audio samples cross the SPA boundary through explicit little-endian byte
   conversion (`f32::from_le_bytes` and `f32::to_le_bytes`), so no aliasing,
   alignment or pointer assumption is involved.
-- The only `unsafe` code is the gettext FFI in `crates/core/src/i18n.rs`: the
-  declarations for `gettext`, `ngettext`, `bindtextdomain`, `textdomain` and
-  `setlocale`, and the `CStr` reads of the pointers they return. Every message
-  identifier is copied into a fixed-size `[u8; 512]` buffer, so the argument is
-  always NUL-terminated and cannot contain an interior NUL, and a message that
-  gettext cannot translate is returned as the identifier itself instead of being
-  dereferenced.
+- The gettext FFI in `crates/core/src/i18n/mod.rs` is `unsafe`: it declares
+  `gettext`, `ngettext`, `bindtextdomain`, `textdomain` and `setlocale`, and reads
+  the `CStr` pointers they return. Every message identifier is copied into a
+  fixed-size `[u8; 512]` buffer, so the argument is always NUL-terminated and
+  cannot contain an interior NUL, and a message that gettext cannot translate is
+  returned as the identifier itself instead of being dereferenced.
+- The Vulkan backend in `crates/engine/src/processing/gpu/` is the other `unsafe`
+  area. It enumerates physical devices, creates one logical device and queue, two
+  host-visible mapped buffers sized to the maximum quantum, and a compute pipeline
+  from the checked-in SPIR-V; each block submits one dispatch and waits on a fence
+  for at most half the block duration, and a timeout marks the backend failed
+  after three consecutive misses so the gain stage falls back to the CPU. The two
+  mapped pointers are only read and written inside `process`, and no dispatch is
+  in flight when they are. The buffers, pipeline and warm-up are created before
+  the processor reaches the audio thread, and an unavailable device leaves the
+  chain on the CPU with a warning rather than crashing.
 - Realtime code is allocation-free by design, which also means a hostile
   parameter value cannot make the audio thread allocate. Parameters are clamped
   and rejected if non-finite before they are published to the audio thread.

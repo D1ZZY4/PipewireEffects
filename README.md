@@ -26,15 +26,15 @@ Thirty effects, each with real processing and a generated control surface:
 
 | Effect | What it does |
 |---|---|
-| **Equalizer** | Ten octave bands (31.5 Hz – 16 kHz) with an analytic response curve, shared bandwidth and output gain |
+| **Equalizer** | Thirty third-octave bands (20 Hz – 16 kHz) in three groups, with an analytic response curve, shared bandwidth and output gain |
 | **Filter** | Low pass, high pass, band pass, notch, all pass, peak and shelves, order 1–4 |
-| **Mid/side equalizer** | The ten bands applied to the middle and the side separately, with mid and side trims |
+| **Mid/side equalizer** | The thirty bands applied to the middle and the side separately, with mid and side trims |
 | **Compressor** | Feed-forward, peak or RMS detection, soft knee, attack/release, makeup, dry/wet, and a sidechain high/low-pass that keeps rumble and hiss out of the detector |
 | **Limiter** | Lookahead peak limiter: the gain ramps down over the lookahead so a transient arrives already attenuated, with a hard ceiling, release and a stereo link |
 | **Maximizer** | Peak maximiser that lifts quiet material towards a ceiling, then clamps it |
 | **Gate** | Noise gate with range, a curve zone, hysteresis, attack, hold and release |
-| **Multiband compressor** | Up to four Linkwitz-Riley bands, each with its own threshold, ratio, knee, attack, release and makeup |
-| **Multiband gate** | Up to four bands, each gated on its own threshold, range, attack, hold and release |
+| **Multiband compressor** | Up to eight Linkwitz-Riley bands (four by default), each with its own threshold, ratio, knee, attack, release and makeup |
+| **Multiband gate** | Up to eight bands (four by default), each gated on its own threshold, range, attack, hold and release |
 | **Expander** | Downward expander with a soft knee, attack, release, makeup and the same filtered sidechain |
 | **De-esser** | Split or wideband sibilance reduction |
 | **Auto gain** | EBU R128 loudness normalisation towards a target loudness |
@@ -47,15 +47,15 @@ Thirty effects, each with real processing and a generated control surface:
 | **Stereo tools** | Seven routing modes, middle/side levels and panoramas, per-channel balance, phase and mute, soft clip, width and a Haas delay |
 | **Crossfeed** | Leaks each channel into the other so headphones sound like speakers |
 | **Crosstalk canceller** | Delayed reciprocal mix with a head-transfer correction and a phantom-centre mode |
-| **Voice suppressor** | Attenuates centred voice by comparing the two channels in the frequency domain, with an inverted mode |
+| **Voice suppressor** | Attenuates centred voice by comparing the two channels in the frequency domain, with an inverted mode, an instantaneous-frequency gate and a local-kurtosis gate |
 | **Pitch shift** | Phase-vocoder pitch shifting in semitones and cents, with a dry/wet mix |
 | **Autotune** | Pulls a monophonic pitch to the nearest semitone, with a strength and a reference pitch |
 | **Harmonizer** | Two shifted voices with their own interval and level, mixed with the dry signal |
 | **Noise reduction** | Removes steady background noise with a recurrent network, with a voice-activity gate and a dry/wet mix |
 | **Speech processor** | Voice activity detection, automatic gain and noise reduction for a microphone in one stage |
 | **Gain** | A gain stage with mute |
-| **Delay** | Independent left/right delay with feedback and ping-pong |
-| **Reverberation** | Freeverb-style room with pre-delay, diffusion, damping, a high/low-pass tone stage and width |
+| **Delay** | Independent left/right delay with feedback, ping-pong and a tempo division |
+| **Reverberation** | Freeverb-style room with six room characters, pre-delay, diffusion, damping, a high/low-pass tone stage and width |
 
 Around them:
 
@@ -65,13 +65,15 @@ Around them:
 - The chain, its presets and the on/off **Effects** switch live in the left
   sidebar. A header toggle hides or shows it, and below 860 px it becomes a
   drawer, so the layout also works at phone width.
-- A chain you can reorder, enable per stage, or bypass as a whole.
+- A chain you can reorder, enable per stage, or bypass as a whole, with a level
+  bar on every stage.
 - Presets stored as readable JSON with `output` and `input` sections, six built
   in (*Default*, *Podcast voice*, *Music, speakers*, *Headphones*, *Bass boost*
   and *Clean microphone*), with save, delete, import and export. EasyEffects
   presets load too, both sections, converted on the way in.
 - Live input and output meters (peak with an RMS marker) for the pipeline you are
-  editing, and a live spectrum of the same signal, both above the effect editor.
+  editing, an EBU R128 short-term loudness readout on the output card, and a live
+  spectrum of the same signal, both above the effect editor.
 - Honest counters: captured and processed frames, underruns, overruns, drift
   trims and the chain's own latency, plus a diagnostics list.
 - Remembered settings: the device of each pipeline, the loaded preset and the
@@ -83,6 +85,8 @@ Around them:
   sign-in.
 - *Devices* and *Preferences* in the main menu, and a *Developer mode* switch in
   Preferences that reveals the engine counters and diagnostic messages.
+- Preset autoload: remember the loaded preset for the current device in
+  Preferences, and it loads again when that device is the destination.
 
 ## Requirements
 
@@ -228,7 +232,7 @@ compiled into the binary, so a fresh installation always has a usable chain.
 
 Presets written by EasyEffects are recognised by their `plugins_order` layout
 and converted on load: the effects and parameters with a close equivalent here
-are mapped, band-based equalisers are folded onto the ten fixed bands, and
+are mapped, band-based equalisers are folded onto the thirty fixed bands, and
 everything that could not be mapped is reported instead of being applied
 silently.
 
@@ -286,7 +290,7 @@ factor for each effect and for the full thirty-effect chain
 cargo test --release -p pwe-dsp --test benchmark -- --ignored --nocapture
 ```
 
-466 tests, none of which need an audio device or a display; the two
+504 tests, none of which need an audio device or a display; the two
 icon lookups skip themselves when no display is available. They cover biquad
 designs against their analytic magnitude response, the effects against measured
 signal levels and numerical bounds, the analyser's bands against the level of a
