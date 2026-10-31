@@ -85,52 +85,27 @@ fn preset_row(
     kind: PipelineKind,
     info: &pwe_presets::PresetInfo,
     loaded: bool,
-) -> gtk::ListBoxRow {
-    let row = gtk::ListBoxRow::new();
-    row.set_widget_name(&info.name);
-    row.set_activatable(true);
-    row.set_tooltip_text(Some(&info.name));
-
-    let container = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    container.set_margin_top(3);
-    container.set_margin_bottom(3);
-    container.set_margin_start(4);
-    container.set_margin_end(4);
-
-    let name = gtk::Label::new(Some(&info.name));
-    name.set_xalign(0.0);
-    name.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    name.set_max_width_chars(30);
-    name.add_css_class("chain-label");
-
-    let divider = gtk::Label::new(Some("|"));
-    divider.add_css_class("dim-label");
-
-    let status = gtk::Label::new(Some(status_text(info)));
-    status.add_css_class("dim-label");
-
-    let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    spacer.set_hexpand(true);
-
-    container.append(&name);
-    container.append(&divider);
-    container.append(&status);
-    container.append(&spacer);
+) -> adw::ActionRow {
+    let action = adw::ActionRow::new();
+    action.set_widget_name(&info.name);
+    action.set_title(&info.name);
+    action.set_subtitle(status_text(info));
+    action.set_activatable(true);
+    action.set_tooltip_text(Some(&info.name));
     if loaded {
-        container.append(&preset_menu(ui, kind, &info.name));
+        action.add_suffix(&preset_menu(ui, kind, &info.name));
     }
-    container.append(&preset_toggle(ui, kind, &info.name, loaded));
-    row.set_child(Some(&container));
-    row
+    action.add_suffix(&preset_toggle(ui, kind, &info.name, loaded));
+    action
 }
 
 fn status_text(info: &pwe_presets::PresetInfo) -> &'static str {
     if info.builtin {
-        t("Built in")
+        t("Built-in")
     } else if info.deletable() {
-        t("User preset")
+        t("User")
     } else {
-        t("System preset")
+        t("System")
     }
 }
 

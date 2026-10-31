@@ -12,7 +12,7 @@ use pwe_core::{ALL_PIPELINES, PipelineKind};
 
 use crate::chrome::{
     dialog, effects_toggle, header_controls, install, install_breakpoint, install_dialog,
-    main_menu, sidebar_toggle,
+    install_dialog_breakpoint, main_menu, sidebar_toggle,
 };
 use crate::devices::DevicesView;
 use crate::diagnostics::Diagnostics;
@@ -147,6 +147,10 @@ impl Workspace {
         let toggle = sidebar_toggle(&split);
         header.pack_start(&toggle);
         install_breakpoint(&window, &split, &switcher);
+        install_dialog_breakpoint(
+            &window,
+            &[&devices_dialog, &preferences_dialog, &diagnostics_dialog],
+        );
         wire_close_buttons(&split, &panes);
 
         let toolbar = adw::ToolbarView::new();

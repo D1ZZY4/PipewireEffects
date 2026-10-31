@@ -159,6 +159,20 @@ pub fn install_breakpoint(
     window.add_breakpoint(breakpoint);
 }
 
+pub fn install_dialog_breakpoint(
+    window: &adw::ApplicationWindow,
+    dialogs: &[&adw::PreferencesDialog],
+) {
+    let Ok(condition) = adw::BreakpointCondition::parse(NARROW_LAYOUT) else {
+        return;
+    };
+    let breakpoint = adw::Breakpoint::new(condition);
+    for dialog in dialogs {
+        breakpoint.add_setter(*dialog, "content-width", Some(&340i32.to_value()));
+    }
+    window.add_breakpoint(breakpoint);
+}
+
 pub fn sidebar_toggle(split: &adw::OverlaySplitView) -> gtk::ToggleButton {
     let toggle = gtk::ToggleButton::new();
     toggle.set_icon_name(format::ICON_SIDEBAR);

@@ -23,7 +23,13 @@ fn wire_pane(ui: &Rc<Ui>, pane: &crate::pages::ChainPane) {
 
     let ui_load = Rc::clone(ui);
     pane.preset_list.connect_row_activated(move |_, row| {
-        let name = row.widget_name().to_string();
+        let name = row.widget_name();
+        let name = if name.is_empty() {
+            row.child()
+                .map_or_else(String::new, |child| child.widget_name().to_string())
+        } else {
+            name.to_string()
+        };
         if name.is_empty() {
             return;
         }
