@@ -122,6 +122,7 @@ fn map_kind(kind: &str) -> Option<&'static str> {
         "maximizer" => "maximizer",
         "crosstalk_canceller" => "crosstalk",
         "voice_suppressor" => "voice_suppressor",
+        "rnnoise" => "noise_reduction",
         "midside_equalizer" => "midside_equalizer",
         "exciter" => "exciter",
         "autogain" => "autogain",

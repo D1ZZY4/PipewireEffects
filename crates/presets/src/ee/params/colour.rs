@@ -5,7 +5,7 @@ use serde_json::{Map, Value};
 
 use crate::model::PresetValue;
 
-use super::{flag, number, put, skipped, text};
+use super::{flag, mix_percent, number, put, skipped, text};
 
 const CRUSHER_KEYS: &[&str] = &[
     "bypass",
@@ -178,6 +178,46 @@ pub(super) fn voice_suppressor(
         &mut params,
         "inverted",
         flag(parameters, "inverted-mode", false),
+    );
+    params
+}
+
+const NOISE_REDUCTION_KEYS: &[&str] = &[
+    "bypass",
+    "inputGain",
+    "outputGain",
+    "enableVad",
+    "vadThres",
+    "wet",
+];
+
+pub(super) fn noise_reduction(
+    parameters: &Map<String, Value>,
+    warnings: &mut Vec<String>,
+) -> BTreeMap<String, PresetValue> {
+    skipped(
+        parameters,
+        NOISE_REDUCTION_KEYS,
+        "noise reduction",
+        warnings,
+    );
+    let mut params = BTreeMap::new();
+    put(
+        &mut params,
+        "input_gain",
+        number(parameters, "inputGain", 0.0),
+    );
+    put(
+        &mut params,
+        "output_gain",
+        number(parameters, "outputGain", 0.0),
+    );
+    put(&mut params, "mix", mix_percent(parameters, "wet", 0.0));
+    put(&mut params, "vad", flag(parameters, "enableVad", false));
+    put(
+        &mut params,
+        "vad_threshold",
+        number(parameters, "vadThres", 50.0),
     );
     params
 }

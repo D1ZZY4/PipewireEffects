@@ -8,6 +8,7 @@ description = "Native DSP effect implementations for PipewireEffects"
 
 [dependencies]
 pwe-core.workspace = true
+nnnoiseless.workspace = true
 
 [lints]
 workspace = true

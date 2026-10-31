@@ -87,3 +87,71 @@ fn a_crossfeed_default_is_the_reference_default() {
     assert_eq!(as_float(&params, "cutoff"), 700.0);
     assert_eq!(as_float(&params, "feed"), 4.5);
 }
+
+#[test]
+fn the_noise_reduction_gains_the_gate_and_its_threshold_are_transferred() {
+    let object = json!({
+        "inputGain": 1.5,
+        "outputGain": -2.5,
+        "enableVad": true,
+        "vadThres": 62.0,
+    })
+    .as_object()
+    .cloned()
+    .unwrap_or_default();
+    let mut warnings = Vec::new();
+    let params = noise_reduction(&object, &mut warnings);
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert_eq!(as_float(&params, "input_gain"), 1.5);
+    assert_eq!(as_float(&params, "output_gain"), -2.5);
+    assert_eq!(as_float(&params, "vad"), 1.0);
+    assert_eq!(as_float(&params, "vad_threshold"), 62.0);
+}
+
+#[test]
+fn the_noise_reduction_wet_level_becomes_the_mix() {
+    let object = json!({ "wet": -6.0 })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    let mut warnings = Vec::new();
+    let params = noise_reduction(&object, &mut warnings);
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert!((as_float(&params, "mix") - 50.1).abs() < 0.2, "{params:?}");
+    let silent = json!({ "wet": -80.01 })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    let params = noise_reduction(&silent, &mut Vec::new());
+    assert_eq!(as_float(&params, "mix"), 0.0);
+}
+
+#[test]
+fn the_noise_reduction_settings_without_a_control_are_reported() {
+    let object = json!({
+        "modelName": "custom",
+        "useStandardModel": false,
+        "release": 500.0,
+    })
+    .as_object()
+    .cloned()
+    .unwrap_or_default();
+    let mut warnings = Vec::new();
+    let params = noise_reduction(&object, &mut warnings);
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains("modelName"), "{warnings:?}");
+    assert!(warnings[0].contains("release"), "{warnings:?}");
+    assert!(warnings[0].contains("useStandardModel"), "{warnings:?}");
+    assert!(params.contains_key("vad"));
+}
+
+#[test]
+fn the_noise_reduction_defaults_come_from_the_reference() {
+    let object = json!({}).as_object().cloned().unwrap_or_default();
+    let mut warnings = Vec::new();
+    let params = noise_reduction(&object, &mut warnings);
+    assert_eq!(as_float(&params, "output_gain"), 0.0);
+    assert!(as_float(&params, "mix") > 99.9);
+    assert_eq!(as_float(&params, "vad"), 0.0);
+    assert_eq!(as_float(&params, "vad_threshold"), 50.0);
+}

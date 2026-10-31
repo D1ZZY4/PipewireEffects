@@ -27,6 +27,7 @@ pub(super) fn convert_parameters(
         "crossfeed" => colour::crossfeed(parameters, warnings),
         "crosstalk" => colour::crosstalk(parameters, warnings),
         "voice_suppressor" => colour::voice_suppressor(parameters, warnings),
+        "noise_reduction" => colour::noise_reduction(parameters, warnings),
         "exciter" => colour::exciter(parameters, warnings),
         "expander" => dynamics::expander(parameters, warnings),
         "maximizer" => dynamics::maximizer(parameters, warnings),

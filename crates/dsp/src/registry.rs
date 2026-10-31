@@ -213,6 +213,14 @@ pub const EFFECTS: &[EffectDescriptor] = &[
         build: |params| Box::new(effects::VoiceSuppressor::new(params)),
     },
     EffectDescriptor {
+        id: "noise_reduction",
+        label: mark("Noise reduction"),
+        summary: mark("Removes steady background noise with a recurrent network at 48 kHz"),
+        category: EffectCategory::Analysis,
+        specs: effects::noise_reduction_specs,
+        build: |params| Box::new(effects::NoiseReduction::new(params)),
+    },
+    EffectDescriptor {
         id: "delay",
         label: mark("Delay"),
         summary: mark("Independent left and right delay with feedback and ping-pong"),
