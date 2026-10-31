@@ -69,9 +69,10 @@ SCHEME=prefer-dark scripts/capture-ui.sh
 STATES="equalizer" OUT_DIR=/tmp/eq scripts/capture-ui.sh
 
 # One editor per effect
-STATES="$(for k in equalizer filter compressor limiter gate deesser autogain \
-  bass_enhancer crystalizer crusher exciter stereo_tools crossfeed crosstalk \
-  gain delay reverb expander maximizer midside_equalizer; do \
+STATES="$(for k in equalizer filter midside_equalizer compressor limiter gate \
+  multiband_compressor multiband_gate expander maximizer deesser autogain \
+  bass_enhancer crystalizer crusher crossfeed crosstalk exciter stereo_tools \
+  gain voice_suppressor noise_reduction delay reverb; do \
     printf 'effect:%s ' "$k"; done)" scripts/capture-ui.sh
 ```
 
@@ -145,10 +146,48 @@ STATES="preset-menu" SCHEME=prefer-dark scripts/capture-screen.sh
 | `APP` | `target/release/pipewire-effects` | the binary to run |
 | `SCREEN` | `:91` | private X display |
 | `SETTLE_SECONDS` | `5` | wait after the application owns its bus name |
+| `TONE` | `0` | `1` plays a tone into the application's own sink while capturing |
+| `TONE_HZ` | `440` | the tone's frequency |
 
 The default states are the ones whose content lives outside the window's render
 tree: the preset row menu, the two `AdwPreferencesDialog`s and the About
 dialog. The file is named `<state>-<scheme>.png`.
+
+### Capturing with audio flowing
+
+`TONE=1` feeds a −20 dB sine into `pipewire-effects-sink` for the length of the
+capture through `ffmpeg` and `pw-cat`, which is what makes the meters and the
+spectrum show real levels instead of the floor. Both tools must be on `PATH`.
+
+```sh
+TONE=1 STATES="chain" OUT_DIR=target/ui-screens-live scripts/capture-screen.sh
+TONE=1 STATES="chain" OUT_DIR=target/ui-screens-live SCHEME=prefer-dark scripts/capture-screen.sh
+```
+
+That tone is played through the destination device and is therefore audible;
+check the machine's volume first. The switch touches nothing else: the default
+sink, the default source and the session's stored volumes are left alone, and
+the tone stops with the application.
+
+This is how the spectrum was checked against real audio rather than against a
+stored value: with a 440 Hz tone the caption read `441 Hz −44.1 dB` while the
+output meter read `−44.0 dB`, so the two agree on the tone's frequency and level.
+
+One caveat about the sessions these scripts run in. They point
+`PIPEWIRE_RUNTIME_DIR` at the running daemon, so the real session manager sees
+the application's virtual nodes. If the session's `default.configured.audio.sink`
+already names `pipewire-effects-sink` — which an earlier experiment with
+`wpctl set-default` can leave behind — the application's own sink becomes the
+session default for as long as it runs, and every application's audio goes
+through the chain. Check it before and after a capture:
+
+```sh
+pw-metadata -n default | grep default.audio.sink
+wpctl set-default <real-sink-id>       # to restore the real device
+```
+
+`wpctl status` lists the real devices under *Sinks* and the application's nodes
+under *Filters*.
 
 ## `update-po.sh`
 

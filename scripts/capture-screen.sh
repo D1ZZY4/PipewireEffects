@@ -10,6 +10,8 @@ size=${SIZE:-1280x900}
 app=${APP:-"$repo_root/target/release/pipewire-effects"}
 settle_seconds=${SETTLE_SECONDS:-5}
 screen=${SCREEN:-:91}
+tone=${TONE:-0}
+tone_hz=${TONE_HZ:-440}
 
 usage() {
     cat <<EOF
@@ -26,11 +28,20 @@ Environment:
   APP              path to the built binary      (default target/release/pipewire-effects)
   SCREEN           X display of the private Xvfb (default :91)
   SETTLE_SECONDS   wait after the application appears (default 5)
+  TONE             play a tone into the application's sink while capturing
+                   (default 0, needs ffmpeg and pw-cat)
+  TONE_HZ          the tone's frequency          (default 440)
 
 The script needs Xvfb, dbus-run-session and ImageMagick's import. It runs an
 isolated X server, a private D-Bus session and a private config directory, and
 points only PIPEWIRE_RUNTIME_DIR at the running daemon, so the real session is
 not changed. Exit status is non-zero when a state produced no screenshot.
+
+TONE=1 sends a sine wave into the application's own virtual sink for the length
+of the capture, which is what makes the meters and the spectrum show real
+levels. That tone is played through the destination device, so it is audible:
+set the machine's volume first, and leave the switch off when a silent capture
+is wanted. It never touches the default sink or the session's stored volumes.
 EOF
 }
 
@@ -69,6 +80,8 @@ export CAPTURE_SCREEN_APP="$app"
 export CAPTURE_SCREEN_DISPLAY="$screen"
 export CAPTURE_SCREEN_SETTLE="$settle_seconds"
 export CAPTURE_SCREEN_RUNTIME="$real_runtime"
+export CAPTURE_SCREEN_TONE="$tone"
+export CAPTURE_SCREEN_TONE_HZ="$tone_hz"
 
 dbus-run-session -- bash -c '
 set -u
@@ -95,6 +108,37 @@ for _ in $(seq 1 30); do
     sleep 0.5
 done
 
+tone_pid=""
+stop_tone() {
+    if [ -n "$tone_pid" ]; then
+        pkill -P "$tone_pid" 2>/dev/null
+        kill "$tone_pid" 2>/dev/null
+        tone_pid=""
+    fi
+}
+
+start_tone() {
+    if [ "$CAPTURE_SCREEN_TONE" != "1" ]; then
+        return
+    fi
+    for tool in ffmpeg pw-cat; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            echo "capture-screen: TONE=1 needs $tool on PATH" >&2
+            return
+        fi
+    done
+    while :; do
+        ffmpeg -loglevel error -f lavfi \
+            -i "sine=frequency=$CAPTURE_SCREEN_TONE_HZ:sample_rate=48000" \
+            -af volume=-20dB -ac 2 -t 30 -f wav - 2>/dev/null \
+            | pw-cat --playback --target pipewire-effects-sink - >/dev/null 2>&1
+        if ! kill -0 "$app_pid" 2>/dev/null; then
+            break
+        fi
+        sleep 0.5
+    done
+}
+
 failures=0
 for state in $CAPTURE_SCREEN_STATES; do
     safe=$(printf "%s" "$state" | tr ":/" "__")
@@ -117,6 +161,8 @@ for state in $CAPTURE_SCREEN_STATES; do
         esac
         sleep 0.5
     done
+    start_tone &
+    tone_pid=$!
     sleep "$CAPTURE_SCREEN_SETTLE"
 
     if [ "$ready" = "yes" ] && import -window root "$png" 2>>"$log"; then
@@ -126,6 +172,7 @@ for state in $CAPTURE_SCREEN_STATES; do
         failures=$((failures + 1))
     fi
 
+    stop_tone
     kill "$app_pid" 2>/dev/null
     wait "$app_pid" 2>/dev/null
 done
