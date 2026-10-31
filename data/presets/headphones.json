@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "name": "Headphones",
+  "output": {
+    "bypassed": false,
+    "effects": [
+      {
+        "kind": "equalizer",
+        "enabled": true,
+        "params": { "band1_gain": 1.5, "band10_gain": 0.5, "output_gain": -2.0 }
+      },
+      { "kind": "crossfeed", "enabled": true, "params": { "cutoff": 700.0, "feed": 4.5 } },
+      { "kind": "limiter", "enabled": true, "params": { "limit": -1.5, "release": 80.0 } }
+    ]
+  }
+}

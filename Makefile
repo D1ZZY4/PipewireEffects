@@ -45,7 +45,17 @@ install: build translations
 	for icon in data/icons/hicolor/symbolic/apps/*.svg; do \
 		$(INSTALL) -Dm644 $$icon $(ICONDIR)/symbolic/apps/$$(basename $$icon); \
 	done
-	$(INSTALL) -Dm644 data/presets/default.json $(PRESETDIR)/Default.json
+	@for entry in \
+		"Default:default" \
+		"Podcast voice:podcast-voice" \
+		"Music, speakers:music-speakers" \
+		"Headphones:headphones" \
+		"Bass boost:bass-boost" \
+		"Clean microphone:clean-microphone"; do \
+		name=$${entry%%:*}; \
+		file=$${entry##*:}; \
+		$(INSTALL) -Dm644 data/presets/$$file.json "$(PRESETDIR)/$$name.json"; \
+	done
 	for lang in $(LINGUAS); do \
 		$(INSTALL) -d $(LOCALEDIR)/$$lang/LC_MESSAGES; \
 		msgfmt -o $(LOCALEDIR)/$$lang/LC_MESSAGES/pipewire-effects.mo po/$$lang.po; \
@@ -57,7 +67,9 @@ uninstall:
 	rm -f $(APPDIR)/$(APPLICATION_ID).desktop
 	rm -f $(ICONDIR)/scalable/apps/$(APPLICATION_ID).svg
 	rm -f $(ICONDIR)/symbolic/apps/pipewire-effects-*.svg
-	rm -f $(PRESETDIR)/Default.json
+	@for name in "Default" "Podcast voice" "Music, speakers" "Headphones" "Bass boost" "Clean microphone"; do \
+		rm -f "$(PRESETDIR)/$$name.json"; \
+	done
 	for lang in $(LINGUAS); do \
 		rm -f $(LOCALEDIR)/$$lang/LC_MESSAGES/pipewire-effects.mo; \
 	done

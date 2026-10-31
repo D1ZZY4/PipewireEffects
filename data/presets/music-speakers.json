@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "name": "Music, speakers",
+  "output": {
+    "bypassed": false,
+    "effects": [
+      {
+        "kind": "equalizer",
+        "enabled": true,
+        "params": {
+          "band1_gain": 2.0, "band3_gain": -1.0, "band7_gain": 1.0,
+          "bandwidth": 1.414, "output_gain": -3.0
+        }
+      },
+      { "kind": "limiter", "enabled": true, "params": { "limit": -1.0, "release": 80.0 } }
+    ]
+  }
+}

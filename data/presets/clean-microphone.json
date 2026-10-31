@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "name": "Clean microphone",
+  "output": {
+    "bypassed": false,
+    "effects": []
+  },
+  "input": {
+    "bypassed": false,
+    "effects": [
+      {
+        "kind": "filter",
+        "enabled": true,
+        "params": {
+          "mode": 1,
+          "frequency": 90.0,
+          "q": 0.707,
+          "gain": 0.0,
+          "order": 2.0
+        }
+      },
+      {
+        "kind": "noise_reduction",
+        "enabled": true,
+        "params": {
+          "input_gain": 0.0,
+          "output_gain": 0.0,
+          "mix": 100.0
+        }
+      },
+      {
+        "kind": "gate",
+        "enabled": true,
+        "params": {
+          "threshold": -45.0,
+          "range": 25.0,
+          "curve": 6.0,
+          "hysteresis": 4.0,
+          "attack": 5.0,
+          "hold": 60.0,
+          "release": 200.0,
+          "mix": 100.0
+        }
+      },
+      {
+        "kind": "compressor",
+        "enabled": true,
+        "params": {
+          "threshold": -18.0,
+          "ratio": 2.5,
+          "knee": 4.0,
+          "attack": 10.0,
+          "release": 120.0,
+          "makeup": 3.0,
+          "mix": 100.0,
+          "detector": 1.0
+        }
+      },
+      {
+        "kind": "limiter",
+        "enabled": true,
+        "params": {
+          "limit": -1.0,
+          "release": 60.0
+        }
+      }
+    ]
+  }
+}

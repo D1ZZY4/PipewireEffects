@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "name": "Podcast voice",
+  "output": {
+    "bypassed": false,
+    "effects": [
+      {
+        "kind": "filter",
+        "enabled": true,
+        "params": { "mode": 1, "frequency": 80.0, "q": 0.707, "gain": 0.0, "order": 2.0 }
+      },
+      {
+        "kind": "gate",
+        "enabled": true,
+        "params": {
+          "threshold": -50.0, "range": 30.0, "curve": 6.0, "hysteresis": 6.0,
+          "attack": 5.0, "hold": 80.0, "release": 250.0, "mix": 100.0
+        }
+      },
+      {
+        "kind": "deesser",
+        "enabled": true,
+        "params": {
+          "frequency": 5600.0, "threshold": -22.0, "ratio": 2.0, "mode": 0,
+          "attack": 5.0, "release": 100.0
+        }
+      },
+      {
+        "kind": "compressor",
+        "enabled": true,
+        "params": {
+          "threshold": -20.0, "ratio": 3.0, "knee": 4.0, "attack": 15.0,
+          "release": 120.0, "makeup": 4.0, "mix": 100.0, "detector": 1.0
+        }
+      },
+      { "kind": "limiter", "enabled": true, "params": { "limit": -1.0, "release": 60.0 } },
+      { "kind": "gain", "enabled": true, "params": {} }
+    ]
+  }
+}

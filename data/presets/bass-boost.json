@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "name": "Bass boost",
+  "output": {
+    "bypassed": false,
+    "effects": [
+      {
+        "kind": "equalizer",
+        "enabled": true,
+        "params": {
+          "band1_gain": 5.0, "band2_gain": 3.0, "band3_gain": 1.0, "output_gain": -4.0
+        }
+      },
+      {
+        "kind": "bass_enhancer",
+        "enabled": true,
+        "params": { "frequency": 120.0, "amount": 55.0, "gain": -1.0 }
+      },
+      { "kind": "limiter", "enabled": true, "params": { "limit": -1.0, "release": 80.0 } }
+    ]
+  }
+}
