@@ -14,6 +14,8 @@ const EQUALIZER_KEYS: &[&str] = &["bypass", "input-gain", "output-gain", "left",
 
 const BASS_ENHANCER_KEYS: &[&str] = &["bypass", "output-gain", "scope", "amount"];
 
+const CRYSTALIZER_BANDS: usize = 13;
+
 const CRYSTALIZER_KEYS: &[&str] = &["bypass", "output-gain"];
 
 const STEREO_TOOLS_KEYS: &[&str] = &[
@@ -94,8 +96,46 @@ pub(super) fn crystalizer(
     parameters: &Map<String, Value>,
     warnings: &mut Vec<String>,
 ) -> BTreeMap<String, PresetValue> {
-    skipped(parameters, CRYSTALIZER_KEYS, "crystalizer", warnings);
+    skipped_with_bands(parameters, CRYSTALIZER_KEYS, "crystalizer", warnings);
     let mut params = BTreeMap::new();
+    for band in 0..CRYSTALIZER_BANDS {
+        let key = format!("band{band}");
+        let Some(Value::Object(values)) = parameters.get(&key) else {
+            continue;
+        };
+        let intensity = values
+            .get("intensity")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0);
+        put(
+            &mut params,
+            &format!("band{band}_intensity"),
+            intensity.clamp(-40.0, 32.0),
+        );
+        params.insert(
+            format!("band{band}_mute"),
+            PresetValue::Boolean(flag(values, "mute", false) >= 0.5),
+        );
+        params.insert(
+            format!("band{band}_bypass"),
+            PresetValue::Boolean(flag(values, "bypass", false) >= 0.5),
+        );
+    }
+    let extra: Vec<&str> = parameters
+        .keys()
+        .map(String::as_str)
+        .filter(|key| {
+            key.strip_prefix("band")
+                .and_then(|rest| rest.parse::<usize>().ok())
+                .is_some_and(|band| band >= CRYSTALIZER_BANDS)
+        })
+        .collect();
+    if !extra.is_empty() {
+        warnings.push(tr(
+            "crystalizer: {0} carries more than {1} bands and were dropped",
+            &[&extra.join(", "), &CRYSTALIZER_BANDS.to_string()],
+        ));
+    }
     put(&mut params, "gain", number(parameters, "output-gain", 0.0));
     params
 }

@@ -114,18 +114,33 @@ fn the_crystalizer_keeps_its_own_amount() {
 }
 
 #[test]
-fn the_crystalizer_bands_are_reported_instead_of_dropped() {
-    let (_, warnings) = convert(
+fn the_crystalizer_bands_are_transferred() {
+    let (params, warnings) = convert(
         crystalizer,
         json!({
             "output-gain": 0.0,
-            "band0": { "intensity": 0.5 },
-            "band1": { "mute": false },
-            "band12": { "bypass": true }
+            "band0": { "intensity": 12.0, "mute": true, "bypass": false },
+            "band7": { "intensity": -6.5, "mute": false, "bypass": true }
         }),
     );
+    assert_eq!(as_float(&params, "band0_intensity"), 12.0);
+    assert_eq!(params.get("band0_mute"), Some(&PresetValue::Boolean(true)));
+    assert_eq!(as_float(&params, "band7_intensity"), -6.5);
+    assert_eq!(
+        params.get("band7_bypass"),
+        Some(&PresetValue::Boolean(true))
+    );
+    assert!(warnings.is_empty(), "{warnings:?}");
+}
+
+#[test]
+fn a_crystalizer_band_outside_the_thirteen_is_reported() {
+    let (_, warnings) = convert(
+        crystalizer,
+        json!({ "band0": { "intensity": 1.0 }, "band13": { "intensity": 1.0 } }),
+    );
     assert!(
-        warnings.iter().any(|warning| warning.contains("band*")),
+        warnings.iter().any(|warning| warning.contains("band13")),
         "{warnings:?}"
     );
 }
