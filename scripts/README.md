@@ -71,8 +71,8 @@ STATES="equalizer" OUT_DIR=/tmp/eq scripts/capture-ui.sh
 # One editor per effect
 STATES="$(for k in equalizer filter midside_equalizer compressor limiter gate \
   multiband_compressor multiband_gate expander maximizer deesser autogain \
-  bass_enhancer crystalizer crusher crossfeed crosstalk exciter stereo_tools \
-  gain voice_suppressor noise_reduction delay reverb; do \
+  bass_enhancer bass_loudness crystalizer crusher crossfeed crosstalk exciter \
+  stereo_tools gain voice_suppressor noise_reduction pitch_shift delay reverb; do \
     printf 'effect:%s ' "$k"; done)" scripts/capture-ui.sh
 ```
 
