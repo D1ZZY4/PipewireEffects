@@ -28,8 +28,10 @@ daemon the headless session left running.
 
 `PIPEWIRE_RUNTIME_DIR` is the only variable that points at the running session,
 so the engine connects to your PipeWire daemon and creates its own virtual
-nodes. The script never changes the default sink or source, never restarts
-PipeWire and never writes to your configuration.
+nodes. The script records the session's default sink before it starts and
+restores it on exit if the run left `default.configured.audio.sink` naming
+`pipewire-effects-sink`; it never restarts PipeWire and never writes to your
+configuration.
 
 Because GNOME refuses `org.gnome.Shell.Screenshot` to other clients, the PNG is
 the window's own render tree through `PIPEWIRE_EFFECTS_UI_CAPTURE`, not a

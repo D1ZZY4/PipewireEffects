@@ -67,7 +67,19 @@ for tool in Xvfb dbus-run-session import; do
 done
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/pipewire-effects-screen.XXXXXX")
+real_sink_id=""
+if command -v wpctl >/dev/null 2>&1; then
+    real_sink_id=$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null |
+        sed -n 's/^id \([0-9][0-9]*\),.*/\1/p')
+fi
+restore_default_sink() {
+    if [ -n "$real_sink_id" ] && command -v wpctl >/dev/null 2>&1 &&
+        pw-metadata -n default 2>/dev/null | grep -q 'pipewire-effects-sink'; then
+        wpctl set-default "$real_sink_id" >/dev/null 2>&1 || true
+    fi
+}
 cleanup() {
+    restore_default_sink
     rm -rf "$work"
 }
 trap cleanup EXIT

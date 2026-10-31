@@ -34,8 +34,9 @@ Environment:
 
 States: chain editor equalizer presets modified preset-menu unloaded clone save
         delete devices preferences preferences-bottom developer gpu picker
-        picker-middle picker-tone about banner bypass spectrum-loud narrow mobile
-        mobile-drawer sidebar-hidden input effect:<kind>
+        picker-middle picker-tone about banner bypass spectrum-loud spectrum-line
+        spectrum-speech narrow mobile mobile-drawer sidebar-hidden input
+        effect:<kind>
 
 A state may carry an @WxH suffix, for example effect:equalizer@1120x2300, to set
 the window's default size before it is mapped.
@@ -67,7 +68,19 @@ for tool in gnome-shell dbus-run-session; do
 done
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/pipewire-effects-capture.XXXXXX")
+real_sink_id=""
+if command -v wpctl >/dev/null 2>&1; then
+    real_sink_id=$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null |
+        sed -n 's/^id \([0-9][0-9]*\),.*/\1/p')
+fi
+restore_default_sink() {
+    if [ -n "$real_sink_id" ] && command -v wpctl >/dev/null 2>&1 &&
+        pw-metadata -n default 2>/dev/null | grep -q 'pipewire-effects-sink'; then
+        wpctl set-default "$real_sink_id" >/dev/null 2>&1 || true
+    fi
+}
 cleanup() {
+    restore_default_sink
     if [ "$keep_workdir" = "1" ]; then
         echo "capture-ui: work directory kept at $work"
     else
