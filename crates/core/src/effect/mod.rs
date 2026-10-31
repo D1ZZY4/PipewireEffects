@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[path = "tests/tests.rs"]
+mod tests;
+
 use crate::audio::{AudioBuffer, AudioFormat};
 
 pub trait Accelerator: Send {

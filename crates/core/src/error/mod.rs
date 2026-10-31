@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[path = "tests/tests.rs"]
+mod tests;
+
 use std::fmt;
 
 use crate::i18n::tr;
