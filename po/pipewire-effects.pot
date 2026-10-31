@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PipeWire Effects 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/D1ZZY4/PipewireEffects/issues\n"
-"POT-Creation-Date: 2026-11-01 00:07+0700\n"
+"POT-Creation-Date: 2026-11-01 02:28+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2130,7 +2130,7 @@ msgid "Crystalizer"
 msgstr ""
 
 #: crates/dsp/src/effects/registry/mod.rs:178
-msgid "Four band transient emphasis"
+msgid "Thirteen band transient emphasis"
 msgstr ""
 
 #: crates/dsp/src/effects/registry/mod.rs:186
@@ -2564,35 +2564,35 @@ msgstr ""
 msgid "{0}: {1} was left at its default"
 msgstr ""
 
-#: crates/presets/src/ee/params/colour/mod.rs:81
+#: crates/presets/src/ee/params/colour/mod.rs:83
 msgid "crusher: the mode '{0}' has no equivalent here and was mapped to linear"
 msgstr ""
 
-#: crates/presets/src/ee/params/dynamics/mod.rs:196
-msgid "limiter: the reference bit depth was mapped to 16-bit dithering"
-msgstr ""
-
-#: crates/presets/src/ee/params/dynamics/mod.rs:301
+#: crates/presets/src/ee/params/dynamics/mod.rs:225
 msgid "gate: the reverse mode has no equivalent here"
 msgstr ""
 
-#: crates/presets/src/ee/params/dynamics/mod.rs:314
+#: crates/presets/src/ee/params/dynamics/mod.rs:238
 msgid "deesser: the mode '{0}' is unknown and was mapped to wideband"
 msgstr ""
 
-#: crates/presets/src/ee/params/dynamics/mod.rs:332
+#: crates/presets/src/ee/params/dynamics/mod.rs:256
 msgid ""
 "{0}: the sidechain mode '{1}' has no equivalent here and was mapped to peak"
 msgstr ""
 
-#: crates/presets/src/ee/params/dynamics/mod.rs:344
+#: crates/presets/src/ee/params/dynamics/mod.rs:268
 msgid ""
 "expander: the upward mode has no equivalent here and the downward curve was "
 "loaded"
 msgstr ""
 
-#: crates/presets/src/ee/params/dynamics/mod.rs:348
+#: crates/presets/src/ee/params/dynamics/mod.rs:272
 msgid "expander: the mode '{0}' is unknown and the downward curve was loaded"
+msgstr ""
+
+#: crates/presets/src/ee/params/dynamics/limiter.rs:71
+msgid "limiter: the reference bit depth was mapped to 16-bit dithering"
 msgstr ""
 
 #: crates/presets/src/ee/params/dynamics/sidechain/mod.rs:51
@@ -2797,48 +2797,48 @@ msgstr ""
 msgid "'{0}' has no parameter '{1}'"
 msgstr ""
 
-#: crates/ui/src/chrome/mod.rs:59
+#: crates/ui/src/chrome/mod.rs:64
 msgid "Main menu"
 msgstr ""
 
-#: crates/ui/src/chrome/mod.rs:68 crates/ui/src/chrome/mod.rs:76
+#: crates/ui/src/chrome/mod.rs:73 crates/ui/src/chrome/mod.rs:81
 msgid "Effects"
 msgstr ""
 
-#: crates/ui/src/chrome/mod.rs:74
+#: crates/ui/src/chrome/mod.rs:79
 msgid "Bypass the effect chain"
 msgstr ""
 
-#: crates/ui/src/chrome/mod.rs:78
+#: crates/ui/src/chrome/mod.rs:83
 msgid ""
 "Runs the audio through the effect chain; turn it off to bypass the chain"
 msgstr ""
 
-#: crates/ui/src/chrome/mod.rs:87 crates/ui/src/pages/mod.rs:124
+#: crates/ui/src/chrome/mod.rs:92 crates/ui/src/pages/mod.rs:124
 msgid "Devices"
 msgstr ""
 
-#: crates/ui/src/chrome/mod.rs:92 crates/ui/src/pages/mod.rs:125
+#: crates/ui/src/chrome/mod.rs:97 crates/ui/src/pages/mod.rs:125
 msgid "Preferences"
 msgstr ""
 
-#: crates/ui/src/chrome/mod.rs:97 crates/ui/src/pages/mod.rs:126
+#: crates/ui/src/chrome/mod.rs:102 crates/ui/src/pages/mod.rs:126
 msgid "Diagnostics"
 msgstr ""
 
-#: crates/ui/src/chrome/mod.rs:103
+#: crates/ui/src/chrome/mod.rs:108
 msgid "About PipeWire Effects"
 msgstr ""
 
-#: crates/ui/src/chrome/mod.rs:104
+#: crates/ui/src/chrome/mod.rs:109
 msgid "Quit"
 msgstr ""
 
-#: crates/ui/src/chrome/mod.rs:179 crates/ui/src/chrome/mod.rs:182
+#: crates/ui/src/chrome/mod.rs:206 crates/ui/src/chrome/mod.rs:209
 msgid "Show or hide the effect chain"
 msgstr ""
 
-#: crates/ui/src/chrome/mod.rs:184
+#: crates/ui/src/chrome/mod.rs:211
 msgid "Shows or hides the effect chain and preset sidebar"
 msgstr ""
 
@@ -3035,27 +3035,31 @@ msgstr ""
 msgid "Effect"
 msgstr ""
 
+#: crates/ui/src/format/mod.rs:138
+msgid "Loudness {0}"
+msgstr ""
+
 #: crates/ui/src/pages/mod.rs:116
 msgid "Dismiss"
 msgstr ""
 
-#: crates/ui/src/pages/mod.rs:221
+#: crates/ui/src/pages/mod.rs:217
 msgid "Add an effect to the chain"
 msgstr ""
 
-#: crates/ui/src/pages/mod.rs:227 crates/ui/src/pages/mod.rs:229
+#: crates/ui/src/pages/mod.rs:223 crates/ui/src/pages/mod.rs:225
 msgid "Close the effect chain"
 msgstr ""
 
-#: crates/ui/src/pages/mod.rs:234
+#: crates/ui/src/pages/mod.rs:230
 msgid "In"
 msgstr ""
 
-#: crates/ui/src/pages/mod.rs:235
+#: crates/ui/src/pages/mod.rs:231
 msgid "Out"
 msgstr ""
 
-#: crates/ui/src/pages/mod.rs:238 crates/ui/src/views/editor/mod.rs:101
+#: crates/ui/src/pages/mod.rs:234 crates/ui/src/views/editor/mod.rs:101
 msgid "Add an effect to start shaping your audio."
 msgstr ""
 
@@ -3559,8 +3563,10 @@ msgstr ""
 msgid "APO import failed: {0}"
 msgstr ""
 
-#: crates/ui/src/views/meter/mod.rs:81
-msgid "EBU R128 short-term loudness of the processed audio"
+#: crates/ui/src/views/meter/mod.rs:82
+msgid ""
+"Perceived loudness of the last three seconds. -23 LUFS is the broadcast "
+"reference; a higher number is louder."
 msgstr ""
 
 #: crates/ui/src/views/spectrum/mod.rs:56
@@ -3571,29 +3577,29 @@ msgstr ""
 msgid "Live audio spectrum"
 msgstr ""
 
-#: crates/ui/src/window/mod.rs:119
+#: crates/ui/src/window/mod.rs:131
 msgid ""
 "The echo canceller belongs to the Input chain, where the playback reference "
 "is available"
 msgstr ""
 
-#: crates/ui/src/window/mod.rs:125
+#: crates/ui/src/window/mod.rs:137
 msgid "The effect could not be added; the chain may be full"
 msgstr ""
 
-#: crates/ui/src/window/mod.rs:137
+#: crates/ui/src/window/mod.rs:149
 msgid "The microphone pipeline could not start: {0}"
 msgstr ""
 
-#: crates/ui/src/window/mod.rs:169
+#: crates/ui/src/window/mod.rs:181
 msgid "Turn on microphone processing from the main menu, under Devices"
 msgstr ""
 
-#: crates/ui/src/window/mod.rs:277
+#: crates/ui/src/window/mod.rs:289
 msgid "The chain is bypassed; switch it on to run the effects"
 msgstr ""
 
-#: crates/ui/src/window/mod.rs:279
+#: crates/ui/src/window/mod.rs:291
 msgid "The chain is running; switch it off to bypass the effects"
 msgstr ""
 

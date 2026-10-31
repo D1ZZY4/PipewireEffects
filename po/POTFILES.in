@@ -55,6 +55,7 @@ crates/presets/src/ee/mod.rs
 crates/presets/src/ee/params/mod.rs
 crates/presets/src/ee/params/colour/mod.rs
 crates/presets/src/ee/params/dynamics/mod.rs
+crates/presets/src/ee/params/dynamics/limiter.rs
 crates/presets/src/ee/params/dynamics/sidechain/mod.rs
 crates/presets/src/ee/params/equalizer/mod.rs
 crates/presets/src/ee/params/harmony/mod.rs
