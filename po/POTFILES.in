@@ -7,6 +7,7 @@ crates/dsp/src/biquad.rs
 crates/dsp/src/registry.rs
 crates/dsp/src/effects/autogain.rs
 crates/dsp/src/effects/bass_enhancer.rs
+crates/dsp/src/effects/bass_loudness.rs
 crates/dsp/src/effects/compressor.rs
 crates/dsp/src/effects/crossfeed.rs
 crates/dsp/src/effects/crosstalk.rs

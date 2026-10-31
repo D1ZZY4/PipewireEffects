@@ -88,6 +88,7 @@ pub fn effect_icon(kind: &str) -> &'static str {
         "deesser" => "pipewire-effects-deesser-symbolic",
         "autogain" => "pipewire-effects-autogain-symbolic",
         "bass_enhancer" => "pipewire-effects-bass_enhancer-symbolic",
+        "bass_loudness" => "pipewire-effects-bass_loudness-symbolic",
         "crystalizer" => "pipewire-effects-crystalizer-symbolic",
         "crusher" => "pipewire-effects-crusher-symbolic",
         "exciter" => "pipewire-effects-exciter-symbolic",

@@ -110,6 +110,7 @@ fn map_kind(kind: &str) -> Option<&'static str> {
         "filter" => "filter",
         "equalizer" => "equalizer",
         "bass_enhancer" => "bass_enhancer",
+        "bass_loudness" => "bass_loudness",
         "deesser" => "deesser",
         "compressor" => "compressor",
         "limiter" => "limiter",

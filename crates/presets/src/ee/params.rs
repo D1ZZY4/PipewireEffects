@@ -1,6 +1,7 @@
 mod colour;
 mod dynamics;
 mod equalizer;
+mod loudness;
 mod midside;
 mod multiband;
 mod pitch;
@@ -23,6 +24,7 @@ pub(super) fn convert_parameters(
         "filter" => tone::filter(parameters, warnings),
         "equalizer" => tone::equalizer(parameters, warnings),
         "bass_enhancer" => tone::bass_enhancer(parameters, warnings),
+        "bass_loudness" => loudness::bass_loudness(parameters, warnings),
         "crystalizer" => tone::crystalizer(parameters, warnings),
         "crusher" => colour::crusher(parameters, warnings),
         "crossfeed" => colour::crossfeed(parameters, warnings),

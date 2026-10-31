@@ -149,6 +149,14 @@ pub const EFFECTS: &[EffectDescriptor] = &[
         build: |params| Box::new(effects::BassEnhancer::new(params)),
     },
     EffectDescriptor {
+        id: "bass_loudness",
+        label: mark("Bass loudness"),
+        summary: mark("Equal loudness contour compensation for quiet listening levels"),
+        category: EffectCategory::Tone,
+        specs: effects::bass_loudness_specs,
+        build: |params| Box::new(effects::BassLoudness::new(params)),
+    },
+    EffectDescriptor {
         id: "crystalizer",
         label: mark("Crystalizer"),
         summary: mark("Four band transient emphasis"),

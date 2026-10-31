@@ -1,5 +1,6 @@
 mod autogain;
 mod bass_enhancer;
+mod bass_loudness;
 mod compressor;
 mod crossfeed;
 mod crossover;
@@ -32,6 +33,7 @@ mod voice_suppressor;
 
 pub use autogain::{AutoGain, specs as autogain_specs};
 pub use bass_enhancer::{BassEnhancer, specs as bass_enhancer_specs};
+pub use bass_loudness::{BassLoudness, specs as bass_loudness_specs};
 pub use compressor::{Compressor, specs as compressor_specs};
 pub use crossfeed::{Crossfeed, specs as crossfeed_specs};
 pub use crosstalk::{Crosstalk, specs as crosstalk_specs};
