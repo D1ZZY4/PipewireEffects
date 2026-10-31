@@ -45,6 +45,7 @@ pub struct Ui {
     pub diagnostics_dialog: adw::PreferencesDialog,
     diagnostics_action: gio::SimpleAction,
     pub stack: adw::ViewStack,
+    pub switcher: adw::ViewSwitcher,
     pub sidebar_stack: gtk::Stack,
     pub split: adw::OverlaySplitView,
     pipeline_guard: Cell<bool>,
@@ -73,6 +74,7 @@ impl Ui {
             diagnostics_dialog: workspace.diagnostics_dialog,
             diagnostics_action: workspace.diagnostics_action,
             stack: workspace.stack,
+            switcher: workspace.switcher,
             sidebar_stack: workspace.sidebar_stack,
             split: workspace.split,
             pipeline_guard: Cell::new(false),
@@ -88,6 +90,16 @@ impl Ui {
         ui.rebuild_editor();
         ui.start_polling();
         harness::install(&ui);
+        crate::chrome::install_adaptive(
+            &ui.window,
+            &ui.split,
+            &ui.switcher,
+            &[
+                &ui.devices_dialog,
+                &ui.preferences_dialog,
+                &ui.diagnostics_dialog,
+            ],
+        );
         ui
     }
 

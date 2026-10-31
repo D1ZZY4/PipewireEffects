@@ -2,6 +2,9 @@
 #[path = "tests/tests.rs"]
 mod tests;
 
+use std::cell::Cell;
+use std::rc::Rc;
+
 use adw::prelude::*;
 use gtk::gio;
 use gtk::glib::variant::ToVariant;
@@ -20,7 +23,9 @@ pub const MENU_ACTIONS: [(&str, &str); 3] = [
     ("diagnostics", "<primary>5"),
 ];
 
-pub const NARROW_LAYOUT: &str = "max-width: 860px";
+pub const NARROW_WIDTH: i32 = 860;
+const NARROW_DIALOG_WIDTH: i32 = 340;
+const WIDE_DIALOG_WIDTH: i32 = 520;
 
 pub fn dialog(title: &str, page: &adw::PreferencesPage) -> adw::PreferencesDialog {
     let dialog = adw::PreferencesDialog::builder()
@@ -140,37 +145,59 @@ pub fn install(
     }
 }
 
-pub fn install_breakpoint(
+pub fn is_narrow(width: i32) -> bool {
+    width > 0 && width <= NARROW_WIDTH
+}
+
+fn on_width(apply: impl Fn() + 'static) {
+    apply();
+    gtk::glib::timeout_add_local(std::time::Duration::from_millis(200), move || {
+        apply();
+        gtk::glib::ControlFlow::Continue
+    });
+}
+
+pub fn install_adaptive(
     window: &adw::ApplicationWindow,
     split: &adw::OverlaySplitView,
     switcher: &adw::ViewSwitcher,
-) {
-    let Ok(condition) = adw::BreakpointCondition::parse(NARROW_LAYOUT) else {
-        return;
-    };
-    let breakpoint = adw::Breakpoint::new(condition);
-    breakpoint.add_setter(split, "collapsed", Some(&true.to_value()));
-    breakpoint.add_setter(split, "show-sidebar", Some(&false.to_value()));
-    breakpoint.add_setter(
-        switcher,
-        "policy",
-        Some(&adw::ViewSwitcherPolicy::Narrow.to_value()),
-    );
-    window.add_breakpoint(breakpoint);
-}
-
-pub fn install_dialog_breakpoint(
-    window: &adw::ApplicationWindow,
     dialogs: &[&adw::PreferencesDialog],
 ) {
-    let Ok(condition) = adw::BreakpointCondition::parse(NARROW_LAYOUT) else {
-        return;
-    };
-    let breakpoint = adw::Breakpoint::new(condition);
-    for dialog in dialogs {
-        breakpoint.add_setter(*dialog, "content-width", Some(&340i32.to_value()));
-    }
-    window.add_breakpoint(breakpoint);
+    let state: Rc<Cell<Option<bool>>> = Rc::new(Cell::new(None));
+    let split = split.clone();
+    let switcher = switcher.clone();
+    let dialogs: Vec<adw::PreferencesDialog> =
+        dialogs.iter().map(|dialog| (*dialog).clone()).collect();
+    let window = window.clone();
+    on_width(move || {
+        let width = if window.width() > 0 {
+            window.width()
+        } else {
+            window.default_width()
+        };
+        if width <= 0 {
+            return;
+        }
+        let narrow = is_narrow(width);
+        if state.get() != Some(narrow) {
+            state.set(Some(narrow));
+            split.set_collapsed(narrow);
+            split.set_show_sidebar(!narrow);
+            switcher.set_policy(if narrow {
+                adw::ViewSwitcherPolicy::Narrow
+            } else {
+                adw::ViewSwitcherPolicy::Wide
+            });
+            let content = if narrow {
+                NARROW_DIALOG_WIDTH
+            } else {
+                WIDE_DIALOG_WIDTH
+            };
+            for dialog in &dialogs {
+                dialog.set_content_width(content);
+            }
+        }
+    });
 }
 
 pub fn sidebar_toggle(split: &adw::OverlaySplitView) -> gtk::ToggleButton {
