@@ -54,6 +54,7 @@ crates/presets/src/ee/params/equalizer.rs
 crates/presets/src/ee/params/harmony.rs
 crates/presets/src/ee/params/level.rs
 crates/presets/src/ee/params/multiband.rs
+crates/presets/src/ee/params/pitch.rs
 crates/presets/src/ee/params/time.rs
 crates/presets/src/ee/params/tone.rs
 crates/presets/src/error.rs
