@@ -175,7 +175,7 @@ pub const EFFECTS: &[EffectDescriptor] = &[
     EffectDescriptor {
         id: "crystalizer",
         label: mark("Crystalizer"),
-        summary: mark("Four band transient emphasis"),
+        summary: mark("Thirteen band transient emphasis"),
         category: EffectCategory::Tone,
         specs: effects::crystalizer_specs,
         build: |params| Box::new(effects::Crystalizer::new(params)),
