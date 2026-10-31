@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
   <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-opacity="0.38">
-    <path d="M3 2.2v11.6M8 2.2v11.6M13 2.2v11.6"/>
+    <path class="transparent-fill foreground-stroke" d="M3 2.2v11.6M8 2.2v11.6M13 2.2v11.6"/>
   </g>
   <g fill="currentColor">
-    <rect x="0.7" y="3.6" width="4.6" height="3.2" rx="1.6"/>
-    <rect x="5.7" y="9.4" width="4.6" height="3.2" rx="1.6"/>
-    <rect x="10.7" y="6.4" width="4.6" height="3.2" rx="1.6"/>
+    <rect class="foreground-fill" x="0.7" y="3.6" width="4.6" height="3.2" rx="1.6"/>
+    <rect class="foreground-fill" x="5.7" y="9.4" width="4.6" height="3.2" rx="1.6"/>
+    <rect class="foreground-fill" x="10.7" y="6.4" width="4.6" height="3.2" rx="1.6"/>
   </g>
 </svg>

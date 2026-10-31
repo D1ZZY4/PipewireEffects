@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
-  <circle cx="8" cy="8" r="2.2" fill="currentColor"/>
+  <circle class="foreground-fill" cx="8" cy="8" r="2.2" fill="currentColor"/>
   <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M5.4 4 2.2 8l3.2 4"/>
-    <path d="M10.6 4 13.8 8l-3.2 4"/>
+    <path class="transparent-fill foreground-stroke" d="M5.4 4 2.2 8l3.2 4"/>
+    <path class="transparent-fill foreground-stroke" d="M10.6 4 13.8 8l-3.2 4"/>
   </g>
 </svg>
