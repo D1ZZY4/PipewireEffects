@@ -221,9 +221,23 @@ fn content_that_cannot_be_mapped_is_reported() {
     assert!(reported.contains("hysteresis"), "{warnings:?}");
     assert!(reported.contains("dry-l"), "{warnings:?}");
     assert!(reported.contains("room-size"), "{warnings:?}");
-    assert!(reported.contains("diffusion"), "{warnings:?}");
     assert!(reported.contains("stereo-base"), "{warnings:?}");
     assert!(reported.contains("curve-zone"), "{warnings:?}");
+}
+
+#[test]
+fn the_reverb_tone_controls_are_transferred() {
+    let value: Value = serde_json::from_str(
+        r#"{ "output": { "plugins_order": ["reverb#0"],
+             "reverb#0": { "diffusion": 0.25, "bass-cut": 200.0, "treble-cut": 4000.0 } } }"#,
+    )
+    .unwrap();
+    let (preset, warnings) = convert(&value, "Reverb").unwrap();
+    assert!(warnings.is_empty(), "{warnings:?}");
+    let params = params_of(&preset, "reverb");
+    assert!((as_float(&params, "diffusion") - 25.0).abs() < 1.0e-6);
+    assert!((as_float(&params, "bass_cut") - 200.0).abs() < 1.0e-6);
+    assert!((as_float(&params, "treble_cut") - 4000.0).abs() < 1.0e-6);
 }
 
 const BOTH_SECTIONS: &str = r#"{

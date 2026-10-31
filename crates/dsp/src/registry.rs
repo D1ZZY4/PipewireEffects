@@ -223,7 +223,7 @@ pub const EFFECTS: &[EffectDescriptor] = &[
     EffectDescriptor {
         id: "reverb",
         label: mark("Reverberation"),
-        summary: mark("Freeverb style room with pre-delay, damping and width"),
+        summary: mark("Freeverb style room with pre-delay, diffusion, damping and a tone stage"),
         category: EffectCategory::Time,
         specs: effects::reverb_specs,
         build: |params| Box::new(effects::Reverb::new(params)),

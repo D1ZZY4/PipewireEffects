@@ -1,7 +1,12 @@
 use pwe_core::{AudioBuffer, AudioFormat, Effect, ParamSet, ParamSpec, ParamUnit, math};
 
+use crate::biquad::{Biquad, Coefficients, FilterKind};
 use crate::effects::util::MAX_CHANNELS;
 use crate::knob::Knob;
+
+mod parts;
+
+use parts::{AllPass, Comb};
 
 const COMB_TUNING: [usize; 8] = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617];
 const ALLPASS_TUNING: [usize; 4] = [556, 441, 341, 225];
@@ -21,10 +26,25 @@ pub fn specs() -> Vec<ParamSpec> {
             .step(1.0)
             .group("Room")
             .build(),
+        ParamSpec::float("diffusion", "Diffusion", ParamUnit::Percent)
+            .range(0.0, 100.0, 50.0)
+            .step(1.0)
+            .group("Room")
+            .build(),
         ParamSpec::float("pre_delay", "Pre-delay", ParamUnit::Milliseconds)
             .range(0.0, 200.0, 20.0)
             .step(1.0)
             .group("Room")
+            .build(),
+        ParamSpec::float("bass_cut", "Bass cut", ParamUnit::Hertz)
+            .range(20.0, 1000.0, 300.0)
+            .logarithmic()
+            .group("Tone")
+            .build(),
+        ParamSpec::float("treble_cut", "Treble cut", ParamUnit::Hertz)
+            .range(1000.0, 20_000.0, 5000.0)
+            .logarithmic()
+            .group("Tone")
             .build(),
         ParamSpec::float("width", "Width", ParamUnit::Percent)
             .range(0.0, 100.0, 100.0)
@@ -44,107 +64,20 @@ pub fn specs() -> Vec<ParamSpec> {
     ]
 }
 
-#[derive(Debug)]
-struct Comb {
-    buffer: Vec<f32>,
-    length: usize,
-    index: usize,
-    filter_state: f32,
-    feedback: f32,
-    damping: f32,
-}
-
-impl Comb {
-    fn new(capacity: usize) -> Self {
-        let capacity = capacity.max(1);
-        Self {
-            buffer: vec![0.0; capacity],
-            length: capacity,
-            index: 0,
-            filter_state: 0.0,
-            feedback: 0.5,
-            damping: 0.5,
-        }
-    }
-
-    fn set_length(&mut self, length: usize) {
-        let length = length.clamp(1, self.buffer.len());
-        if length != self.length {
-            self.length = length;
-            self.index %= length;
-        }
-    }
-
-    fn process(&mut self, input: f32) -> f32 {
-        let output = self.buffer[self.index];
-        self.filter_state =
-            math::sanitize(output * (1.0 - self.damping) + self.filter_state * self.damping);
-        self.buffer[self.index] = math::sanitize(input + self.filter_state * self.feedback);
-        self.index += 1;
-        if self.index >= self.length {
-            self.index = 0;
-        }
-        output
-    }
-
-    fn reset(&mut self) {
-        self.buffer.fill(0.0);
-        self.filter_state = 0.0;
-        self.index = 0;
-    }
-}
-
-#[derive(Debug)]
-struct AllPass {
-    buffer: Vec<f32>,
-    length: usize,
-    index: usize,
-}
-
-impl AllPass {
-    fn new(capacity: usize) -> Self {
-        let capacity = capacity.max(1);
-        Self {
-            buffer: vec![0.0; capacity],
-            length: capacity,
-            index: 0,
-        }
-    }
-
-    fn set_length(&mut self, length: usize) {
-        let length = length.clamp(1, self.buffer.len());
-        if length != self.length {
-            self.length = length;
-            self.index %= length;
-        }
-    }
-
-    fn process(&mut self, input: f32) -> f32 {
-        let buffered = self.buffer[self.index];
-        let output = -input + buffered;
-        self.buffer[self.index] = math::sanitize(input + buffered * 0.5);
-        self.index += 1;
-        if self.index >= self.length {
-            self.index = 0;
-        }
-        output
-    }
-
-    fn reset(&mut self) {
-        self.buffer.fill(0.0);
-        self.index = 0;
-    }
-}
-
 pub struct Reverb {
     room_size: Knob,
     damping: Knob,
+    diffusion: Knob,
     pre_delay: Knob,
+    bass_cut: Knob,
+    treble_cut: Knob,
     width: Knob,
     wet: Knob,
     dry: Knob,
     combs: [[Comb; 8]; 2],
     allpasses: [[AllPass; 4]; 2],
+    tone: [[Biquad; 2]; 2],
+    tone_signature: [u32; 4],
     pre_delay_buffer: Vec<f32>,
     pre_delay_index: usize,
     rate: u32,
@@ -168,16 +101,55 @@ impl Reverb {
         Self {
             room_size: Knob::new(&params, "room_size", 60.0),
             damping: Knob::new(&params, "damping", 50.0),
+            diffusion: Knob::new(&params, "diffusion", 50.0),
             pre_delay: Knob::new(&params, "pre_delay", 20.0),
+            bass_cut: Knob::new(&params, "bass_cut", 300.0),
+            treble_cut: Knob::new(&params, "treble_cut", 5000.0),
             width: Knob::new(&params, "width", 100.0),
             wet: Knob::new(&params, "wet", -6.0),
             dry: Knob::new(&params, "dry", 0.0),
             combs,
             allpasses,
+            tone: std::array::from_fn(|_| {
+                std::array::from_fn(|_| {
+                    Biquad::new(Coefficients::design(
+                        FilterKind::LowPass,
+                        48_000.0,
+                        20_000.0,
+                        0.707,
+                        0.0,
+                    ))
+                })
+            }),
+            tone_signature: [0; 4],
             pre_delay_buffer: vec![0.0; MAX_PRE_DELAY * 2],
             pre_delay_index: 0,
             rate: 48_000,
             dirty: true,
+        }
+    }
+
+    fn tune_tone(&mut self, bass_cut: f32, treble_cut: f32) {
+        let wanted = [bass_cut.to_bits(), treble_cut.to_bits(), self.rate, 0];
+        if wanted == self.tone_signature {
+            return;
+        }
+        self.tone_signature = wanted;
+        for channel in &mut self.tone {
+            channel[0] = Biquad::new(Coefficients::design(
+                FilterKind::HighPass,
+                self.rate as f32,
+                bass_cut,
+                0.707,
+                0.0,
+            ));
+            channel[1] = Biquad::new(Coefficients::design(
+                FilterKind::LowPass,
+                self.rate as f32,
+                treble_cut,
+                0.707,
+                0.0,
+            ));
         }
     }
 
@@ -218,6 +190,11 @@ impl Effect for Reverb {
                 allpass.reset();
             }
         }
+        for channel in &mut self.tone {
+            for filter in channel {
+                filter.reset();
+            }
+        }
         self.pre_delay_buffer.fill(0.0);
         self.pre_delay_index = 0;
     }
@@ -229,6 +206,8 @@ impl Effect for Reverb {
         }
         let feedback = 0.7 + 0.28 * (self.room_size.value() / 100.0).clamp(0.0, 1.0);
         let damping = (self.damping.value() / 100.0).clamp(0.0, 0.99) * 0.4;
+        let diffusion = 0.2 + 0.5 * (self.diffusion.value() / 100.0).clamp(0.0, 1.0);
+        self.tune_tone(self.bass_cut.value(), self.treble_cut.value());
         let width = (self.width.value() / 100.0).clamp(0.0, 1.0);
         let wet = math::db_to_gain(self.wet.value());
         let dry = math::db_to_gain(self.dry.value());
@@ -241,6 +220,9 @@ impl Effect for Reverb {
             for comb in self.combs[channel].iter_mut() {
                 comb.feedback = feedback;
                 comb.damping = damping;
+            }
+            for allpass in self.allpasses[channel].iter_mut() {
+                allpass.feedback = diffusion;
             }
         }
 
@@ -264,6 +246,9 @@ impl Effect for Reverb {
                 }
                 for allpass in self.allpasses[channel].iter_mut() {
                     sum = allpass.process(sum);
+                }
+                for filter in self.tone[channel].iter_mut() {
+                    sum = filter.process(sum);
                 }
                 *slot = sum;
             }

@@ -16,8 +16,11 @@ const REVERB_KEYS: &[&str] = &[
     "predelay",
     "decay-time",
     "hf-damp",
+    "diffusion",
     "amount",
     "dry",
+    "bass-cut",
+    "treble-cut",
 ];
 
 const WET_KEYS: [&str; 3] = ["wet-l", "wet-r", "wet"];
@@ -70,6 +73,21 @@ pub(super) fn reverb(
     );
     put(&mut params, "wet", number(parameters, "amount", -12.0));
     put(&mut params, "dry", number(parameters, "dry", 0.0));
+    put(
+        &mut params,
+        "diffusion",
+        (number(parameters, "diffusion", 0.5) * 100.0).clamp(0.0, 100.0),
+    );
+    put(
+        &mut params,
+        "bass_cut",
+        number(parameters, "bass-cut", 300.0),
+    );
+    put(
+        &mut params,
+        "treble_cut",
+        number(parameters, "treble-cut", 5_000.0),
+    );
     params
 }
 

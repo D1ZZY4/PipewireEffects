@@ -38,6 +38,34 @@ fn reverb() -> Reverb {
 }
 
 #[test]
+fn the_tone_filters_shape_the_wet_signal() {
+    let wide = {
+        let params = ParamSet::new(reverb_specs());
+        params.set_f32("bass_cut", 20.0).unwrap();
+        params.set_f32("treble_cut", 20_000.0).unwrap();
+        let mut effect = Reverb::new(params);
+        effect.prepare(AudioFormat::new(48_000, 2));
+        let mut buffer = burst(2048);
+        effect.process(&mut buffer);
+        tail_energy(&mut effect, 200)
+    };
+    let narrowed = {
+        let params = ParamSet::new(reverb_specs());
+        params.set_f32("bass_cut", 1000.0).unwrap();
+        params.set_f32("treble_cut", 1500.0).unwrap();
+        let mut effect = Reverb::new(params);
+        effect.prepare(AudioFormat::new(48_000, 2));
+        let mut buffer = burst(2048);
+        effect.process(&mut buffer);
+        tail_energy(&mut effect, 200)
+    };
+    assert!(
+        narrowed < wide * 0.9,
+        "the tone filters did not narrow the tail: {narrowed} against {wide}"
+    );
+}
+
+#[test]
 fn a_burst_leaves_an_audible_tail() {
     let mut effect = reverb();
     let mut buffer = burst(2048);
@@ -92,6 +120,8 @@ fn the_pre_delay_does_not_leak_one_channel_into_the_other() {
     params.set_f32("dry", -60.0).unwrap();
     params.set_f32("wet", 0.0).unwrap();
     params.set_f32("width", 100.0).unwrap();
+    params.set_f32("bass_cut", 20.0).unwrap();
+    params.set_f32("treble_cut", 20_000.0).unwrap();
     let mut effect = Reverb::new(params);
     effect.prepare(AudioFormat::new(48_000, 2));
 
