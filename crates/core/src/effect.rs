@@ -16,4 +16,8 @@ pub trait Effect: Send {
     fn elementwise_gain(&mut self) -> Option<f32> {
         None
     }
+
+    fn latency_frames(&self) -> usize {
+        0
+    }
 }

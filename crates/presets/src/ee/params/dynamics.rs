@@ -23,7 +23,14 @@ const COMPRESSOR_KEYS: &[&str] = &[
     "lpf-frequency",
 ];
 
-const LIMITER_KEYS: &[&str] = &["bypass", "input-gain", "threshold", "release"];
+const LIMITER_KEYS: &[&str] = &[
+    "bypass",
+    "input-gain",
+    "threshold",
+    "release",
+    "lookahead",
+    "stereoLink",
+];
 
 const GATE_KEYS: &[&str] = &[
     "bypass",
@@ -108,6 +115,16 @@ pub(super) fn limiter(
     let mut params = BTreeMap::new();
     put(&mut params, "limit", number(parameters, "threshold", 0.0));
     put(&mut params, "release", number(parameters, "release", 5.0));
+    put(
+        &mut params,
+        "lookahead",
+        number(parameters, "lookahead", 5.0),
+    );
+    put(
+        &mut params,
+        "stereo_link",
+        number(parameters, "stereoLink", 100.0),
+    );
     put(
         &mut params,
         "input_gain",

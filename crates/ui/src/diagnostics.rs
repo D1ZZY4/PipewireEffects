@@ -18,6 +18,7 @@ pub struct Diagnostics {
     underrun_row: adw::ActionRow,
     overrun_row: adw::ActionRow,
     trim_row: adw::ActionRow,
+    latency_row: adw::ActionRow,
     gpu_blocks_row: adw::ActionRow,
     gpu_fallbacks_row: adw::ActionRow,
     gpu_disagreements_row: adw::ActionRow,
@@ -46,6 +47,7 @@ impl Diagnostics {
         let underrun_row = value_row(t("Underruns"));
         let overrun_row = value_row(t("Overruns"));
         let trim_row = value_row(t("Drift trims"));
+        let latency_row = value_row(t("Chain latency"));
         let gpu_blocks_row = value_row(t("GPU blocks"));
         let gpu_fallbacks_row = value_row(t("GPU fallbacks"));
         let gpu_disagreements_row = value_row(t("GPU disagreements"));
@@ -63,6 +65,7 @@ impl Diagnostics {
             &underrun_row,
             &overrun_row,
             &trim_row,
+            &latency_row,
             &gpu_blocks_row,
             &gpu_fallbacks_row,
             &gpu_disagreements_row,
@@ -100,6 +103,7 @@ impl Diagnostics {
             underrun_row,
             overrun_row,
             trim_row,
+            latency_row,
             gpu_blocks_row,
             gpu_fallbacks_row,
             gpu_disagreements_row,
@@ -174,6 +178,16 @@ impl Diagnostics {
             .set_subtitle(&t_samples(stats.overrun_samples));
         self.trim_row
             .set_subtitle(&format::grouped(stats.trim_events));
+        self.latency_row
+            .set_subtitle(&if stats.chain_latency_frames == 0 {
+                "—".to_owned()
+            } else {
+                format!(
+                    "{} · {}",
+                    t_frames(stats.chain_latency_frames),
+                    format::duration_text(stats.chain_latency_frames, snapshot.sample_rate)
+                )
+            });
         self.gpu_blocks_row
             .set_subtitle(&format::grouped(stats.gpu_blocks));
         self.gpu_fallbacks_row

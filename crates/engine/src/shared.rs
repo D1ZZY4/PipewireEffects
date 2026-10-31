@@ -60,6 +60,7 @@ pub struct Stats {
     trim_events: AtomicU64,
     buffer_frames: AtomicU64,
     ring_occupancy: AtomicU64,
+    chain_latency_frames: AtomicU64,
     gpu_blocks: AtomicU64,
     gpu_fallbacks: AtomicU64,
     gpu_disagreements: AtomicU64,
@@ -74,6 +75,7 @@ pub struct StatsSnapshot {
     pub trim_events: u64,
     pub buffer_frames: u64,
     pub ring_occupancy: u64,
+    pub chain_latency_frames: u64,
     pub gpu_blocks: u64,
     pub gpu_fallbacks: u64,
     pub gpu_disagreements: u64,
@@ -87,6 +89,7 @@ impl Stats {
     counter!(trim_events);
     counter!(buffer_frames);
     counter!(ring_occupancy);
+    counter!(chain_latency_frames);
     counter!(gpu_blocks);
     counter!(gpu_fallbacks);
     counter!(gpu_disagreements);
@@ -119,6 +122,10 @@ impl Stats {
         self.ring_occupancy.store(samples, Ordering::Relaxed);
     }
 
+    pub fn set_chain_latency_frames(&self, frames: u64) {
+        self.chain_latency_frames.store(frames, Ordering::Relaxed);
+    }
+
     pub fn record_gpu_block(&self) {
         self.gpu_blocks.fetch_add(1, Ordering::Relaxed);
     }
@@ -140,6 +147,7 @@ impl Stats {
             trim_events: self.trim_events(),
             buffer_frames: self.buffer_frames(),
             ring_occupancy: self.ring_occupancy(),
+            chain_latency_frames: self.chain_latency_frames(),
             gpu_blocks: self.gpu_blocks(),
             gpu_fallbacks: self.gpu_fallbacks(),
             gpu_disagreements: self.gpu_disagreements(),

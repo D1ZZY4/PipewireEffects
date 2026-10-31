@@ -77,7 +77,7 @@ pub const EFFECTS: &[EffectDescriptor] = &[
     EffectDescriptor {
         id: "limiter",
         label: mark("Limiter"),
-        summary: mark("Instant attack limiter with a hard ceiling and a release stage"),
+        summary: mark("Lookahead peak limiter with a hard ceiling, a release and a stereo link"),
         category: EffectCategory::Dynamics,
         specs: effects::limiter_specs,
         build: |params| Box::new(effects::Limiter::new(params)),

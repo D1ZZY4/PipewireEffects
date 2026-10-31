@@ -75,6 +75,9 @@ impl Processor {
     ) {
         self.drain_commands();
         self.follow_rate();
+        self.shared
+            .stats()
+            .set_chain_latency_frames(self.chain.latency_frames() as u64);
         let channels = self.channels;
         let wanted = (frames * channels).min(self.scratch.len());
         self.trim(consumer);

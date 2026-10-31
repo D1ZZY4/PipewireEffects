@@ -240,6 +240,20 @@ fn the_reverb_tone_controls_are_transferred() {
     assert!((as_float(&params, "treble_cut") - 4000.0).abs() < 1.0e-6);
 }
 
+#[test]
+fn the_limiter_lookahead_and_stereo_link_are_transferred() {
+    let value: Value = serde_json::from_str(
+        r#"{ "output": { "plugins_order": ["limiter#0"],
+             "limiter#0": { "threshold": -2.0, "lookahead": 8.0, "stereoLink": 40.0 } } }"#,
+    )
+    .unwrap();
+    let (preset, warnings) = convert(&value, "Limiter").unwrap();
+    assert!(warnings.is_empty(), "{warnings:?}");
+    let params = params_of(&preset, "limiter");
+    assert!((as_float(&params, "lookahead") - 8.0).abs() < 1.0e-6);
+    assert!((as_float(&params, "stereo_link") - 40.0).abs() < 1.0e-6);
+}
+
 const BOTH_SECTIONS: &str = r#"{
       "output": {
         "plugins_order": ["limiter#0"],
