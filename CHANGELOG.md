@@ -13,6 +13,21 @@ keeps working in the next.
 
 ### Added
 
+- A partitioned FFT convolver with five built-in responses (*Small room*,
+  *Bright hall*, *Dark hall*, *Plate* and *Vocal booth*), wet/dry, width, auto
+  gain and a declared 256-frame latency. It is a real uniform overlap-save
+  convolution, checked against direct convolution sample by sample; it does not
+  load external IRS files or SOFA responses.
+- An echo canceller for the input pipeline: a normalised-LMS adaptive filter
+  that subtracts the playback leaking into the microphone, with *Echo delay*,
+  *Filter length*, *Adaptation*, *Mix* and *Output gain*. The far-end reference
+  comes from the output pipeline through a new lock-free stereo bus in the
+  engine, so neither pipeline blocks the other. It is not WebRTC and has no delay
+  estimation or double-talk detector.
+- Spectrum display options: *Shape* (bars, line, filled line), *Resolution*
+  (24, 48 or 96 points), *Height* (compact, normal, tall) and *Frequency range*
+  (20 Hz to 20 kHz, 10 kHz or 5 kHz), all persisted in the settings document and
+  applied to both pipelines alongside the existing decibel range.
 - A thirty-band equalizer: the effect covers 20 Hz to 16 kHz in third-octave
   steps instead of ten octave bands, and the editor splits the bands into
   *Lows*, *Mids* and *Highs* so the page stays navigable. The ten original bands

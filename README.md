@@ -22,7 +22,7 @@ applications can record from.
 
 ## Effects
 
-Thirty effects, each with real processing and a generated control surface:
+Thirty-three effects, each with real processing and a generated control surface:
 
 | Effect | What it does |
 |---|---|
@@ -56,6 +56,8 @@ Thirty effects, each with real processing and a generated control surface:
 | **Gain** | A gain stage with mute |
 | **Delay** | Independent left/right delay with feedback, ping-pong and a tempo division |
 | **Reverberation** | Freeverb-style room with six room characters, pre-delay, diffusion, damping, a high/low-pass tone stage and width |
+| **Convolver** | Partitioned FFT convolution with five built-in room responses, wet/dry, width and auto gain |
+| **Echo canceller** | An adaptive filter that subtracts the playback leaking into the microphone, using the output pipeline as its far-end reference |
 
 Around them:
 
@@ -73,7 +75,8 @@ Around them:
   presets load too, both sections, converted on the way in.
 - Live input and output meters (peak with an RMS marker) for the pipeline you are
   editing, an EBU R128 short-term loudness readout on the output card, and a live
-  spectrum of the same signal, both above the effect editor.
+  spectrum of the same signal, both above the effect editor. The spectrum's
+  shape, resolution, height and frequency range are chosen in Preferences.
 - Honest counters: captured and processed frames, underruns, overruns, drift
   trims and the chain's own latency, plus a diagnostics list.
 - Remembered settings: the device of each pipeline, the loaded preset and the
@@ -284,13 +287,14 @@ cargo test --workspace
 ```
 
 A reproducible CPU baseline, which prints microseconds per block and the realtime
-factor for each effect and for the full thirty-effect chain
+factor for each effect and for the heaviest sixteen-effect chain the application
+can build, plus the thirty-three-effect figure for information
 
 ```sh
 cargo test --release -p pwe-dsp --test benchmark -- --ignored --nocapture
 ```
 
-504 tests, none of which need an audio device or a display; the two
+536 tests, none of which need an audio device or a display; the two
 icon lookups skip themselves when no display is available. They cover biquad
 designs against their analytic magnitude response, the effects against measured
 signal levels and numerical bounds, the analyser's bands against the level of a
@@ -393,16 +397,27 @@ Working, and honest about the gaps:
   recomputed every third block, at a cost of 0.55 % of one core per pipeline. It
   reports band power, so it agrees with the meters on a tone. The bands below
   about 60 Hz are narrower than the window's resolution and are normalised to the
-  analysis bandwidth rather than resolved, exactly as the reference does.
+  analysis bandwidth rather than resolved, exactly as the reference does. Its
+  shape, resolution, height and frequency range are display choices; the
+  transform itself stays fixed at 48 bands.
+- The convolver is a real partitioned FFT convolution, but it ships five
+  synthesised responses instead of loading IRS files or SOFA responses, so it
+  cannot reproduce a measured room or cabinet.
+- The echo canceller is a native normalised-LMS filter, not WebRTC. It needs the
+  Output pipeline's reference, so it only runs on the Input chain; it has no
+  delay estimation (the *Echo delay* parameter tells it where to look), no
+  double-talk detector and no residual echo suppression.
 - Noise reduction is RNNoise, through the `nnnoiseless` crate. It runs the
   standard model and therefore processes only at 48 kHz; at any other graph rate
   it passes the signal through untouched and reports that instead of pretending to
   filter it. Custom `.rnn` model files are not loaded, and the reference's
   `release` grace period becomes a fixed release on the gate.
 - The plugin-based and deep-learning effects of EasyEffects are not
-  implemented. `docs/feature-matrix.md` lists every one with its status and,
-  for the ones that need a third-party library, records that the library is
-  installed here and the code was simply not written.
+  implemented. `docs/feature-matrix.md` lists every one with its status and the
+  exact reason: LV2/LADSPA hosting is excluded by the self-contained Rust scope,
+  deep noise removal is blocked by the missing ONNX runtime and model files, and
+  the convolver and the echo canceller are implemented natively with the
+  reductions recorded above instead of hosting zita-convolver or WebRTC.
 
 ## Translations
 

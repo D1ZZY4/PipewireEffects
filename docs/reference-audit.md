@@ -171,7 +171,16 @@ in `docs/feature-matrix.md`:
 
 - LV2/LADSPA plugin hosting (would require `lilv` and a plugin graph; the
   project's goal is a self-contained Rust application).
-- FFT convolution (needs an FFT dependency and impulse-response management).
+- FFT convolution through zita-convolver and libmysofa. A partitioned convolver
+  is implemented here with the project's own FFT and five synthesised responses
+  (`crates/dsp/src/effects/convolver/`); user IRS files, SOFA orientation and
+  kernel combining are not adopted, because the reference's implementation is
+  zita plus libsndfile and this project has neither.
+- The WebRTC far-end echo canceller. A native normalised-LMS canceller is
+  implemented here (`crates/dsp/src/effects/echo_canceller/`) and takes its
+  far-end reference from the output pipeline through a lock-free bus; it does not
+  adopt webrtc-audio-processing, delay estimation, double-talk detection, noise
+  suppression, AGC or the mobile mode.
 - Deep-learning noise suppression (needs ONNX model files and a runtime). RNNoise
   is the exception: it was adopted, through the `nnnoiseless` crate, because it is
   plain Rust with no model file to install.
@@ -224,7 +233,7 @@ The reference directory was not modified at any point.
 | Reference behaviour | Decision here |
 |---|---|
 | One `pw_filter` per effect | `pipewire-rs` 0.10 exposes no `pw_filter` binding; two `pw_stream`s with a ring buffer are used instead. Documented in `docs/architecture.md`. |
-| A mutex and a worker object around every effect | The audio thread here allocates nothing, locks nothing and frees nothing; parameters are atomics and structure changes travel through a bounded lock-free queue. |
+| A mutex and a worker object around every effect | The audio thread here allocates nothing, locks nothing and frees nothing; parameters are atomics, structure changes travel through a bounded lock-free queue, and the echo canceller's far-end reference travels through a lock-free ring of atomic words. |
 | Third-party plugin wrappers | Replaced with native Rust DSP for a self-contained binary; the plugin-based effects are listed as unimplemented rather than faked. |
 | 30-band equalizer with per-band type/Q and channel splitting | A 30-band third-octave equalizer (20 Hz – 16 kHz) with a shared bandwidth and output gain. Per-band type and Q and the channel split remain reductions, recorded in the matrix. |
 | EBU R128 loudness (libebur128) | Implemented here from scratch: `crates/dsp/src/analysis/r128/mod.rs` applies the ITU-R BS.1770 K-weighting for the running sample rate, 400 ms blocks at a 100 ms hop, the absolute −70 LUFS and relative −10 LU gates, and the −0.691 offset, over a rolling 30-second window. Auto gain drives its gain from that measurement. |

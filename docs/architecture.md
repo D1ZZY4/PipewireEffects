@@ -15,10 +15,10 @@ pwe-core  ◄── pwe-services ───────────────�
 | Crate | Owns | Does not know about |
 |---|---|---|
 | `pwe-core` | Audio buffers, parameter specifications, the effect contract, the chain, meters, realtime-safe helpers, the pipeline kinds | PipeWire, GTK, files |
-| `pwe-dsp` | The FFT, the Linkwitz-Riley crossover, the biquad design, the thirty effects, the spectrum analyser, the R128 loudness measurement and the effect registry | Threads, devices, presets |
+| `pwe-dsp` | The FFT, the partitioned convolver, the Linkwitz-Riley crossover, the biquad design, the thirty-three effects, the adaptive echo canceller, the spectrum analyser, the R128 loudness measurement and the effect registry | Threads, devices, presets |
 | `pwe-presets` | The preset schema, name validation and the preset directory | Which effects exist (in production code; its tests take `pwe-dsp` as a dev-dependency so the built-in presets can be checked against the registry) |
 | `pwe-services` | The settings document, its atomic store and the autostart entry | The engine, the interface, the effects |
-| `pwe-engine` | PipeWire streams, the virtual sink and source, the destination device, the realtime processor, the spectrum snapshot and the compute backends (`cpu`, `gpu`), counters | GTK, presets, services |
+| `pwe-engine` | PipeWire streams, the virtual sink and source, the destination device, the realtime processor, the stereo reference bus between the two pipelines, the spectrum snapshot and the compute backends (`cpu`, `gpu`), counters | GTK, presets, services |
 | `pwe-ui` | GTK4/libadwaita widgets, the chain model, the engine bridge | DSP internals |
 | `pipewire-effects` | Process entry point and the command line | Everything else |
 
@@ -42,9 +42,11 @@ crate/src/
 
 A module's tests live in `tests/tests.rs` and are declared with
 `#[cfg(test)] #[path = "tests/tests.rs"] mod tests;`, so `cargo test` still
-runs them as `<module>::tests::*`. `crates/ui/src/views/chain_view/` is the one
-module with no tests of its own, because it only assembles GTK widgets; its
-behaviour is exercised through the interface instead. The crate-level
+runs them as `<module>::tests::*`. The modules that only assemble GTK widgets
+(`crates/ui/src/views/chain_view/`, `crates/ui/src/window/desktop.rs`,
+`crates/ui/src/window/spectrum.rs`, `crates/ui/src/preferences/spectrum.rs` and
+`crates/ui/src/state/spectrum.rs`) carry no tests of their own; their behaviour
+is exercised through the interface instead. The crate-level
 integration tests stay where Cargo expects them (`crates/dsp/tests/`,
 `crates/engine/tests/`).
 
@@ -116,6 +118,18 @@ session would silently scale everything entering the chain. These nodes are
 internal, they must pass audio at unity gain, and the device each stream is
 linked to is chosen by this application, not restored from metadata.
 
+The two pipelines also share one stereo **reference bus** (`crates/engine/src/reference/mod.rs`).
+The output processor publishes the audio it has just processed into a
+lock-free ring of `AtomicU32` bit patterns, and the input processor reads the
+oldest frames from it and passes them to the chain as the far-end reference.
+The echo canceller is the only effect that consumes it: it subtracts the
+playback that leaks into the microphone. The bus is a fixed ring of 32 768 stereo frames (about 0.7 s at 48 kHz). When
+the reader has not caught up, the producer drops the new block rather than
+overwriting frames the reader may be in the middle of, and the input processor
+clears the bus when it attaches so it never starts on stale audio. A read with
+no data returns silence. No ownership is transferred, so either pipeline can
+start, stop or restart without disturbing the other.
+
 A ring buffer between the two streams of each pipeline absorbs scheduling
 jitter. The alternative - one `pw_filter` node per effect, linked with
 `link-factory`, exactly as the reference implementation does it - would remove
@@ -169,6 +183,12 @@ processing buffer; a larger graph quantum is split rather than truncating.
 **Changes are cheap.** Coefficient recomputation happens inside `process` when a
 parameter signature changes. It is arithmetic only: no allocation, no I/O, no
 logging, no system calls.
+
+**The reference bus is lock-free.** The output pipeline writes the processed
+stereo frames to a fixed ring of atomic words and the input pipeline reads
+them; there is no mutex, no channel and no allocation on either side. A
+producer that outruns its consumer drops the new block instead of overwriting
+unread frames, so the reader never observes a half-written stereo pair.
 
 **The analyser is bounded.** The spectrum runs an 8192-point FFT of the mid
 signal every third block, over history the analyser owns, and publishes 48 band
@@ -287,6 +307,19 @@ click a repeated sample produces at a buffer boundary.
   the callback would add latency and its own realtime budget, and the reference
   pays for a Speex resampler to avoid that limit. `docs/feature-matrix.md`
   records the reduction.
+- **The convolver ships built-in responses, not an IRS library.** Its five
+  responses are synthesised deterministically at the graph rate and normalised,
+  so it is a real partitioned convolution with a real 256-frame latency, but a
+  reference `kernel-name` cannot be loaded. User impulse-response files would
+  need a file parameter type in `pwe-core`, a file chooser in the editor and a
+  control-thread reload path; none exists.
+- **The echo canceller is an NLMS filter, not WebRTC.** It has no delay
+  estimation: the *Echo delay* control tells it where to look, and the filter
+  length (5–40 ms) must cover the residual path. It has no double-talk detector,
+  so a loud local voice adapts the filter while it speaks, and no residual echo
+  suppressor or comfort noise. It is useful on the input pipeline, where the
+  output pipeline supplies its reference; on the output pipeline it passes the
+  signal through because there is no reference to subtract.
 - **The FFT inside that dependency is planned on first use.** `nnnoiseless`
   reaches its transforms through `easyfft`, which keeps a planner and a scratch
   buffer per transform length in a thread-local, and `nnnoiseless` itself keeps
@@ -308,8 +341,10 @@ the header's title widget, so the header carries no window-title text. The two
 pipelines have `Ctrl`+`1` and `Ctrl`+`2` accelerators, registered as window
 actions. Below 860 px the split view collapses: the editor fills the window, the
 switcher switches to its narrow policy, and the sidebar opens as an overlay
-drawer. The window's minimum size is 360x480, so the same layout serves a
-phone-width screen.
+drawer. The devices, preferences and diagnostics dialogs shrink from a 520 px
+content width to 340 px on the same breakpoint, so a 360 px window shows them
+without clipping. The window's minimum size is 360x480, so the same layout
+serves a phone-width screen.
 
 The header's start holds a sidebar toggle (`sidebar-show-symbolic`) that shows or
 hides the sidebar at any width; the main menu is at the end and carries **Devices**
@@ -344,7 +379,8 @@ occupying a page.
 - **Preferences** (menu): *Start on login*; a *Processing backend* chooser with
   *CPU*, *GPU* and *Both* (the default), which restarts the running pipelines on
   the selected backend; a *Spectrum range* chooser for the decibel span the
-  analyser is drawn across; a *Preset autoload* group whose *Remember* button
+  analyser is drawn across, with *Spectrum shape*, *Spectrum resolution*,
+  *Spectrum height* and *Spectrum frequency range* beside it; a *Preset autoload* group whose *Remember* button
   stores the loaded preset for the current device and whose *Forget* button
   removes that rule; an *Auto-save preset edits* switch with an *Update interval*
   chooser; and a *Developer mode* switch. When auto-save is on, an
@@ -376,9 +412,19 @@ occupying a page.
   comes from the `group` field of each specification. A float row keeps its label
   on one line and gives the scale a 120 px floor, so a 360 px window ellipsizes a
   long label instead of breaking it across lines.
-- **Equalizer**: thirty third-octave bands from 20 Hz to 16 kHz, grouped into
-  *Lows*, *Mids* and *Highs*; an analytic magnitude response drawn with cairo above
-  the band sliders, recomputed from the live parameter values on every redraw.
+- **Equalizer**: thirty bands from 20 Hz to 16 kHz grouped into *Lows*, *Mids*
+  and *Highs*, each with a type, frequency, Q and gain parameter plus the
+  *Channels* choice; the *Right lows*, *Right mids* and *Right highs* groups hold
+  the independent right-channel bands used when *Channels* is *Left and right*.
+  An analytic magnitude response is drawn with cairo above the controls,
+  recomputed from the live type, frequency, Q and gain values on every redraw,
+  and it draws the right-channel curve as well when the split is on. The hero
+  carries *Import APO* for the `Preamp:`, `GraphicEQ:` and `Filter:` subset
+  described in `docs/feature-matrix.md`; it sets the same real parameters and
+  reports a parse error in the banner instead of failing silently. The import
+  applies to the shared `bandN_*` set (the left channel when the split is on) and
+  resets the main bands and the output gain first, so the file replaces the
+  previous curve.
 - **Dialogs**: effect picker with search, and the name, confirm and file dialogs
   used by the preset library.
 - **Meters**: two cards, each a `gtk::DrawingArea` that draws one cairo bar per
@@ -394,9 +440,15 @@ occupying a page.
   and 10 kHz grid lines and a caption naming the loudest band and its level. The
   bars are drawn in the same data colour as the equalizer's response curve and
   the grid in the widget's own foreground colour, so both are legible in either
-  appearance. The decibel range is a Preferences choice (wide, standard or loud)
-  and is persisted as `spectrum_range`; the bars are redrawn through whichever
-  range is selected. The band levels are a real measurement of the processed
+  appearance. The display is configured in Preferences: the decibel range (wide, standard
+  or loud, persisted as `spectrum_range`), the shape (bars, line or filled
+  line, `spectrum_shape`), the resolution (24, 48 or 96 points,
+  `spectrum_points`), the height (compact, normal or tall, `spectrum_height`)
+  and the frequency range (20 Hz to 20 kHz, 10 kHz or 5 kHz,
+  `spectrum_frequency_range`). The analyser always measures its fixed 48 bands;
+  the resolution and range resample that measurement for display, and the
+  decibel range is applied when drawing. Each setting is persisted in the
+  settings document and applied to both pipelines. The band levels are a real measurement of the processed
   audio, recomputed every third block by the pipeline's own analyser and read
   from an atomic snapshot by the 50 ms poll; a pipeline with no engine, and an
   engine that has been stopped or shut down, reads the floor and the caption is
@@ -544,9 +596,9 @@ Decisions and reasons:
 - **A preset can be duplicated.** *Clone* writes a copy of the loaded preset,
   both sections, under a new name in the user directory, without changing the
   live chain.
-- **The loaded preset offers an update.** Each preset row shows its name in bold
-  with its origin (`Built in`, `User preset`, `System preset`) beside it on the
-  same line. The loaded preset's row always carries a menu with *Update preset*,
+- **The loaded preset offers an update.** Each preset row shows its name with
+  its origin (`Built-in`, `User`, `System`) as a subtitle below it, so a long
+  name is not ellipsized in the narrow sidebar. The loaded preset's row always carries a menu with *Update preset*,
   which writes the current chain back, and *Revert changes*, which reloads the
   stored preset.
 
@@ -576,6 +628,10 @@ declare.
   "auto_save_interval": 10,
   "audio_backend": "both",
   "spectrum_range": 0,
+  "spectrum_shape": 0,
+  "spectrum_points": 1,
+  "spectrum_height": 1,
+  "spectrum_frequency_range": 0,
   "autoload": { "alsa_output.usb": "Podcast voice" }
 }
 ```
@@ -624,7 +680,7 @@ installed into the system here.
 
 ## 11. Verification
 
-- `cargo test --workspace`: 504 tests, no audio device needed.
+- `cargo test --workspace`: 536 tests, no audio device needed.
   Eleven further tests are `#[ignore]`d and run explicitly against a running
   daemon and a Vulkan device: the nine live integration tests, the CPU baseline
   and the GPU timing measurement. Two of the counted tests need a display and skip
@@ -726,6 +782,21 @@ installed into the system here.
   cosmetic — `rsvg-convert` and the gdk-pixbuf SVG loader were measured to render
   the two spellings byte-identically — so the test enforces a formatting
   convention, not a rendering requirement.
+- The convolver is checked as a partitioned convolution, not as a reverb
+  approximation: a delta passes through one block late, the partitioned output
+  matches direct convolution sample by sample, a response longer than one
+  partition lands on the right block, reset clears the history, a wet impulse
+  reproduces the selected built-in response one block late, dry is transparent,
+  auto gain preserves the impulse energy, every response differs, the tail
+  outlives the first block, and the output stays finite at the extremes.
+- The echo canceller is checked with a synthetic two-tap echo path and the same
+  reference the engine feeds it: after 240 blocks the residual is below a fifth
+  of the echo energy, a zero mix is transparent, no reference passes the signal
+  through unchanged, zero adaptation leaves the near signal alone, and the
+  output stays finite at the extremes. The reference bus itself is checked for
+  the interleaved round trip, short-read padding, overflow that keeps the newest
+  frames and clearing, and the processor test pushes a block through an output
+  processor and reads it from an input processor's chain.
 - The ring buffer, command queue and trimming policy are exercised with a real
   `rtrb` producer and consumer.
 - The two meters are checked against each other: an empty chain must report the
@@ -787,8 +858,9 @@ installed into the system here.
   `unloaded`, `clone`, `input`, `devices`, `preferences`, `preferences-bottom`,
   `developer`, `gpu`,
   `menu`, `menu-developer`, `dev-live`, `picker`, `picker-tone`, `about`, `save`,
-  `delete`, `banner`, `bypass`, `spectrum-loud`, `narrow`, `mobile`,
-  `mobile-drawer`, `sidebar-hidden` and `effect:<kind>`, which loads the
+  `delete`, `banner`, `bypass`, `spectrum-loud`, `spectrum-line`,
+  `spectrum-speech`, `narrow`, `mobile`, `mobile-drawer`, `sidebar-hidden` and
+  `effect:<kind>`, which loads the
   built-in preset, adds the named effect if it is absent and selects it. A `@WxH` suffix on any state sets
   the window's default size before it is mapped, so a long editor can be captured
   whole; `effect:voice_suppressor@1040x1000` is the state the interface review used
@@ -973,6 +1045,29 @@ thirty biquads per channel per sample instead of ten, and the mid/side stage run
 sixty because it filters the matrix channels separately. The spectrum analyser
 measured 112.61 μs (0.53 %) and the loudness meter 17.29 μs (0.08 %). The chain
 still finishes inside a third of the 21.3 ms deadline.
+
+The run that added the convolver, the echo canceller and the spectrum display
+options measured all thirty-three effects through the same benchmark, now with a
+reference buffer so the echo canceller runs its filter instead of passing
+through. On the same development machine, at a low desktop load: the convolver
+cost 1 065.08 μs per 1 024-frame block (5.0 % of one core) and the echo canceller
+2 797.33 μs (13.1 %), the heaviest stage in the chain; the thirty-three-effect
+chain cost 10 849.17 μs (50.9 %), and the heaviest chain the application can
+actually build, sixteen effects at its `MAX_EFFECTS` limit, cost 10 488.21 μs
+(49.2 %). The benchmark now asserts that every effect fits inside half a block
+and that the sixteen-effect chain fits inside 90 % of a block; the thirty-three
+effect figure is printed for information because the engine refuses a chain that
+long. The echo canceller is deliberately expensive: it runs a normalised-LMS
+update per sample per channel, with a 10 ms default filter, and it only does work
+inside the input pipeline where a reference exists.
+
+**The convolver allocates when it is built and when the sample rate changes.** It
+builds its five response filters at construction, one partitioned convolver per
+channel per response, so switching the *Response* choice is an index change and
+not an allocation. `prepare` rebuilds them when the graph rate changes, which is
+the one allocation the effect can make after construction; a rate change is rare
+and happens on the same path that already rebuilds every effect's rate-dependent
+state.
 
 
 ### Processing backend selection (CPU, GPU, Both)
@@ -1337,8 +1432,9 @@ changes*, so the menu is verified by a capture rather than by wiring alone.
 
 No PipeWire daemon, device profile, default route or system setting was changed
 by these captures themselves. The application's virtual nodes keep
-`node.virtual = true`, `priority.session = 0`, `state.restore-props = false` and
-`state.restore-target = false`, and its engine ignores a `default.audio.sink`
+`node.virtual = true`, `priority.session = 0`, `node.dont-fallback = true`,
+`state.restore-props = false` and `state.restore-target = false`, and its engine
+ignores a `default.audio.sink`
 value that names one of its own nodes. During this pass the session's
 `default.audio.sink` metadata was found pointing at `pipewire-effects-sink`,
 left there by an earlier session; the real built-in device was restored with
@@ -1521,7 +1617,9 @@ carry them - 62 Hz at +1.8 dB, 125 Hz at -0.6 dB and 8 kHz at +0.2 dB - which is
 the same curve the ten-band version drew, now on the bands those identifiers have
 always named. The tall captures in `target/ui-verify-tall` and
 `target/ui-verify-tall-dark` show the whole editor in both appearances with no
-clipping.
+clipping. The per-band type, frequency and Q controls, the *Channels* split and
+*Import APO* were added after that capture; this pass did not run the capture
+harness, so those later controls are not shown in that image.
 
 The first capture of the change found a regression the tests could not see. The
 per-stage level bar was a 40 px horizontal widget inside the row, so *Bass
@@ -1575,3 +1673,47 @@ middle capture shows *Multiband compressor*, *Multiband gate*, *Expander*,
 glyph, and the dark set shows the same glyphs recoloured to the light
 foreground. The new `picker-middle` harness state scrolls the real list to that
 section by an adjustment fraction rather than by a fixed pixel offset.
+
+The pass that added the convolver, the echo canceller and the spectrum display
+options ran the harness on the same isolated headless Wayland session and on the
+X11 tone harness. It captured `preferences` and `preferences-bottom` (all five
+spectrum rows), `effect:convolver` and `effect:echo_canceller` in both
+appearances, the picker, and `TONE=1 spectrum-line` and `spectrum-speech` with a
+440 Hz tone flowing. The tone captures read `441 Hz -44.1 dB` with the line and
+the filled-line shapes at 96 and 24 points, and the speech range drew only the
+100 Hz and 1 kHz grid lines, so the shape, resolution, height and frequency
+range settings change what is drawn. The echo canceller capture ran the real
+microphone pipeline and read `-36.8 dB` at the input meter with a comparable
+output level, which is the real capture device feeding the input chain. The pass
+found and fixed five defects:
+
+- The convolver's defaults applied the wet and the dry path both at 0 dB, so
+  adding it doubled the signal. The dry path now defaults to its -60 dB floor,
+  which is what a convolution stage should do.
+- The echo canceller could be added to the Output chain, where there is no
+  far-end reference. `Ui::add_effect` now refuses it there with a banner that
+  names the Input chain, and `effect:echo_canceller` in the harness switches to
+  the Input pipeline, which also exercises the refusal path in the other
+  direction.
+- A long preset name was ellipsized in the 300 px sidebar ("Clean micropho..."),
+  and the origin label competed with it for the same line. The preset row is an
+  `adw::ActionRow` now: the name is the title, `Built-in`, `User` or `System` is
+  the subtitle, and the full name of *Clean microphone* fits.
+- The Preferences dialog was fixed at 520 px and was clipped on a 360 px
+  window. The narrow breakpoint now shrinks the three dialogs to 340 px, and the
+  spectrum range labels were shortened to *Wide*, *Standard* and *Loud* with the
+  decibel spans in the subtitle; the `preferences@360x740` capture shows the
+  whole dialog and the full value.
+- Even with `priority.session = 0` and `node.virtual = true`, a live-test run
+  left `default.configured.audio.sink` naming `pipewire-effects-sink`. The
+  virtual nodes now also carry `node.dont-fallback = true`; the live suite was
+  re-run and the configured default stayed on the real Bluetooth device
+  afterwards. The session default was restored with `wpctl set-default 132`
+  before and verified after every capture, as `AGENTS.md` requires.
+
+The same pass re-ran all nine live tests against the running daemon: the four
+`live_pipewire` tests passed (a -20 dB tone measured at the input and -40.00 dB
+at the output over 26 624 processed frames; the input chain at -36.85 dB in and
+-42.85 dB out), the noise reduction, pitch shift and bass loudness tests passed,
+and both Vulkan tests passed with 82 and 38 GPU blocks, zero deadline fallbacks
+and zero disagreements.
