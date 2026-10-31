@@ -15,7 +15,7 @@ pwe-core  ◄── pwe-services ───────────────�
 | Crate | Owns | Does not know about |
 |---|---|---|
 | `pwe-core` | Audio buffers, parameter specifications, the effect contract, the chain, meters, realtime-safe helpers, the pipeline kinds | PipeWire, GTK, files |
-| `pwe-dsp` | The FFT, the partitioned convolver, the Linkwitz-Riley crossover, the biquad design, the thirty-three effects, the adaptive echo canceller, the spectrum analyser, the R128 loudness measurement and the effect registry | Threads, devices, presets |
+| `pwe-dsp` | The FFT, the partitioned convolver, the Linkwitz-Riley crossover, the biquad design, the thirty-two effects, the adaptive echo canceller, the spectrum analyser, the R128 loudness measurement and the effect registry | Threads, devices, presets |
 | `pwe-presets` | The preset schema, name validation and the preset directory | Which effects exist (in production code; its tests take `pwe-dsp` as a dev-dependency so the built-in presets can be checked against the registry) |
 | `pwe-services` | The settings document, its atomic store and the autostart entry | The engine, the interface, the effects |
 | `pwe-engine` | PipeWire streams, the virtual sink and source, the destination device, the realtime processor, the stereo reference bus between the two pipelines, the spectrum snapshot and the compute backends (`cpu`, `gpu`), counters | GTK, presets, services |
@@ -190,10 +190,13 @@ them; there is no mutex, no channel and no allocation on either side. A
 producer that outruns its consumer drops the new block instead of overwriting
 unread frames, so the reader never observes a half-written stereo pair.
 
-**The analyser is bounded.** The spectrum runs an 8192-point FFT of the mid
+**The analyser is bounded.** The spectrum runs a 2048- to 16 384-point FFT (8192
+by default) of the mid
 signal every third block, over history the analyser owns, and publishes 48 band
-levels through atomics. Its buffers, window and twiddle tables are allocated when
-the processor is built, not in the callback. It costs 117 μs per 1024-frame
+levels through atomics. Every transform size and every window is built with the
+processor, so the callback never allocates: changing the size or the window in
+Preferences republishes the choice through an atomic and the callback re-selects a
+prebuilt table and re-derives the band edges. It costs 117 μs per 1024-frame
 block on the development machine, which is 0.55 % of one core (section 12), and
 it is the largest single cost outside the effect chain.
 
@@ -342,9 +345,24 @@ pipelines have `Ctrl`+`1` and `Ctrl`+`2` accelerators, registered as window
 actions. Below 860 px the split view collapses: the editor fills the window, the
 switcher switches to its narrow policy, and the sidebar opens as an overlay
 drawer. The devices, preferences and diagnostics dialogs shrink from a 520 px
-content width to 340 px on the same breakpoint, so a 360 px window shows them
+content width to 340 px at the same threshold, so a 360 px window shows them
 without clipping. The window's minimum size is 360x480, so the same layout
 serves a phone-width screen.
+
+The threshold is applied by `chrome::install_adaptive`, not by an
+`adw::Breakpoint`. A `max-width: 860px` breakpoint with a `collapsed` setter was
+measured on the running application and never applied: at an allocated width of
+720 px, `is_collapsed()` stayed false with an always-true `min-width: 0px`
+condition as well, both when the breakpoint was added with the window and when it
+was added after mapping. GTK4 also exposes no `width` property to notify on, so a
+resize cannot be observed through `notify::width`. The controller therefore
+evaluates `chrome::is_narrow` from the window's allocated width, or its requested
+default width before it is mapped, on a 200 ms timer, and it applies the narrow
+state once per transition so a user who opens the drawer is not fought. The
+decision itself is a pure function and is covered by unit tests at 360, 720, 860,
+861 and 1040 px. The startup size is applied before the controller is installed,
+so a 360 px window is mapped with the sidebar already collapsed and reaches its
+own minimum instead of the sidebar-inclusive one.
 
 The header's start holds a sidebar toggle (`sidebar-show-symbolic`) that shows or
 hides the sidebar at any width; the main menu is at the end and carries **Devices**
@@ -443,11 +461,15 @@ occupying a page.
   appearance. The display is configured in Preferences: the decibel range (wide, standard
   or loud, persisted as `spectrum_range`), the shape (bars, line or filled
   line, `spectrum_shape`), the resolution (24, 48 or 96 points,
-  `spectrum_points`), the height (compact, normal or tall, `spectrum_height`)
-  and the frequency range (20 Hz to 20 kHz, 10 kHz or 5 kHz,
-  `spectrum_frequency_range`). The analyser always measures its fixed 48 bands;
-  the resolution and range resample that measurement for display, and the
-  decibel range is applied when drawing. Each setting is persisted in the
+  `spectrum_points`), the height (compact, normal or tall, `spectrum_height`),
+  the frequency range (20 Hz to 20 kHz, 10 kHz or 5 kHz,
+  `spectrum_frequency_range`), the transform size (2048, 4096, 8192 or 16384
+  points, `spectrum_fft`), the window (Hann, Hamming or Blackman,
+  `spectrum_window`) and an automatic range (`spectrum_auto_range`). The
+  transform size and the window change the measurement itself; the analyser always
+  publishes its fixed 48 bands, the resolution and range resample that measurement
+  for display, and the decibel range is applied when drawing. The automatic range
+  fits the drawn span to the loudest band instead of the chosen decibel range. Each setting is persisted in the
   settings document and applied to both pipelines. The band levels are a real measurement of the processed
   audio, recomputed every third block by the pipeline's own analyser and read
   from an atomic snapshot by the 50 ms poll; a pipeline with no engine, and an
@@ -461,13 +483,15 @@ occupying a page.
 
 ### How the spectrum is measured
 
-- The analyser keeps 8192 samples of the mid signal (`0.5 · (left + right)`), so
-  a stereo source is measured the way a listener hears it. The size is the
-  reference's own default, and it is what makes the band layout meaningful: with
-  the first version's 1024-point transform, 22 of the 48 bands sat below the
-  window's resolution and reported one shared bin under nine different frequency
-  labels.
-- It applies a Hann window and the FFT of `crates/dsp/src/primitives/fft/mod.rs`, then converts
+- The analyser keeps up to 16 384 samples of the mid signal (`0.5 · (left + right)`),
+  so a stereo source is measured the way a listener hears it. Each transform uses
+  the most recent 2048, 4096, 8192 (the default, the reference's own default size)
+  or 16 384 of them, chosen in Preferences. The default is what makes the band
+  layout meaningful: with the first version's 1024-point transform, 22 of the 48
+  bands sat below the window's resolution and reported one shared bin under nine
+  different frequency labels.
+- It applies the configured window, Hann by default and Hamming or Blackman as the
+  alternatives, and the FFT of `crates/dsp/src/primitives/fft/mod.rs`, then converts
   each bin to power with the window-energy correction
   `1 / (N · Σw²)`, so the bin powers sum to the signal's mean square.
 - A band's level is the integral of that power between its edges, using a
@@ -680,7 +704,7 @@ installed into the system here.
 
 ## 11. Verification
 
-- `cargo test --workspace`: 536 tests, no audio device needed.
+- `cargo test --workspace`: 687 tests, no audio device needed.
   Eleven further tests are `#[ignore]`d and run explicitly against a running
   daemon and a Vulkan device: the nine live integration tests, the CPU baseline
   and the GPU timing measurement. Two of the counted tests need a display and skip
@@ -1047,15 +1071,15 @@ measured 112.61 μs (0.53 %) and the loudness meter 17.29 μs (0.08 %). The chai
 still finishes inside a third of the 21.3 ms deadline.
 
 The run that added the convolver, the echo canceller and the spectrum display
-options measured all thirty-three effects through the same benchmark, now with a
+options measured all thirty-two effects through the same benchmark, now with a
 reference buffer so the echo canceller runs its filter instead of passing
 through. On the same development machine, at a low desktop load: the convolver
 cost 1 065.08 μs per 1 024-frame block (5.0 % of one core) and the echo canceller
-2 797.33 μs (13.1 %), the heaviest stage in the chain; the thirty-three-effect
+2 797.33 μs (13.1 %), the heaviest stage in the chain; the thirty-two-effect
 chain cost 10 849.17 μs (50.9 %), and the heaviest chain the application can
 actually build, sixteen effects at its `MAX_EFFECTS` limit, cost 10 488.21 μs
 (49.2 %). The benchmark now asserts that every effect fits inside half a block
-and that the sixteen-effect chain fits inside 90 % of a block; the thirty-three
+and that the sixteen-effect chain fits inside 90 % of a block; the thirty-two
 effect figure is printed for information because the engine refuses a chain that
 long. The echo canceller is deliberately expensive: it runs a normalised-LMS
 update per sample per channel, with a 10 ms default filter, and it only does work
@@ -1335,7 +1359,7 @@ pass, not a regression; the earlier walk, with the slider names and value text,
 remains the record for the interactive controls.
 
 `scripts/capture-ui.sh` was re-run unchanged; `scripts/update-po.sh` regenerates
-`po/pipewire-effects.pot` (527 messages), and
+`po/pipewire-effects.pot` (808 messages), and
 `make install DESTDIR=<staging> PREFIX=/usr` installed the
 binary, the desktop entry, both icon sets and the built-in preset into a staging
 tree and `make uninstall` removed exactly what it installed.
@@ -1588,7 +1612,7 @@ measured the input at `-41.1 dB`, the output at `-44.0 dB`, the spectrum caption
 at `441 Hz -44.1 dB` and the loudness at `-44.8 LUFS`, and the five enabled chain
 rows drew a lit level bar while the four disabled rows drew none, which is the
 per-stage metering working on real audio rather than at the floor.
-`scripts/update-po.sh` regenerated a 527-message template; `po/POTFILES.in`
+`scripts/update-po.sh` regenerated an 808-message template; `po/POTFILES.in`
 gained `crates/ui/src/views/meter/mod.rs`, which had been missing and would have dropped
 the meter's new tooltip from the catalog. A later capture set added
 `preferences-bottom`, which scrolls the Preferences dialog to the *Preset

@@ -13,6 +13,10 @@ keeps working in the next.
 
 ### Added
 
+- Input and output gain on the exciter, matching the reference's per-plugin
+  `input-gain` and `output-gain`. Both are exposed in the editor and are
+  transferred from a reference preset, so an exciter's level is no longer
+  reported and dropped.
 - A partitioned FFT convolver with five built-in responses (*Small room*,
   *Bright hall*, *Dark hall*, *Plate* and *Vocal booth*), wet/dry, width, auto
   gain and a declared 256-frame latency. It is a real uniform overlap-save
@@ -25,9 +29,14 @@ keeps working in the next.
   engine, so neither pipeline blocks the other. It is not WebRTC and has no delay
   estimation or double-talk detector.
 - Spectrum display options: *Shape* (bars, line, filled line), *Resolution*
-  (24, 48 or 96 points), *Height* (compact, normal, tall) and *Frequency range*
-  (20 Hz to 20 kHz, 10 kHz or 5 kHz), all persisted in the settings document and
-  applied to both pipelines alongside the existing decibel range.
+  (24, 48 or 96 points), *Height* (compact, normal, tall), *Frequency range*
+  (20 Hz to 20 kHz, 10 kHz or 5 kHz), *Transform* (2048, 4096, 8192 or 16384
+  points), *Window* (Hann, Hamming or Blackman) and *Automatic range*, all
+  persisted in the settings document and applied to both pipelines alongside the
+  existing decibel range. The transform size and the window change the analyser's
+  own measurement; the shape, resolution, height and frequency range resample the
+  fixed 48-band result for display, and the automatic range fits the drawn span to
+  the loudest band.
 - A thirty-band equalizer: the effect covers 20 Hz to 16 kHz in third-octave
   steps instead of ten octave bands, and the editor splits the bands into
   *Lows*, *Mids* and *Highs* so the page stays navigable. The ten original bands
@@ -350,6 +359,19 @@ keeps working in the next.
 
 ### Fixed
 
+- The window never collapsed its sidebar below 860 px. `adw::Breakpoint` with a
+  `max-width: 860px` condition did not apply: at an allocated width of 720 px
+  `is_collapsed()` stayed false even with an always-true condition, whether the
+  breakpoint was added to the window or after mapping, and GTK4 exposes no
+  `width` property to notify on. `chrome::install_adaptive` now evaluates the
+  width itself and applies the collapsed state once per transition, and it runs
+  after the startup size is known so a 360 px window is mapped already collapsed
+  and reaches its own minimum instead of the sidebar-inclusive 627 px. The
+  decision is a pure function covered at 360, 720, 860, 861 and 1040 px.
+- The loudness readout showed a bare `-inf LUFS` or an unexplained `-41.1 LUFS`.
+  It is now captioned `Loudness -41.1 LUFS`, with a tooltip that explains the
+  unit and the -23 LUFS broadcast reference, and it is hidden entirely until
+  three seconds of audio have been measured.
 - The effect glyphs in the Add-effect picker, the chain and the editors were
   painted as solid silhouettes or disappeared entirely: *Multiband compressor*,
   *Multiband gate* and *Auto gain* were blank, while *Expander*, *Maximizer*,
@@ -520,8 +542,9 @@ keeps working in the next.
   example `band*`) instead of listing every band of a crystalizer preset.
 - A reference preset's per-plugin `input-gain` and `output-gain` are no longer
   dropped without a word. They are transferred where an equivalent control
-  exists (equalizer, limiter input, stereo tools input, bass enhancer and
-  crystalizer output) and reported everywhere else.
+  exists (equalizer, limiter input, stereo tools input, bass enhancer,
+  crystalizer output, exciter input and output, and both gains of the noise
+  reduction) and reported everywhere else.
 - The equalizer conversion no longer turns a muted band into an audible one, and
   a soloed band excludes the others as it does in the reference. Bands without a
   usable frequency, per-band `mode`/`slope`/`width`, and a right channel that
@@ -736,6 +759,14 @@ keeps working in the next.
   unfinished list and into the effect table, with what each transfers from the
   reference and what it reports instead, and its conversion table gained the
   `pitch` and `bass_loudness` rows.
+- `docs/feature-matrix.md` was brought back in line with the code: rows that
+  still claimed a control was reported when the effect already exposes it were
+  corrected (*Maximizer*, *Crosstalk canceller*, *Delay*, *Reverb*, *Autotune*,
+  *Harmonizer*, *Crystalizer*, *Stereo tools*, *Voice suppressor*, *Loudness*,
+  *Speech processor*, *Pitch shift*, *Noise reduction*, *Limiter*, *Echo
+  canceller*, *Crossfeed*, *Exciter* and the *Spectrum analyser*), and the
+  status now follows the code rather than an earlier draft. The rows that still
+  carry a real reduction say exactly what it is.
 - `docs/architecture.md` describes the destination resolution, the icon resource,
   the split-view layout and how the interface was verified.
 - `docs/reference-audit.md` records the completed audit of the reference

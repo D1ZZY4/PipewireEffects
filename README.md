@@ -22,7 +22,7 @@ applications can record from.
 
 ## Effects
 
-Thirty-three effects, each with real processing and a generated control surface:
+Thirty-two effects, each with real processing and a generated control surface:
 
 | Effect | What it does |
 |---|---|
@@ -41,7 +41,7 @@ Thirty-three effects, each with real processing and a generated control surface:
 | **Loudness** | Equal-loudness contour compensator with five standards, an output volume and hard clipping |
 | **Bass enhancer** | Low-band harmonic generation so small speakers reproduce bass |
 | **Bass loudness** | Equal-loudness contour compensation, so quiet listening keeps its bass and treble |
-| **Crystalizer** | Four-band transient emphasis |
+| **Crystalizer** | Thirteen-band transient emphasis |
 | **Crusher** | Bit-depth and sample-rate reduction with a modulated hold |
 | **Exciter** | Harmonic generation in a band above the scope frequency |
 | **Stereo tools** | Seven routing modes, middle/side levels and panoramas, per-channel balance, phase and mute, soft clip, width and a Haas delay |
@@ -76,7 +76,8 @@ Around them:
 - Live input and output meters (peak with an RMS marker) for the pipeline you are
   editing, an EBU R128 short-term loudness readout on the output card, and a live
   spectrum of the same signal, both above the effect editor. The spectrum's
-  shape, resolution, height and frequency range are chosen in Preferences.
+  shape, resolution, height, frequency range, transform size, window and automatic
+  range are chosen in Preferences.
 - Honest counters: captured and processed frames, underruns, overruns, drift
   trims and the chain's own latency, plus a diagnostics list.
 - Remembered settings: the device of each pipeline, the loaded preset and the
@@ -288,13 +289,13 @@ cargo test --workspace
 
 A reproducible CPU baseline, which prints microseconds per block and the realtime
 factor for each effect and for the heaviest sixteen-effect chain the application
-can build, plus the thirty-three-effect figure for information
+can build, plus the thirty-two-effect figure for information
 
 ```sh
 cargo test --release -p pwe-dsp --test benchmark -- --ignored --nocapture
 ```
 
-536 tests, none of which need an audio device or a display; the two
+687 tests, none of which need an audio device or a display; the two
 icon lookups skip themselves when no display is available. They cover biquad
 designs against their analytic magnitude response, the effects against measured
 signal levels and numerical bounds, the analyser's bands against the level of a
@@ -398,8 +399,10 @@ Working, and honest about the gaps:
   reports band power, so it agrees with the meters on a tone. The bands below
   about 60 Hz are narrower than the window's resolution and are normalised to the
   analysis bandwidth rather than resolved, exactly as the reference does. Its
-  shape, resolution, height and frequency range are display choices; the
-  transform itself stays fixed at 48 bands.
+  shape, resolution, height and frequency range are display choices that resample
+  the fixed 48-band measurement; the transform size (2048 to 16384 points), the
+  window (Hann, Hamming or Blackman) and an automatic decibel range are separate
+  choices that change the measurement, the window or the drawn span.
 - The convolver is a real partitioned FFT convolution, but it ships five
   synthesised responses instead of loading IRS files or SOFA responses, so it
   cannot reproduce a measured room or cabinet.
