@@ -85,7 +85,7 @@ pub const EFFECTS: &[EffectDescriptor] = &[
     EffectDescriptor {
         id: "gate",
         label: mark("Gate"),
-        summary: mark("Noise gate with hold, attack and release"),
+        summary: mark("Noise gate with a curve, hysteresis, hold, attack and release"),
         category: EffectCategory::Dynamics,
         specs: effects::gate_specs,
         build: |params| Box::new(effects::Gate::new(params)),

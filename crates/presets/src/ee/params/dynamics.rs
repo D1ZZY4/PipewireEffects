@@ -35,6 +35,7 @@ const LIMITER_KEYS: &[&str] = &[
 const GATE_KEYS: &[&str] = &[
     "bypass",
     "curve-threshold",
+    "curve-zone",
     "reduction",
     "attack",
     "release",
@@ -147,6 +148,11 @@ pub(super) fn gate(
     put(&mut params, "range", range(parameters, warnings));
     put(&mut params, "attack", number(parameters, "attack", 20.0));
     put(&mut params, "release", number(parameters, "release", 100.0));
+    put(
+        &mut params,
+        "curve",
+        number(parameters, "curve-zone", -6.0).abs(),
+    );
     put(&mut params, "mix", mix_percent(parameters, "wet", 0.0));
     params
 }

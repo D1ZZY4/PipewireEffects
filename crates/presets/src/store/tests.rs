@@ -154,21 +154,19 @@ fn a_reference_preset_surfaces_its_conversion_warnings() {
     fs::write(
         dir.join("imported.json"),
         r#"{ "output": { "plugins_order": ["gate#0"],
-             "gate#0": { "curve-threshold": -30.0, "hysteresis": true } } }"#,
+             "gate#0": { "curve-threshold": -30.0, "makeup": 3.0 } } }"#,
     )
     .unwrap();
     let store = PresetStore::with_dirs(dir.clone(), Vec::new());
     let (preset, warnings) = store.load_with_warnings("imported").unwrap();
     assert_eq!(preset.output.effects[0].kind, "gate");
     assert!(
-        warnings
-            .iter()
-            .any(|warning| warning.contains("hysteresis")),
+        warnings.iter().any(|warning| warning.contains("makeup")),
         "{warnings:?}"
     );
     let (_, listed) = store.list();
     assert!(
-        listed.iter().any(|warning| warning.contains("hysteresis")),
+        listed.iter().any(|warning| warning.contains("makeup")),
         "{listed:?}"
     );
     fs::remove_dir_all(&dir).unwrap();

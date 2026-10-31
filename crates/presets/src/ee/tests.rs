@@ -218,11 +218,10 @@ fn a_unity_side_level_keeps_the_stereo_image() {
 fn content_that_cannot_be_mapped_is_reported() {
     let (_, warnings) = reverse_engineered();
     let reported = warnings.join(" ");
-    assert!(reported.contains("hysteresis"), "{warnings:?}");
     assert!(reported.contains("dry-l"), "{warnings:?}");
     assert!(reported.contains("room-size"), "{warnings:?}");
     assert!(reported.contains("stereo-base"), "{warnings:?}");
-    assert!(reported.contains("curve-zone"), "{warnings:?}");
+    assert!(reported.contains("invert-phase-l"), "{warnings:?}");
 }
 
 #[test]
@@ -238,6 +237,15 @@ fn the_reverb_tone_controls_are_transferred() {
     assert!((as_float(&params, "diffusion") - 25.0).abs() < 1.0e-6);
     assert!((as_float(&params, "bass_cut") - 200.0).abs() < 1.0e-6);
     assert!((as_float(&params, "treble_cut") - 4000.0).abs() < 1.0e-6);
+}
+
+#[test]
+fn the_gate_curve_is_transferred_and_its_hysteresis_is_reported() {
+    let (preset, warnings) = reverse_engineered();
+    let params = params_of(&preset, "gate");
+    assert!((as_float(&params, "curve") - 6.0).abs() < 1.0e-6);
+    let reported = warnings.join(" ");
+    assert!(reported.contains("hysteresis"), "{warnings:?}");
 }
 
 #[test]
