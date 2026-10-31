@@ -28,6 +28,7 @@ impl NodeSpec {
         if self.virtual_device {
             properties.insert("node.virtual", "true");
             properties.insert("priority.session", "0");
+            properties.insert("node.dont-fallback", "true");
             properties.insert("monitor.channel-volumes", "false");
         }
         if !self.target.is_empty() {

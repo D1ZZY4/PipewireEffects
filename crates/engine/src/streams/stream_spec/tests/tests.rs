@@ -51,5 +51,9 @@ fn a_virtual_node_never_carries_a_target() {
         assert!(spec.virtual_device);
         assert!(spec.target.is_empty());
         assert!(!spec.autoconnects());
+        let properties = spec.properties();
+        assert_eq!(properties.get("node.dont-fallback"), Some("true"));
+        assert_eq!(properties.get("priority.session"), Some("0"));
+        assert_eq!(properties.get("node.virtual"), Some("true"));
     }
 }
