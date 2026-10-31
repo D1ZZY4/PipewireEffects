@@ -10,6 +10,9 @@ use crate::format;
 use crate::views::response;
 use crate::widgets;
 
+mod apo;
+mod import;
+
 pub fn build(ui: &Rc<Ui>, slot_kind: &str, params: &ParamSet) -> gtk::Widget {
     let page = adw::PreferencesPage::new();
     page.set_vexpand(true);
@@ -68,6 +71,10 @@ fn hero(
     row.set_title_lines(1);
     row.add_css_class("hero-row");
     row.add_prefix(&widgets::effect_icon(kind, 20));
+
+    if kind.eq("equalizer") {
+        row.add_suffix(&import::button(ui, params, curve.clone()));
+    }
 
     let reset = gtk::Button::from_icon_name(format::ICON_RESET);
     reset.add_css_class("flat");
