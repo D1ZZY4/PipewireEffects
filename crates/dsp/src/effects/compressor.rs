@@ -1,7 +1,8 @@
 use pwe_core::i18n::mark;
 use pwe_core::{AudioBuffer, AudioFormat, Effect, ParamSet, ParamSpec, ParamUnit, math};
 
-use crate::effects::dynamics::{Detector, blend, soft_knee_reduction_db};
+use crate::effects::dynamics::{Detector, blend, filtered_measure, soft_knee_reduction_db};
+use crate::effects::sidechain::{MODES as SIDECHAIN_MODES, SidechainFilter};
 use crate::effects::util::MAX_CHANNELS;
 use crate::knob::Knob;
 
@@ -45,6 +46,18 @@ pub fn specs() -> Vec<ParamSpec> {
             .step(1.0)
             .group("Output")
             .build(),
+        ParamSpec::choice("hpf_mode", "High-pass", &SIDECHAIN_MODES, 0).group("Sidechain"),
+        ParamSpec::float("hpf_frequency", "High-pass frequency", ParamUnit::Hertz)
+            .range(10.0, 20_000.0, 10.0)
+            .logarithmic()
+            .group("Sidechain")
+            .build(),
+        ParamSpec::choice("lpf_mode", "Low-pass", &SIDECHAIN_MODES, 0).group("Sidechain"),
+        ParamSpec::float("lpf_frequency", "Low-pass frequency", ParamUnit::Hertz)
+            .range(10.0, 20_000.0, 20_000.0)
+            .logarithmic()
+            .group("Sidechain")
+            .build(),
     ]
 }
 
@@ -57,6 +70,11 @@ pub struct Compressor {
     release: Knob,
     makeup: Knob,
     mix: Knob,
+    high_mode: Knob,
+    high_frequency: Knob,
+    low_mode: Knob,
+    low_frequency: Knob,
+    sidechain: SidechainFilter,
     state: Detector,
     rate: u32,
 }
@@ -72,9 +90,25 @@ impl Compressor {
             release: Knob::new(&params, "release", 200.0),
             makeup: Knob::new(&params, "makeup", 0.0),
             mix: Knob::new(&params, "mix", 100.0),
+            high_mode: Knob::new(&params, "hpf_mode", 0.0),
+            high_frequency: Knob::new(&params, "hpf_frequency", 10.0),
+            low_mode: Knob::new(&params, "lpf_mode", 0.0),
+            low_frequency: Knob::new(&params, "lpf_frequency", 20_000.0),
+            sidechain: SidechainFilter::new(48_000),
             state: Detector::default(),
             rate: 48_000,
         }
+    }
+}
+
+impl Compressor {
+    fn sidechain_update(&mut self) {
+        self.sidechain.update(
+            self.high_mode.index(),
+            self.high_frequency.value(),
+            self.low_mode.index(),
+            self.low_frequency.value(),
+        );
     }
 }
 
@@ -85,10 +119,12 @@ impl Effect for Compressor {
 
     fn prepare(&mut self, format: AudioFormat) {
         self.rate = format.rate();
+        self.sidechain.prepare(self.rate);
         self.state.reset();
     }
 
     fn reset(&mut self) {
+        self.sidechain.reset();
         self.state.reset();
     }
 
@@ -104,8 +140,10 @@ impl Effect for Compressor {
         let channels = buffer.channels().min(MAX_CHANNELS);
         let frames = buffer.frames();
 
+        self.sidechain_update();
         for frame in 0..frames {
-            let level = self.state.track(buffer, channels, frame, use_rms);
+            let (peak, square) = filtered_measure(&mut self.sidechain, buffer, channels, frame);
+            let level = self.state.track_measure(peak, square, use_rms);
             let reduction = soft_knee_reduction_db(math::gain_to_db(level), threshold, knee, ratio);
             let gain = math::db_to_gain(reduction) * makeup;
             for channel in 0..channels {
@@ -120,6 +158,19 @@ impl Effect for Compressor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn low_tone(amplitude: f32, frames: usize) -> AudioBuffer {
+        let mut buffer = AudioBuffer::new(2, frames);
+        buffer.configure(2, frames).unwrap();
+        for channel in 0..2 {
+            let plan = buffer.channel_mut(channel);
+            for (index, sample) in plan.iter_mut().enumerate() {
+                *sample =
+                    amplitude * (std::f32::consts::TAU * 60.0 * index as f32 / 48_000.0).sin();
+            }
+        }
+        buffer
+    }
 
     fn tone(amplitude: f32, frames: usize) -> AudioBuffer {
         let mut buffer = AudioBuffer::new(2, frames);
@@ -196,6 +247,36 @@ mod tests {
         let mut buffer = tone(0.1, 4096);
         effect.process(&mut buffer);
         assert!((buffer.peak() - 0.1 * math::db_to_gain(6.0)).abs() < 0.01);
+    }
+
+    #[test]
+    fn the_sidechain_high_pass_keeps_rumble_out_of_the_detector() {
+        let measure = |mode: u16| {
+            let params = ParamSet::new(specs());
+            params.set_f32("threshold", -24.0).unwrap();
+            params.set_f32("ratio", 8.0).unwrap();
+            params.set_f32("knee", 0.0).unwrap();
+            params.set_f32("attack", 1.0).unwrap();
+            params.set_choice("hpf_mode", mode).unwrap();
+            params.set_f32("hpf_frequency", 400.0).unwrap();
+            let mut effect = Compressor::new(params);
+            effect.prepare(AudioFormat::new(48_000, 2));
+            let mut buffer = low_tone(0.9, 4096);
+            for _ in 0..64 {
+                effect.process(&mut buffer);
+            }
+            buffer.peak()
+        };
+        let unfiltered = measure(0);
+        let filtered = measure(1);
+        assert!(
+            unfiltered < 0.4,
+            "the rumble was not compressed at all: {unfiltered}"
+        );
+        assert!(
+            filtered > unfiltered * 2.0,
+            "the detector filter did not change the reduction: {filtered} against {unfiltered}"
+        );
     }
 
     #[test]

@@ -1,7 +1,8 @@
 use pwe_core::i18n::mark;
 use pwe_core::{AudioBuffer, AudioFormat, Effect, ParamSet, ParamSpec, ParamUnit, math};
 
-use crate::effects::dynamics::{Detector, blend, soft_knee_expansion_db};
+use crate::effects::dynamics::{Detector, blend, filtered_measure, soft_knee_expansion_db};
+use crate::effects::sidechain::{MODES as SIDECHAIN_MODES, SidechainFilter};
 use crate::effects::util::MAX_CHANNELS;
 use crate::knob::Knob;
 
@@ -45,6 +46,18 @@ pub fn specs() -> Vec<ParamSpec> {
             .step(1.0)
             .group("Output")
             .build(),
+        ParamSpec::choice("hpf_mode", "High-pass", &SIDECHAIN_MODES, 0).group("Sidechain"),
+        ParamSpec::float("hpf_frequency", "High-pass frequency", ParamUnit::Hertz)
+            .range(10.0, 20_000.0, 10.0)
+            .logarithmic()
+            .group("Sidechain")
+            .build(),
+        ParamSpec::choice("lpf_mode", "Low-pass", &SIDECHAIN_MODES, 0).group("Sidechain"),
+        ParamSpec::float("lpf_frequency", "Low-pass frequency", ParamUnit::Hertz)
+            .range(10.0, 20_000.0, 20_000.0)
+            .logarithmic()
+            .group("Sidechain")
+            .build(),
     ]
 }
 
@@ -57,6 +70,11 @@ pub struct Expander {
     release: Knob,
     makeup: Knob,
     mix: Knob,
+    high_mode: Knob,
+    high_frequency: Knob,
+    low_mode: Knob,
+    low_frequency: Knob,
+    sidechain: SidechainFilter,
     state: Detector,
     rate: u32,
 }
@@ -72,6 +90,11 @@ impl Expander {
             release: Knob::new(&params, "release", 100.0),
             makeup: Knob::new(&params, "makeup", 0.0),
             mix: Knob::new(&params, "mix", 100.0),
+            high_mode: Knob::new(&params, "hpf_mode", 0.0),
+            high_frequency: Knob::new(&params, "hpf_frequency", 10.0),
+            low_mode: Knob::new(&params, "lpf_mode", 0.0),
+            low_frequency: Knob::new(&params, "lpf_frequency", 20_000.0),
+            sidechain: SidechainFilter::new(48_000),
             state: Detector::default(),
             rate: 48_000,
         }
@@ -85,10 +108,12 @@ impl Effect for Expander {
 
     fn prepare(&mut self, format: AudioFormat) {
         self.rate = format.rate();
+        self.sidechain.prepare(self.rate);
         self.state.reset();
     }
 
     fn reset(&mut self) {
+        self.sidechain.reset();
         self.state.reset();
     }
 
@@ -104,8 +129,15 @@ impl Effect for Expander {
         let channels = buffer.channels().min(MAX_CHANNELS);
         let frames = buffer.frames();
 
+        self.sidechain.update(
+            self.high_mode.index(),
+            self.high_frequency.value(),
+            self.low_mode.index(),
+            self.low_frequency.value(),
+        );
         for frame in 0..frames {
-            let level = self.state.track(buffer, channels, frame, use_rms);
+            let (peak, square) = filtered_measure(&mut self.sidechain, buffer, channels, frame);
+            let level = self.state.track_measure(peak, square, use_rms);
             let expansion = soft_knee_expansion_db(math::gain_to_db(level), threshold, knee, ratio);
             let gain = math::db_to_gain(expansion) * makeup;
             for channel in 0..channels {

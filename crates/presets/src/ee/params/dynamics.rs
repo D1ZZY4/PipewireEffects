@@ -5,7 +5,7 @@ use serde_json::{Map, Value};
 
 use crate::model::PresetValue;
 
-use super::{mix_percent, number, put, skipped};
+use super::{mix_percent, number, put, skipped, text};
 
 const COMPRESSOR_KEYS: &[&str] = &[
     "bypass",
@@ -17,6 +17,10 @@ const COMPRESSOR_KEYS: &[&str] = &[
     "makeup",
     "wet",
     "sidechain",
+    "hpf-mode",
+    "hpf-frequency",
+    "lpf-mode",
+    "lpf-frequency",
 ];
 
 const LIMITER_KEYS: &[&str] = &["bypass", "input-gain", "threshold", "release"];
@@ -44,6 +48,10 @@ const EXPANDER_KEYS: &[&str] = &[
     "ratio",
     "knee",
     "makeup",
+    "hpf-mode",
+    "hpf-frequency",
+    "lpf-mode",
+    "lpf-frequency",
 ];
 
 const DETECTOR_KEYS: &[&str] = &["mode"];
@@ -88,6 +96,7 @@ pub(super) fn compressor(
         "detector",
         detector(parameters, "compressor", warnings),
     );
+    put_sidechain(parameters, &mut params, warnings);
     params
 }
 
@@ -149,7 +158,51 @@ pub(super) fn expander(
         detector(parameters, "expander", warnings),
     );
     expander_mode(parameters, warnings);
+    put_sidechain(parameters, &mut params, warnings);
     params
+}
+
+fn put_sidechain(
+    parameters: &Map<String, Value>,
+    params: &mut BTreeMap<String, PresetValue>,
+    warnings: &mut Vec<String>,
+) {
+    put(
+        params,
+        "hpf_mode",
+        sidechain_mode(parameters, "hpf-mode", warnings),
+    );
+    put(
+        params,
+        "hpf_frequency",
+        number(parameters, "hpf-frequency", 10.0),
+    );
+    put(
+        params,
+        "lpf_mode",
+        sidechain_mode(parameters, "lpf-mode", warnings),
+    );
+    put(
+        params,
+        "lpf_frequency",
+        number(parameters, "lpf-frequency", 20_000.0),
+    );
+}
+
+fn sidechain_mode(parameters: &Map<String, Value>, key: &str, warnings: &mut Vec<String>) -> f64 {
+    match text(parameters, key) {
+        "" | "Off" => 0.0,
+        "12 dB/oct" => 1.0,
+        "24 dB/oct" => 2.0,
+        "36 dB/oct" => 3.0,
+        other => {
+            warnings.push(tr(
+                "the sidechain filter slope '{0}' has no equivalent here and was turned off",
+                &[other],
+            ));
+            0.0
+        }
+    }
 }
 
 pub(super) fn deesser(
@@ -203,7 +256,7 @@ fn range(parameters: &Map<String, Value>, warnings: &mut Vec<String>) -> f64 {
 }
 
 fn mode(parameters: &Map<String, Value>, warnings: &mut Vec<String>) -> f64 {
-    match super::text(parameters, "mode") {
+    match text(parameters, "mode") {
         "" | "Wide" | "Wideband" => 1.0,
         "Split" => 0.0,
         other => {
@@ -235,7 +288,7 @@ fn detector(parameters: &Map<String, Value>, effect: &str, warnings: &mut Vec<St
 }
 
 fn expander_mode(parameters: &Map<String, Value>, warnings: &mut Vec<String>) {
-    match super::text(parameters, "mode") {
+    match text(parameters, "mode") {
         "" | "Downward" => {}
         "Upward" => warnings.push(
             t("expander: the upward mode has no equivalent here and the downward curve was loaded")

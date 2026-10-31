@@ -1,6 +1,34 @@
 use pwe_core::AudioBuffer;
 use pwe_core::math;
 
+use crate::effects::sidechain::SidechainFilter;
+
+pub fn filtered_measure(
+    filter: &mut SidechainFilter,
+    buffer: &AudioBuffer,
+    channels: usize,
+    frame: usize,
+) -> (f32, f32) {
+    if filter.bypassed() {
+        let mut peak = 0.0f32;
+        let mut square = 0.0f32;
+        for channel in 0..channels {
+            let value = buffer.channel(channel)[frame];
+            peak = peak.max(value.abs());
+            square += value * value;
+        }
+        return (peak, square / channels.max(1) as f32);
+    }
+    let mut peak = 0.0f32;
+    let mut square = 0.0f32;
+    for channel in 0..channels {
+        let value = filter.process(channel, buffer.channel(channel)[frame]);
+        peak = peak.max(value.abs());
+        square += value * value;
+    }
+    (peak, square / channels.max(1) as f32)
+}
+
 pub fn soft_knee_reduction_db(level_db: f32, threshold_db: f32, knee_db: f32, ratio: f32) -> f32 {
     if !level_db.is_finite() {
         return 0.0;
@@ -70,21 +98,7 @@ impl Detector {
         self.rms = 0.0;
     }
 
-    pub fn track(
-        &mut self,
-        buffer: &AudioBuffer,
-        channels: usize,
-        frame: usize,
-        use_rms: bool,
-    ) -> f32 {
-        let mut peak = 0.0f32;
-        let mut square = 0.0f32;
-        for channel in 0..channels {
-            let sample = buffer.channel(channel)[frame];
-            peak = peak.max(sample.abs());
-            square += sample * sample;
-        }
-        square /= channels.max(1) as f32;
+    pub fn track_measure(&mut self, peak: f32, square: f32, use_rms: bool) -> f32 {
         let level = if use_rms {
             self.rms += (square - self.rms) * self.rms_coefficient;
             self.rms.max(0.0).sqrt()
@@ -179,7 +193,8 @@ mod tests {
         let mut level = 0.0;
         for _ in 0..200 {
             for frame in 0..64 {
-                level = detector.track(&buffer, 2, frame, false);
+                let sample = buffer.channel(0)[frame];
+                level = detector.track_measure(sample, sample * sample, false);
             }
         }
         assert!((level - 0.5).abs() < 1.0e-3, "{level}");

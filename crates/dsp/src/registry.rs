@@ -67,7 +67,9 @@ pub const EFFECTS: &[EffectDescriptor] = &[
     EffectDescriptor {
         id: "compressor",
         label: mark("Compressor"),
-        summary: mark("Feed forward compressor with peak or RMS detection and a soft knee"),
+        summary: mark(
+            "Feed forward compressor with peak or RMS detection, a soft knee and a filtered sidechain",
+        ),
         category: EffectCategory::Dynamics,
         specs: effects::compressor_specs,
         build: |params| Box::new(effects::Compressor::new(params)),
@@ -107,7 +109,9 @@ pub const EFFECTS: &[EffectDescriptor] = &[
     EffectDescriptor {
         id: "expander",
         label: mark("Expander"),
-        summary: mark("Downward expander that widens the dynamic range below a threshold"),
+        summary: mark(
+            "Downward expander that widens the dynamic range below a threshold, with a filtered sidechain",
+        ),
         category: EffectCategory::Dynamics,
         specs: effects::expander_specs,
         build: |params| Box::new(effects::Expander::new(params)),
