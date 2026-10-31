@@ -62,3 +62,48 @@ fn extreme_settings_stay_finite_and_bounded() {
     let processed = settled(&[("amount", 24.0), ("harmonics", 10.0)], 6_000.0);
     assert!(processed.peak().is_finite() && processed.peak() < 8.0);
 }
+
+#[test]
+fn the_input_gain_scales_the_dry_signal() {
+    let processed = settled(&[("amount", -24.0), ("input_gain", -6.0)], 200.0);
+    assert!(
+        (processed.peak() - 0.2).abs() < 0.01,
+        "peak {}",
+        processed.peak()
+    );
+}
+
+#[test]
+fn the_output_gain_scales_the_result() {
+    let processed = settled(&[("amount", -24.0), ("output_gain", -6.0)], 200.0);
+    assert!(
+        (processed.peak() - 0.2).abs() < 0.01,
+        "peak {}",
+        processed.peak()
+    );
+}
+
+#[test]
+fn the_two_gains_compose() {
+    let processed = settled(
+        &[
+            ("amount", -24.0),
+            ("input_gain", -6.0),
+            ("output_gain", -6.0),
+        ],
+        200.0,
+    );
+    assert!(
+        (processed.peak() - 0.1).abs() < 0.01,
+        "peak {}",
+        processed.peak()
+    );
+}
+
+#[test]
+fn the_gain_controls_are_published() {
+    let specs = specs();
+    for id in ["input_gain", "output_gain"] {
+        assert!(specs.iter().any(|spec| spec.id == id), "{id}");
+    }
+}

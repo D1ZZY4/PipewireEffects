@@ -8,6 +8,16 @@ const RESONANCE: f32 = std::f32::consts::FRAC_1_SQRT_2;
 
 pub fn specs() -> Vec<ParamSpec> {
     vec![
+        ParamSpec::float("input_gain", "Input gain", ParamUnit::Decibel)
+            .range(-36.0, 36.0, 0.0)
+            .step(0.1)
+            .group("Input")
+            .build(),
+        ParamSpec::float("output_gain", "Output gain", ParamUnit::Decibel)
+            .range(-36.0, 36.0, 0.0)
+            .step(0.1)
+            .group("Output")
+            .build(),
         ParamSpec::float("amount", "Amount", ParamUnit::Decibel)
             .range(-24.0, 24.0, 0.0)
             .step(0.1)
@@ -39,6 +49,8 @@ pub fn specs() -> Vec<ParamSpec> {
 }
 
 pub struct Exciter {
+    input_gain: Knob,
+    output_gain: Knob,
     amount: Knob,
     harmonics: Knob,
     blend: Knob,
@@ -55,6 +67,8 @@ pub struct Exciter {
 impl Exciter {
     pub fn new(params: ParamSet) -> Self {
         Self {
+            input_gain: Knob::new(&params, "input_gain", 0.0),
+            output_gain: Knob::new(&params, "output_gain", 0.0),
             amount: Knob::new(&params, "amount", 0.0),
             harmonics: Knob::new(&params, "harmonics", 8.5),
             blend: Knob::new(&params, "blend", 0.0),
@@ -116,6 +130,8 @@ impl Effect for Exciter {
     fn process(&mut self, buffer: &mut AudioBuffer) {
         let scope = self.scope.value();
         self.refresh(scope, self.ceil.value());
+        let input_gain = math::db_to_gain(self.input_gain.value());
+        let output_gain = math::db_to_gain(self.output_gain.value());
         let amount = math::db_to_gain(self.amount.value());
         let drive = self.harmonics.value().max(0.1);
         let blend = ((self.blend.value() + 10.0) / 20.0).clamp(0.0, 1.0);
@@ -127,7 +143,7 @@ impl Effect for Exciter {
             let high_pass = &mut self.high_pass[channel];
             let low_pass = &mut self.low_pass[channel];
             for sample in buffer.channel_mut(channel) {
-                let input = *sample;
+                let input = *sample * input_gain;
                 let mut band = high_pass.process(input);
                 if active {
                     band = low_pass.process(band);
@@ -135,11 +151,12 @@ impl Effect for Exciter {
                 let driven = band * drive;
                 let saturated = driven / (1.0 + driven.abs());
                 let generated = saturated * (1.0 - blend) + band * blend;
-                *sample = math::sanitize(if listen {
+                let mixed = if listen {
                     generated
                 } else {
                     input + amount * generated
-                });
+                };
+                *sample = math::sanitize(mixed * output_gain);
             }
         }
     }
