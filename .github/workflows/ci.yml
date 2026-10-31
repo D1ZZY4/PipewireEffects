@@ -51,7 +51,7 @@ jobs:
       # The repository builds with zero warnings, and this is what keeps it
       # that way.
       - name: Lint
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Test
         run: cargo test --workspace
