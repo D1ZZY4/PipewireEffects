@@ -130,12 +130,14 @@ pub fn db_text(db: f32) -> String {
     }
 }
 
-pub fn lufs_text(lufs: f32) -> String {
-    if lufs.is_finite() {
-        format!("{lufs:.1} LUFS")
-    } else {
-        "-inf LUFS".to_owned()
+pub fn loudness_text(lufs: f32) -> Option<String> {
+    if !lufs.is_finite() || lufs <= -70.0 {
+        return None;
     }
+    Some(pwe_core::i18n::tr(
+        "Loudness {0}",
+        &[&format!("{lufs:.1} LUFS")],
+    ))
 }
 
 pub fn normalized_db(db: f32) -> f64 {

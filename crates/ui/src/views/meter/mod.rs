@@ -4,7 +4,7 @@ use std::rc::Rc;
 use gtk::prelude::*;
 use pwe_core::i18n::t;
 
-use crate::format::{db_text, lufs_text, normalized_db};
+use crate::format::{db_text, loudness_text, normalized_db};
 
 pub const SEGMENTS: usize = 44;
 pub const HISTORY: usize = 72;
@@ -72,13 +72,14 @@ impl LevelDisplay {
         container.append(&header);
         container.append(&area);
         let loudness = with_loudness.then(|| {
-            let label = gtk::Label::new(Some(&lufs_text(f32::NEG_INFINITY)));
+            let label = gtk::Label::new(None);
             label.add_css_class("caption");
             label.add_css_class("dim-label");
             label.add_css_class("numeric");
             label.set_xalign(0.0);
+            label.set_visible(false);
             label.set_tooltip_text(Some(t(
-                "EBU R128 short-term loudness of the processed audio",
+                "Perceived loudness of the last three seconds. -23 LUFS is the broadcast reference; a higher number is louder.",
             )));
             container.append(&label);
             label
@@ -96,8 +97,15 @@ impl LevelDisplay {
     }
 
     pub fn update_loudness(&self, lufs: f32) {
-        if let Some(label) = &self.loudness {
-            label.set_label(&lufs_text(lufs));
+        let Some(label) = &self.loudness else {
+            return;
+        };
+        match loudness_text(lufs) {
+            Some(text) => {
+                label.set_label(&text);
+                label.set_visible(true);
+            }
+            None => label.set_visible(false),
         }
     }
 

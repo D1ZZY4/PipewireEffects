@@ -7,9 +7,11 @@ fn db_text_handles_the_floor() {
 }
 
 #[test]
-fn lufs_text_handles_the_floor_and_a_measurement() {
-    assert_eq!(lufs_text(f32::NEG_INFINITY), "-inf LUFS");
-    assert_eq!(lufs_text(-14.0), "-14.0 LUFS");
+fn the_loudness_caption_names_the_measurement_and_hides_a_floor() {
+    assert_eq!(loudness_text(f32::NEG_INFINITY), None);
+    assert_eq!(loudness_text(f32::NAN), None);
+    assert_eq!(loudness_text(-80.0), None);
+    assert_eq!(loudness_text(-23.0).as_deref(), Some("Loudness -23.0 LUFS"));
 }
 
 #[test]
