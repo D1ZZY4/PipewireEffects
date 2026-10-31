@@ -2,18 +2,16 @@ mod capture;
 pub mod command;
 pub mod config;
 mod connection;
-mod cpu;
 mod defaults;
 pub mod device;
 mod engine;
-pub mod gpu;
 mod listener;
+mod meters;
+mod processing;
 mod processors;
 mod runtime;
 mod shared;
 mod spectrum;
-mod stream_setup;
-mod stream_spec;
 mod streams;
 mod target;
 
@@ -22,7 +20,14 @@ pub use config::{AUTO_TARGET, EngineConfig, MAX_EFFECTS, OUTPUT_NODE_NAME, virtu
 pub use device::{DeviceInfo, list_devices};
 pub use engine::EngineHandle;
 pub use error::{EngineError, EngineResult};
-pub use shared::{EngineState, MeterSnapshot, Shared, Snapshot, StatsSnapshot};
+pub use meters::MeterSnapshot;
+pub(crate) use processing::cpu;
+pub use processing::gpu;
+pub use shared::{EngineState, Shared, Snapshot, StatsSnapshot};
 pub use spectrum::{BANDS, FLOOR_DB, Spectrum, band_centre};
 
 mod error;
+
+#[cfg(test)]
+#[path = "tests/tests.rs"]
+mod tests;

@@ -1,0 +1,279 @@
+#[cfg(test)]
+#[path = "tests/tests.rs"]
+mod tests;
+
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
+
+use pwe_core::PipelineKind;
+
+use crate::command::EffectSlot;
+use crate::device::DeviceInfo;
+use crate::meters::Meters;
+use crate::spectrum::Spectrum;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EngineState {
+    Stopped,
+    Starting,
+    Running,
+    Failed,
+}
+
+impl EngineState {
+    pub fn label(self) -> &'static str {
+        pwe_core::i18n::t(match self {
+            Self::Stopped => "Stopped",
+            Self::Starting => "Starting",
+            Self::Running => "Running",
+            Self::Failed => "Failed",
+        })
+    }
+
+    fn from_code(code: u8) -> Self {
+        match code {
+            1 => Self::Starting,
+            2 => Self::Running,
+            3 => Self::Failed,
+            _ => Self::Stopped,
+        }
+    }
+
+    fn code(self) -> u8 {
+        match self {
+            Self::Stopped => 0,
+            Self::Starting => 1,
+            Self::Running => 2,
+            Self::Failed => 3,
+        }
+    }
+}
+
+macro_rules! counter {
+    ($name:ident) => {
+        pub fn $name(&self) -> u64 {
+            self.$name.load(Ordering::Relaxed)
+        }
+    };
+}
+
+#[derive(Debug, Default)]
+pub struct Stats {
+    captured_frames: AtomicU64,
+    processed_frames: AtomicU64,
+    underrun_samples: AtomicU64,
+    overrun_samples: AtomicU64,
+    trim_events: AtomicU64,
+    buffer_frames: AtomicU64,
+    ring_occupancy: AtomicU64,
+    chain_latency_frames: AtomicU64,
+    gpu_blocks: AtomicU64,
+    gpu_fallbacks: AtomicU64,
+    gpu_disagreements: AtomicU64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct StatsSnapshot {
+    pub captured_frames: u64,
+    pub processed_frames: u64,
+    pub underrun_samples: u64,
+    pub overrun_samples: u64,
+    pub trim_events: u64,
+    pub buffer_frames: u64,
+    pub ring_occupancy: u64,
+    pub chain_latency_frames: u64,
+    pub gpu_blocks: u64,
+    pub gpu_fallbacks: u64,
+    pub gpu_disagreements: u64,
+}
+
+impl Stats {
+    counter!(captured_frames);
+    counter!(processed_frames);
+    counter!(underrun_samples);
+    counter!(overrun_samples);
+    counter!(trim_events);
+    counter!(buffer_frames);
+    counter!(ring_occupancy);
+    counter!(chain_latency_frames);
+    counter!(gpu_blocks);
+    counter!(gpu_fallbacks);
+    counter!(gpu_disagreements);
+
+    pub fn add_captured(&self, frames: u64) {
+        self.captured_frames.fetch_add(frames, Ordering::Relaxed);
+    }
+
+    pub fn add_processed(&self, frames: u64) {
+        self.processed_frames.fetch_add(frames, Ordering::Relaxed);
+    }
+
+    pub fn add_underrun(&self, samples: u64) {
+        self.underrun_samples.fetch_add(samples, Ordering::Relaxed);
+    }
+
+    pub fn add_overrun(&self, samples: u64) {
+        self.overrun_samples.fetch_add(samples, Ordering::Relaxed);
+    }
+
+    pub fn record_trim(&self) {
+        self.trim_events.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn set_buffer_frames(&self, frames: u64) {
+        self.buffer_frames.store(frames, Ordering::Relaxed);
+    }
+
+    pub fn set_ring_occupancy(&self, samples: u64) {
+        self.ring_occupancy.store(samples, Ordering::Relaxed);
+    }
+
+    pub fn set_chain_latency_frames(&self, frames: u64) {
+        self.chain_latency_frames.store(frames, Ordering::Relaxed);
+    }
+
+    pub fn record_gpu_block(&self) {
+        self.gpu_blocks.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_gpu_fallback(&self) {
+        self.gpu_fallbacks.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_gpu_disagreement(&self) {
+        self.gpu_disagreements.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn snapshot(&self) -> StatsSnapshot {
+        StatsSnapshot {
+            captured_frames: self.captured_frames(),
+            processed_frames: self.processed_frames(),
+            underrun_samples: self.underrun_samples(),
+            overrun_samples: self.overrun_samples(),
+            trim_events: self.trim_events(),
+            buffer_frames: self.buffer_frames(),
+            ring_occupancy: self.ring_occupancy(),
+            chain_latency_frames: self.chain_latency_frames(),
+            gpu_blocks: self.gpu_blocks(),
+            gpu_fallbacks: self.gpu_fallbacks(),
+            gpu_disagreements: self.gpu_disagreements(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Snapshot {
+    pub kind: PipelineKind,
+    pub sample_rate: u32,
+    pub channels: usize,
+    pub devices: Vec<DeviceInfo>,
+    pub target: String,
+    pub node_name: String,
+    pub node_id: u32,
+    pub node_description: String,
+    pub chain: Vec<(&'static str, EffectSlot)>,
+    pub bypassed: bool,
+    pub automatic: bool,
+    pub warnings: Vec<String>,
+}
+
+impl Default for Snapshot {
+    fn default() -> Self {
+        Self {
+            kind: PipelineKind::Output,
+            sample_rate: 0,
+            channels: 2,
+            devices: Vec::new(),
+            target: "default".to_owned(),
+            node_name: String::new(),
+            node_id: 0,
+            node_description: String::new(),
+            chain: Vec::new(),
+            bypassed: false,
+            automatic: true,
+            warnings: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Shared {
+    state: AtomicU8,
+    error: Mutex<Option<String>>,
+    stats: Stats,
+    meters: Meters,
+    spectrum: Spectrum,
+    snapshot: Mutex<Snapshot>,
+}
+
+impl Default for Shared {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Shared {
+    pub fn new() -> Self {
+        Self {
+            state: AtomicU8::new(EngineState::Stopped.code()),
+            error: Mutex::new(None),
+            stats: Stats::default(),
+            meters: Meters::default(),
+            spectrum: Spectrum::new(),
+            snapshot: Mutex::new(Snapshot::default()),
+        }
+    }
+
+    pub fn state(&self) -> EngineState {
+        EngineState::from_code(self.state.load(Ordering::Relaxed))
+    }
+
+    pub fn set_state(&self, state: EngineState) {
+        self.state.store(state.code(), Ordering::Relaxed);
+    }
+
+    pub fn error(&self) -> Option<String> {
+        self.error.lock().ok().and_then(|guard| guard.clone())
+    }
+
+    pub fn set_error(&self, message: Option<String>) {
+        if let Ok(mut guard) = self.error.lock() {
+            *guard = message;
+        }
+    }
+
+    pub fn stats(&self) -> &Stats {
+        &self.stats
+    }
+
+    pub fn meters(&self) -> &Meters {
+        &self.meters
+    }
+
+    pub fn spectrum(&self) -> &Spectrum {
+        &self.spectrum
+    }
+
+    pub fn snapshot(&self) -> Snapshot {
+        self.snapshot
+            .lock()
+            .map_or_else(|_| Snapshot::default(), |guard| guard.clone())
+    }
+
+    pub fn update_snapshot<F: FnOnce(&mut Snapshot)>(&self, update: F) {
+        if let Ok(mut guard) = self.snapshot.lock() {
+            update(&mut guard);
+        }
+    }
+
+    pub fn add_warning(&self, warning: String) {
+        self.update_snapshot(|snapshot| {
+            if !snapshot.warnings.contains(&warning) {
+                snapshot.warnings.push(warning);
+            }
+            if snapshot.warnings.len() > 16 {
+                snapshot.warnings.remove(0);
+            }
+        });
+    }
+}
