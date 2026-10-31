@@ -78,9 +78,9 @@
         "enabled": false,
         "params": {
           "input_gain": 0.0,
-          "balance": 0.0,
-          "stereo_base": 0.0,
-          "stereo_width": 16.0
+          "stereo_width": 16.0,
+          "balance_out": 0.0,
+          "delay": 0.0
         }
       },
       {

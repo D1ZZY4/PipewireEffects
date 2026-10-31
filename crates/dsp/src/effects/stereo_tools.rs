@@ -4,37 +4,82 @@ use crate::effects::util::MAX_CHANNELS;
 use crate::knob::Knob;
 
 const BASE_BUFFER: usize = 8_192;
+const MODES: [&str; 7] = [
+    "Stereo",
+    "Stereo to mid/side",
+    "Mid/side to stereo",
+    "Mono, left",
+    "Mono, right",
+    "Mono sum",
+    "Swap channels",
+];
 
 pub fn specs() -> Vec<ParamSpec> {
     vec![
+        ParamSpec::choice("mode", "Mode", &MODES, 0).group("Input"),
         ParamSpec::float("input_gain", "Input gain", ParamUnit::Decibel)
             .range(-20.0, 20.0, 0.0)
             .step(0.1)
             .group("Input")
+            .build(),
+        ParamSpec::float("balance_in", "Balance in", ParamUnit::Percent)
+            .range(-100.0, 100.0, 0.0)
+            .step(1.0)
+            .group("Input")
+            .build(),
+        ParamSpec::boolean("phase_left", "Invert left phase", false).group("Input"),
+        ParamSpec::boolean("phase_right", "Invert right phase", false).group("Input"),
+        ParamSpec::boolean("mute_left", "Mute left", false).group("Input"),
+        ParamSpec::boolean("mute_right", "Mute right", false).group("Input"),
+        ParamSpec::float("middle_level", "Middle level", ParamUnit::Decibel)
+            .range(-36.0, 36.0, 0.0)
+            .step(0.1)
+            .group("Middle and side")
+            .build(),
+        ParamSpec::float("side_level", "Side level", ParamUnit::Decibel)
+            .range(-36.0, 36.0, 0.0)
+            .step(0.1)
+            .group("Middle and side")
+            .build(),
+        ParamSpec::float("middle_panorama", "Middle panorama", ParamUnit::Percent)
+            .range(-100.0, 100.0, 0.0)
+            .step(1.0)
+            .group("Middle and side")
+            .build(),
+        ParamSpec::float("side_balance", "Side balance", ParamUnit::Percent)
+            .range(-100.0, 100.0, 0.0)
+            .step(1.0)
+            .group("Middle and side")
             .build(),
         ParamSpec::float("stereo_width", "Stereo width", ParamUnit::Percent)
             .range(0.0, 200.0, 100.0)
             .step(1.0)
             .group("Image")
             .build(),
-        ParamSpec::float("balance", "Balance", ParamUnit::Percent)
-            .range(-100.0, 100.0, 0.0)
-            .step(1.0)
-            .group("Image")
-            .build(),
-        ParamSpec::float("stereo_base", "Stereo base", ParamUnit::Milliseconds)
+        ParamSpec::float("delay", "Delay", ParamUnit::Milliseconds)
             .range(0.0, 30.0, 0.0)
             .step(0.1)
             .group("Image")
             .build(),
+        ParamSpec::float("balance_out", "Balance out", ParamUnit::Percent)
+            .range(-100.0, 100.0, 0.0)
+            .step(1.0)
+            .group("Output")
+            .build(),
+        ParamSpec::boolean("softclip", "Soft clip", false).group("Output"),
     ]
 }
 
+fn balance(gain: &mut [f32; 2], amount: f32) {
+    if amount > 0.0 {
+        gain[0] *= 1.0 - amount;
+    } else if amount < 0.0 {
+        gain[1] *= 1.0 + amount;
+    }
+}
+
 pub struct StereoTools {
-    input_gain: Knob,
-    width: Knob,
-    balance: Knob,
-    base: Knob,
+    params: [Knob; 15],
     delay_buffer: Vec<f32>,
     delay_index: usize,
     rate: u32,
@@ -43,13 +88,41 @@ pub struct StereoTools {
 impl StereoTools {
     pub fn new(params: ParamSet) -> Self {
         Self {
-            input_gain: Knob::new(&params, "input_gain", 0.0),
-            width: Knob::new(&params, "stereo_width", 100.0),
-            balance: Knob::new(&params, "balance", 0.0),
-            base: Knob::new(&params, "stereo_base", 0.0),
+            params: [
+                Knob::new(&params, "mode", 0.0),
+                Knob::new(&params, "input_gain", 0.0),
+                Knob::new(&params, "balance_in", 0.0),
+                Knob::new(&params, "phase_left", 0.0),
+                Knob::new(&params, "phase_right", 0.0),
+                Knob::new(&params, "mute_left", 0.0),
+                Knob::new(&params, "mute_right", 0.0),
+                Knob::new(&params, "middle_level", 0.0),
+                Knob::new(&params, "side_level", 0.0),
+                Knob::new(&params, "middle_panorama", 0.0),
+                Knob::new(&params, "side_balance", 0.0),
+                Knob::new(&params, "stereo_width", 100.0),
+                Knob::new(&params, "delay", 0.0),
+                Knob::new(&params, "balance_out", 0.0),
+                Knob::new(&params, "softclip", 0.0),
+            ],
             delay_buffer: vec![0.0; BASE_BUFFER],
             delay_index: 0,
             rate: 48_000,
+        }
+    }
+
+    fn route(&self, mode: usize, pair: [f32; 2]) -> [f32; 2] {
+        let [left, right] = pair;
+        let middle = 0.5 * (left + right);
+        let side = 0.5 * (left - right);
+        match mode {
+            1 => [middle, side],
+            2 => [left + right, left - right],
+            3 => [left, left],
+            4 => [right, right],
+            5 => [middle, middle],
+            6 => [right, left],
+            _ => [left, right],
         }
     }
 }
@@ -71,112 +144,78 @@ impl Effect for StereoTools {
 
     fn process(&mut self, buffer: &mut AudioBuffer) {
         let channels = buffer.channels().min(MAX_CHANNELS);
+        let input_gain = math::db_to_gain(self.params[1].value());
         if channels < 2 {
-            let gain = math::db_to_gain(self.input_gain.value());
             for channel in buffer.channels_mut() {
                 for sample in channel.iter_mut() {
-                    *sample = math::sanitize(*sample * gain);
+                    *sample = math::sanitize(*sample * input_gain);
                 }
             }
             return;
         }
 
-        let input_gain = math::db_to_gain(self.input_gain.value());
-        let width = (self.width.value() / 100.0).clamp(0.0, 2.0);
-        let balance = (self.balance.value() / 100.0).clamp(-1.0, 1.0);
-        let left_gain = if balance > 0.0 { 1.0 - balance } else { 1.0 };
-        let right_gain = if balance < 0.0 { 1.0 + balance } else { 1.0 };
-        let delay = ((self.base.value() / 1000.0) * self.rate.max(1) as f32)
+        let mode = self.params[0].index().min(MODES.len() - 1);
+        let balance_in = (self.params[2].value() / 100.0).clamp(-1.0, 1.0);
+        let phase = [self.params[3].flag(), self.params[4].flag()];
+        let mute = [self.params[5].flag(), self.params[6].flag()];
+        let middle_gain = math::db_to_gain(self.params[7].value());
+        let side_gain = math::db_to_gain(self.params[8].value());
+        let panorama = (self.params[9].value() / 100.0).clamp(-1.0, 1.0);
+        let side_balance = (self.params[10].value() / 100.0).clamp(-1.0, 1.0);
+        let width = (self.params[11].value() / 100.0).clamp(0.0, 2.0);
+        let balance_out = (self.params[13].value() / 100.0).clamp(-1.0, 1.0);
+        let softclip = self.params[14].flag();
+        let delay = ((self.params[12].value() / 1000.0) * self.rate.max(1) as f32)
             .clamp(0.0, (BASE_BUFFER - 2) as f32) as usize;
         let frames = buffer.frames();
 
         for frame in 0..frames {
-            let left = buffer.channel_mut(0)[frame] * input_gain;
-            let mut right = buffer.channel_mut(1)[frame] * input_gain;
+            let mut pair = [
+                buffer.channel_mut(0)[frame] * input_gain,
+                buffer.channel_mut(1)[frame] * input_gain,
+            ];
+            let mut input_gains = [1.0f32; 2];
+            balance(&mut input_gains, balance_in);
+            for (value, gain) in pair.iter_mut().zip(input_gains) {
+                *value *= gain;
+            }
+            for (value, inverted) in pair.iter_mut().zip(phase) {
+                if inverted {
+                    *value = -*value;
+                }
+            }
+            for (value, muted) in pair.iter_mut().zip(mute) {
+                if muted {
+                    *value = 0.0;
+                }
+            }
+            let mut routed = self.route(mode, pair);
             if delay > 0 {
                 let read = (self.delay_index + BASE_BUFFER - delay) % BASE_BUFFER;
                 let delayed = self.delay_buffer[read];
-                self.delay_buffer[self.delay_index] = right;
+                self.delay_buffer[self.delay_index] = routed[1];
                 self.delay_index = (self.delay_index + 1) % BASE_BUFFER;
-                right = delayed;
+                routed[1] = delayed;
             }
-            let mid = 0.5 * (left + right);
-            let side = 0.5 * (left - right) * width;
-            buffer.channel_mut(0)[frame] = math::sanitize((mid + side) * left_gain);
-            buffer.channel_mut(1)[frame] = math::sanitize((mid - side) * right_gain);
+            let middle = 0.5 * (routed[0] + routed[1]) * middle_gain;
+            let side = 0.5 * (routed[0] - routed[1]) * side_gain * width;
+            let mut middle_pair = [middle, middle];
+            let mut side_pair = [side, -side];
+            balance(&mut middle_pair, panorama);
+            balance(&mut side_pair, side_balance);
+            let mut output = [middle_pair[0] + side_pair[0], middle_pair[1] + side_pair[1]];
+            let mut output_gains = [1.0f32; 2];
+            balance(&mut output_gains, balance_out);
+            for (value, gain) in output.iter_mut().zip(output_gains) {
+                *value *= gain;
+            }
+            for (channel, value) in output.iter().enumerate() {
+                let value = if softclip { value.tanh() } else { *value };
+                buffer.channel_mut(channel)[frame] = math::sanitize(value);
+            }
         }
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn stereo(left: f32, right: f32, frames: usize) -> AudioBuffer {
-        let mut buffer = AudioBuffer::new(2, frames);
-        buffer.configure(2, frames).unwrap();
-        buffer.channel_mut(0).fill(left);
-        buffer.channel_mut(1).fill(right);
-        buffer
-    }
-
-    #[test]
-    fn zero_width_collapses_to_mono() {
-        let params = ParamSet::new(specs());
-        params.set_f32("stereo_width", 0.0).unwrap();
-        let mut effect = StereoTools::new(params);
-        effect.prepare(AudioFormat::new(48_000, 2));
-        let mut buffer = stereo(1.0, -1.0, 8);
-        effect.process(&mut buffer);
-        assert!(buffer.channel(0)[0].abs() < 1.0e-6);
-        assert!(buffer.channel(1)[0].abs() < 1.0e-6);
-    }
-
-    #[test]
-    fn double_width_amplifies_the_side_channel() {
-        let params = ParamSet::new(specs());
-        params.set_f32("stereo_width", 200.0).unwrap();
-        let mut effect = StereoTools::new(params);
-        effect.prepare(AudioFormat::new(48_000, 2));
-        let mut buffer = stereo(1.0, -1.0, 8);
-        effect.process(&mut buffer);
-        assert!(
-            (buffer.channel(0)[0] - 2.0).abs() < 1.0e-5,
-            "{}",
-            buffer.channel(0)[0]
-        );
-        assert!((buffer.channel(1)[0] + 2.0).abs() < 1.0e-5);
-    }
-
-    #[test]
-    fn balance_attenuates_the_opposite_channel() {
-        let params = ParamSet::new(specs());
-        params.set_f32("balance", 100.0).unwrap();
-        let mut effect = StereoTools::new(params);
-        effect.prepare(AudioFormat::new(48_000, 2));
-        let mut buffer = stereo(0.5, 0.5, 8);
-        effect.process(&mut buffer);
-        assert!(buffer.channel(0)[0].abs() < 1.0e-6);
-    }
-
-    #[test]
-    fn stereo_base_shifts_the_right_channel_in_time() {
-        let params = ParamSet::new(specs());
-        params.set_f32("stereo_base", 1.0).unwrap();
-        let mut effect = StereoTools::new(params);
-        effect.prepare(AudioFormat::new(48_000, 2));
-        let mut buffer = AudioBuffer::new(2, 256);
-        buffer.configure(2, 256).unwrap();
-        buffer.channel_mut(0)[0] = 1.0;
-        buffer.channel_mut(1)[0] = 1.0;
-        effect.process(&mut buffer);
-        let right_peak = buffer
-            .channel(1)
-            .iter()
-            .enumerate()
-            .max_by(|a, b| a.1.abs().partial_cmp(&b.1.abs()).unwrap())
-            .map(|(index, _)| index)
-            .unwrap();
-        assert!(right_peak.abs_diff(48) < 4, "right peak at {right_peak}");
-    }
-}
+mod tests;

@@ -211,7 +211,7 @@ fn the_wide_deesser_mode_is_not_lost() {
 fn a_unity_side_level_keeps_the_stereo_image() {
     let (preset, _) = reverse_engineered();
     let params = params_of(&preset, "stereo_tools");
-    assert!((as_float(&params, "stereo_width") - 100.0).abs() < 0.1);
+    assert!((as_float(&params, "side_level")).abs() < 1.0e-6);
 }
 
 #[test]

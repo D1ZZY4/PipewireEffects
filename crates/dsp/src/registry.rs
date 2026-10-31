@@ -191,7 +191,7 @@ pub const EFFECTS: &[EffectDescriptor] = &[
     EffectDescriptor {
         id: "stereo_tools",
         label: mark("Stereo tools"),
-        summary: mark("Width, balance and a Haas stereo base"),
+        summary: mark("Mid/side matrix, seven routing modes, levels, panoramas and a Haas delay"),
         category: EffectCategory::Tone,
         specs: effects::stereo_tools_specs,
         build: |params| Box::new(effects::StereoTools::new(params)),
