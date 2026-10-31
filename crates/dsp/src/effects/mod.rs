@@ -1,0 +1,78 @@
+mod autogain;
+mod autotune;
+mod bass_enhancer;
+mod bass_loudness;
+mod compressor;
+mod crossfeed;
+mod crossover;
+mod crosstalk;
+mod crusher;
+mod crystalizer;
+mod deesser;
+mod delay;
+mod dynamics;
+mod equalizer;
+mod exciter;
+mod expander;
+mod filter;
+mod gain;
+mod gate;
+mod harmonizer;
+mod limiter;
+mod loudness;
+mod maximizer;
+mod midside_equalizer;
+mod multiband;
+mod multiband_compressor;
+mod multiband_gate;
+mod noise_reduction;
+mod pitch_shift;
+pub mod registry;
+mod reverb;
+mod sidechain;
+mod speech_processor;
+mod stereo_tools;
+pub mod util;
+mod vocoder;
+mod voice_suppressor;
+
+pub use autogain::{AutoGain, specs as autogain_specs};
+pub use autotune::{Autotune, specs as autotune_specs};
+pub use bass_enhancer::{BassEnhancer, specs as bass_enhancer_specs};
+pub use bass_loudness::{BassLoudness, specs as bass_loudness_specs};
+pub use compressor::{Compressor, specs as compressor_specs};
+pub use crossfeed::{Crossfeed, specs as crossfeed_specs};
+pub use crosstalk::{Crosstalk, specs as crosstalk_specs};
+pub use crusher::{Crusher, specs as crusher_specs};
+pub use crystalizer::{Crystalizer, specs as crystalizer_specs};
+pub use deesser::{DeEsser, specs as deesser_specs};
+pub use delay::{Delay, specs as delay_specs};
+pub use equalizer::{
+    BAND_COUNT, BAND_FREQUENCIES, BAND_IDS, BAND_LABELS, Equalizer, response_db,
+    specs as equalizer_specs,
+};
+pub use exciter::{Exciter, specs as exciter_specs};
+pub use expander::{Expander, specs as expander_specs};
+pub use filter::{Filter, specs as filter_specs};
+pub use gain::{Gain, specs as gain_specs};
+pub use gate::{Gate, specs as gate_specs};
+pub use harmonizer::{Harmonizer, specs as harmonizer_specs};
+pub use limiter::{Limiter, specs as limiter_specs};
+pub use loudness::{LoudnessEffect, specs as loudness_specs};
+pub use maximizer::{Maximizer, specs as maximizer_specs};
+pub use midside_equalizer::{MidSideEqualizer, specs as midside_equalizer_specs};
+pub use multiband_compressor::{MultibandCompressor, specs as multiband_compressor_specs};
+pub use multiband_gate::{MultibandGate, specs as multiband_gate_specs};
+pub use noise_reduction::{
+    NoiseReduction, SUPPORTED_RATE as NOISE_REDUCTION_RATE, specs as noise_reduction_specs,
+};
+pub use pitch_shift::{PitchShift, specs as pitch_shift_specs};
+pub use reverb::{Reverb, specs as reverb_specs};
+pub use sidechain::SidechainFilter;
+pub use speech_processor::{SpeechProcessor, specs as speech_processor_specs};
+pub use stereo_tools::{StereoTools, specs as stereo_tools_specs};
+pub use voice_suppressor::{VoiceSuppressor, specs as voice_suppressor_specs};
+
+#[cfg(test)]
+#[path = "tests/tests.rs"]
+mod tests;

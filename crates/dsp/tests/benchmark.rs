@@ -106,6 +106,26 @@ fn fill_cost(frames: usize) -> f64 {
     }) / BLOCKS as f64
 }
 
+fn loudness_cost(frames: usize) -> f64 {
+    let mut loudness = pwe_dsp::Loudness::new(RATE);
+    let mut buffer = sound(frames);
+    let mut phase = 0.0;
+    let with = best_of(|| {
+        for _ in 0..BLOCKS {
+            fill(&mut buffer, &mut phase);
+            loudness.process(&buffer);
+            std::hint::black_box(loudness.short_term());
+        }
+    });
+    let without = best_of(|| {
+        for _ in 0..BLOCKS {
+            fill(&mut buffer, &mut phase);
+            std::hint::black_box(buffer.peak());
+        }
+    });
+    (with - without) / BLOCKS as f64
+}
+
 fn report(label: &str, seconds: f64) {
     let deadline = FRAMES as f64 / f64::from(RATE);
     println!(
@@ -117,7 +137,7 @@ fn report(label: &str, seconds: f64) {
 }
 
 #[test]
-#[ignore = "a CPU baseline measurement, not a pass or fail check"]
+#[ignore = "a CPU baseline; it fails when the full chain needs more than half a block"]
 fn every_effect_and_the_full_chain_run_faster_than_realtime() {
     println!(
         "pipewire-effects CPU baseline, {RATE} Hz, {CHANNELS} channels, {FRAMES} frames per block, best of {ROUNDS} rounds"
@@ -135,6 +155,7 @@ fn every_effect_and_the_full_chain_run_faster_than_realtime() {
     let full = seconds_per_block(chain(&every, FRAMES), FRAMES) - baseline;
     report("all effects", full.max(0.0));
     report("spectrum analyser", analyser_cost(FRAMES).max(0.0));
+    report("loudness meter", loudness_cost(FRAMES).max(0.0));
     let deadline = FRAMES as f64 / f64::from(RATE);
     assert!(
         full < deadline * 0.5,
