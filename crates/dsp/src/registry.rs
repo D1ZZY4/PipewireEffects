@@ -141,6 +141,14 @@ pub const EFFECTS: &[EffectDescriptor] = &[
         build: |params| Box::new(effects::AutoGain::new(params)),
     },
     EffectDescriptor {
+        id: "loudness",
+        label: mark("Loudness"),
+        summary: mark("Volume matching towards a target loudness with a bounded range"),
+        category: EffectCategory::Dynamics,
+        specs: effects::loudness_specs,
+        build: |params| Box::new(effects::LoudnessEffect::new(params)),
+    },
+    EffectDescriptor {
         id: "bass_enhancer",
         label: mark("Bass enhancer"),
         summary: mark("Adds harmonics to the low end so small speakers reproduce it"),

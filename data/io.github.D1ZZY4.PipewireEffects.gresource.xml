@@ -19,6 +19,7 @@
     <file>hicolor/symbolic/apps/pipewire-effects-gain-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-gate-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-limiter-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-loudness-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-maximizer-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-midside_equalizer-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-multiband_compressor-symbolic.svg</file>

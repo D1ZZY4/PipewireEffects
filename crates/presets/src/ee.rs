@@ -127,6 +127,7 @@ fn map_kind(kind: &str) -> Option<&'static str> {
         "midside_equalizer" => "midside_equalizer",
         "exciter" => "exciter",
         "autogain" => "autogain",
+        "loudness" => "loudness",
         "pitch" => "pitch_shift",
         "delay" => "delay",
         "crystalizer" => "crystalizer",

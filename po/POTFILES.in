@@ -22,6 +22,7 @@ crates/dsp/src/effects/filter.rs
 crates/dsp/src/effects/gain.rs
 crates/dsp/src/effects/gate.rs
 crates/dsp/src/effects/limiter.rs
+crates/dsp/src/effects/loudness.rs
 crates/dsp/src/effects/maximizer.rs
 crates/dsp/src/effects/midside_equalizer.rs
 crates/dsp/src/effects/multiband.rs
@@ -45,6 +46,7 @@ crates/presets/src/ee/params.rs
 crates/presets/src/ee/params/colour.rs
 crates/presets/src/ee/params/dynamics.rs
 crates/presets/src/ee/params/equalizer.rs
+crates/presets/src/ee/params/level.rs
 crates/presets/src/ee/params/multiband.rs
 crates/presets/src/ee/params/time.rs
 crates/presets/src/ee/params/tone.rs

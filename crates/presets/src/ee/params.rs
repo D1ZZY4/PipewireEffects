@@ -1,6 +1,7 @@
 mod colour;
 mod dynamics;
 mod equalizer;
+mod level;
 mod loudness;
 mod midside;
 mod multiband;
@@ -44,6 +45,7 @@ pub(super) fn convert_parameters(
         "multiband_gate" => multiband::multiband_gate(parameters, warnings),
         "deesser" => dynamics::deesser(parameters, warnings),
         "autogain" => dynamics::autogain(parameters, warnings),
+        "loudness" => level::loudness(parameters, warnings),
         "delay" => time::delay(parameters, warnings),
         "reverb" => time::reverb(parameters, warnings),
         other => {
