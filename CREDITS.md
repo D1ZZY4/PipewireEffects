@@ -17,11 +17,11 @@ No source code, resource or asset was copied, with two documented exceptions: th
 cross-talk canceller in `crates/dsp/src/effects/crosstalk.rs` is a port of
 EasyEffects' own native implementation of that effect, by Antti S. Lankila, and
 carries its delay-line layout, correction-filter constants and phantom-centre
-mode; and the voice suppressor's symbolic icon
-(`data/icons/hicolor/symbolic/apps/pipewire-effects-voice_suppressor-symbolic.svg`)
-reuses the path data of the Adwaita icon theme's `action-unavailable-symbolic`.
-Both projects' licences are compatible with this one. Everything else is an
-independent Rust implementation and an original icon; the debt is one of ideas.
+mode; and the harmonizer, autotune, autogain, noise reduction, crossfeed, bass
+enhancer and de-esser symbolic icons adapt CC0 glyphs by Jakub Steiner and
+Wartybix. Both projects' licences are compatible with this one. Everything else
+is an independent Rust implementation and an original icon; the debt is one of
+ideas.
 `docs/reference-audit.md` records exactly which files were consulted and what was
 taken from them.
 

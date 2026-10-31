@@ -22,7 +22,7 @@ applications can record from.
 
 ## Effects
 
-Twenty-four effects, each with real processing and a generated control surface:
+Thirty effects, each with real processing and a generated control surface:
 
 | Effect | What it does |
 |---|---|
@@ -38,7 +38,9 @@ Twenty-four effects, each with real processing and a generated control surface:
 | **Expander** | Downward expander with a soft knee, attack, release, makeup and the same filtered sidechain |
 | **De-esser** | Split or wideband sibilance reduction |
 | **Auto gain** | EBU R128 loudness normalisation towards a target loudness |
+| **Loudness** | Equal-loudness contour compensator with five standards, an output volume and hard clipping |
 | **Bass enhancer** | Low-band harmonic generation so small speakers reproduce bass |
+| **Bass loudness** | Equal-loudness contour compensation, so quiet listening keeps its bass and treble |
 | **Crystalizer** | Four-band transient emphasis |
 | **Crusher** | Bit-depth and sample-rate reduction with a modulated hold |
 | **Exciter** | Harmonic generation in a band above the scope frequency |
@@ -46,7 +48,11 @@ Twenty-four effects, each with real processing and a generated control surface:
 | **Crossfeed** | Leaks each channel into the other so headphones sound like speakers |
 | **Crosstalk canceller** | Delayed reciprocal mix with a head-transfer correction and a phantom-centre mode |
 | **Voice suppressor** | Attenuates centred voice by comparing the two channels in the frequency domain, with an inverted mode |
+| **Pitch shift** | Phase-vocoder pitch shifting in semitones and cents, with a dry/wet mix |
+| **Autotune** | Pulls a monophonic pitch to the nearest semitone, with a strength and a reference pitch |
+| **Harmonizer** | Two shifted voices with their own interval and level, mixed with the dry signal |
 | **Noise reduction** | Removes steady background noise with a recurrent network, with a voice-activity gate and a dry/wet mix |
+| **Speech processor** | Voice activity detection, automatic gain and noise reduction for a microphone in one stage |
 | **Gain** | A gain stage with mute |
 | **Delay** | Independent left/right delay with feedback and ping-pong |
 | **Reverberation** | Freeverb-style room with pre-delay, diffusion, damping, a high/low-pass tone stage and width |
@@ -245,7 +251,7 @@ pwe-core  ◄── pwe-dsp  ◄── pwe-engine ◄── pwe-ui ◄── pip
 | Crate | Responsibility |
 |---|---|
 | `pwe-core` | Buffers, parameter specifications and atomics, the effect contract, the chain, meters, realtime helpers, the pipeline kinds |
-| `pwe-dsp` | Biquad design, the twenty-three effects, the effect registry |
+| `pwe-dsp` | Biquad design, the thirty effects, the effect registry |
 | `pwe-presets` | Preset schema, validation, storage, built-ins |
 | `pwe-services` | The settings document, its store and the autostart entry |
 | `pwe-engine` | PipeWire streams, the virtual sink and virtual source, realtime processors, device discovery, statistics |
@@ -274,13 +280,13 @@ cargo test --workspace
 ```
 
 A reproducible CPU baseline, which prints microseconds per block and the realtime
-factor for each effect and for the full twenty-three-effect chain:
+factor for each effect and for the full thirty-effect chain
 
 ```sh
 cargo test --release -p pwe-dsp --test benchmark -- --ignored --nocapture
 ```
 
-407 tests, none of which need an audio device or a display; the two
+466 tests, none of which need an audio device or a display; the two
 icon lookups skip themselves when no display is available. They cover biquad
 designs against their analytic magnitude response, the effects against measured
 signal levels and numerical bounds, the analyser's bands against the level of a
@@ -288,30 +294,41 @@ tone, the ring buffer and trimming policy with a real producer and consumer, the
 two meters against each other, preset parsing, coercion and path-traversal
 rejection, and the gettext lookup.
 
-Four live tests run the real engine against the running daemon, feed a tone
-into a virtual sink with `pw-cat`, and check the level leaving the chain. The
-processing test opens its own sink under a process-specific name, so the level it
-measures is its own tone rather than whatever else the session has routed to the
-shared sink; a fourth test starts the microphone pipeline and records from the
-virtual source, which is how the input chain is verified. A fifth runs the noise
-reduction stage in the real chain and measures what it takes off a tone:
+Nine live tests run the real engine against the running daemon. Seven feed a tone
+into a virtual sink with `pw-cat` and check what leaves the chain, and two
+exercise the Vulkan backend. The processing test opens its own sink under a
+process-specific name, so the level it measures is its own tone rather than
+whatever else the session has routed to the shared sink; a fourth test starts the
+microphone pipeline and records from the virtual source, which is how the input
+chain is verified. Two more put the pitch shifter and the bass loudness contour
+in the real chain and measure what they do to a tone, and one runs the noise
+reduction stage and measures what it takes off a tone:
 
 ```sh
-cargo test -p pwe-engine --test live_pipewire -- --ignored --test-threads=1 --nocapture
-cargo test -p pwe-engine --test live_noise_reduction -- --ignored --test-threads=1 --nocapture
+cargo test --release -p pwe-engine --test live_pipewire -- --ignored --test-threads=1 --nocapture
+cargo test --release -p pwe-engine --test live_pitch_shift -- --ignored --test-threads=1 --nocapture
+cargo test --release -p pwe-engine --test live_bass_loudness -- --ignored --test-threads=1 --nocapture
+cargo test --release -p pwe-engine --test live_noise_reduction -- --ignored --test-threads=1 --nocapture
 ```
 
 ```text
-attempts 1; sampled 16 times; captured 18944 frames, processed 18944 frames, underruns 512, overruns 0, trims 0, occupancy 0
 tone measured at -20.00 dB with 20.00 dB of reduction; last read: input peak -20.00 dB, output peak -40.00 dB
-attempts 1; captured 14592 frames, processed 14592 frames, underruns 512, overruns 0, trims 0
-a 1 kHz tone reached the chain at -20.00 dB and left it 87.03 dB lower
+a 1000 Hz tone reached the chain at -20.00 dB; its loudest band read 1047 Hz and became 2149 Hz
+a 60 Hz tone arrived at -20.00 dB and left at -8.15 dB, a lift of 11.85 dB
+a 1 kHz tone reached the chain at -20.00 dB and left it 96.14 dB lower
 ```
 
-Those are the two test processes on one run. The underrun samples are the ring's
-initial fill, and both the count and the reduction the network takes off a steady
-tone vary with how far into the tone the meters are sampled; the assertions are
-the stable part, not the printed figures.
+Those are one run of the four. The underrun samples (512 in every run) are the
+ring's initial fill, and the reduction the network takes off a steady tone varies
+with how far into the tone the meters are sampled; the assertions are the stable
+part, not the printed figures.
+
+The two Vulkan tests are
+`cargo test --release -p pwe-engine --test live_gpu -- --ignored --test-threads=1
+--nocapture`. They assert that GPU blocks were counted and that deadline
+fallbacks stay at or below a tenth of the blocks, which is a property of the
+machine's graph quantum and scheduling rather than of the kernel; section 12 of
+[docs/architecture.md](docs/architecture.md) explains the figures.
 
 That is a −20 dB gain stage measured end to end on real PipeWire, with the tone
 reaching the chain at its own level.
@@ -341,6 +358,13 @@ Working, and honest about the gaps:
   the two streams are joined by a ring buffer, so there is no graph latency to
   adjust. The reference's LSP limiter modes, oversampling, dithering and ALR are
   not implemented.
+- Pitch shift is a phase vocoder with a 2048-frame analysis window: it declares
+  42.7 ms of latency at 48 kHz, nothing compensates for it, transients are smeared
+  and formants are not preserved. The reference shifts with SoundTouch, whose
+  modes, transient handling and formant preservation have no equivalent here.
+- Bass loudness is an equal-loudness contour built from two shelves rather than
+  MDA's own transfer function, which is not verifiable from this checkout. Its
+  three controls are the reference's, clamped to a −60 dB floor.
 - Auto gain is EBU R128 loudness normalisation over a rolling 30-second window,
   not the whole program.
 - The underlying transport is two `pw_stream`s joined by a ring buffer, per

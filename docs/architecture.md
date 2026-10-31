@@ -15,7 +15,7 @@ pwe-core  ◄── pwe-services ───────────────�
 | Crate | Owns | Does not know about |
 |---|---|---|
 | `pwe-core` | Audio buffers, parameter specifications, the effect contract, the chain, meters, realtime-safe helpers, the pipeline kinds | PipeWire, GTK, files |
-| `pwe-dsp` | The FFT, the Linkwitz-Riley crossover, the biquad design, the twenty-four effects, the spectrum analyser, the R128 loudness measurement and the effect registry | Threads, devices, presets |
+| `pwe-dsp` | The FFT, the Linkwitz-Riley crossover, the biquad design, the thirty effects, the spectrum analyser, the R128 loudness measurement and the effect registry | Threads, devices, presets |
 | `pwe-presets` | The preset schema, name validation and the preset directory | Which effects exist (in production code; its tests take `pwe-dsp` as a dev-dependency so the built-in presets can be checked against the registry) |
 | `pwe-services` | The settings document, its atomic store and the autostart entry | The engine, the interface, the effects |
 | `pwe-engine` | PipeWire streams, the virtual sink and source, the destination device, the realtime processor, the spectrum snapshot and the compute backends (`cpu`, `gpu`), counters | GTK, presets, services |
@@ -138,10 +138,10 @@ block's duration, and a miss is applied on the CPU instead. See section 12.
 **Latency is reported, not compensated.** An effect that delays its output
 declares it through `Effect::latency_frames`, the chain sums the enabled slots,
 and the processor publishes the total for the Diagnostics dialog. The limiter's
-lookahead is the only stage that declares one today. The engine does not ask
-PipeWire to compensate for it: the two streams are joined by a ring buffer rather
-than by graph links, so there is no graph latency to adjust, and the figure is
-there so the number is visible rather than guessed at.
+lookahead and the pitch shifter's analysis window are the stages that declare one
+today. The engine does not ask PipeWire to compensate for it: the two streams are
+joined by a ring buffer rather than by graph links, so there is no graph latency to
+adjust, and the figure is there so the number is visible rather than guessed at.
 
 **One dependency needs one warm-up.** Noise reduction calls `nnnoiseless`, which
 keeps its window and DCT tables in a process-wide `OnceCell` that is filled on
@@ -216,8 +216,15 @@ click a repeated sample produces at a buffer boundary.
 - **Drift is trimmed, not resampled.** A resampler would preserve a sliver of
   audio instead of discarding it. On a healthy system the trim counter stays at
   zero.
-- **No lookahead in the limiter.** Instantaneous attack guarantees the ceiling
-  at the cost of some transient distortion.
+- **The pitch shifter is a phase vocoder.** It recovers each bin's instantaneous
+  frequency and remaps the bins, so it smears transient attacks and costs a
+  2048-frame analysis window: 42.7 ms of declared latency at 48 kHz, reported but
+  not compensated. It does not preserve formants, and the reference's SoundTouch
+  modes have no equivalent here.
+- **Bass loudness approximates the contour with two shelves.** A low shelf at
+  120 Hz and a high shelf at 6 kHz whose gains grow as the source level falls,
+  rather than MDA's own transfer function, which is not verifiable from this
+  checkout.
 - **The GPU stage is synchronous.** Each off-loaded block uploads, dispatches,
   waits and downloads inside the callback. The wait is capped at half the block
   duration and a miss falls back to the CPU, so the stage can never consume the
@@ -253,7 +260,7 @@ has two titled children, **Output** and **Input**, and its `adw::ViewSwitcher` i
 the header's title widget, so the header carries no window-title text. The two
 pipelines have `Ctrl`+`1` and `Ctrl`+`2` accelerators, registered as window
 actions. Below 860 px the split view collapses: the editor fills the window, the
-switcher drops to its icon-only policy, and the sidebar opens as an overlay
+switcher switches to its narrow policy, and the sidebar opens as an overlay
 drawer. The window's minimum size is 360x480, so the same layout serves a
 phone-width screen.
 
@@ -537,7 +544,7 @@ installed into the system here.
 
 ## 11. Verification
 
-- `cargo test --workspace`: 407 tests, no audio device needed.
+- `cargo test --workspace`: 466 tests, no audio device needed.
   Two of them need a display and skip themselves without one: the bundled icon
   lookup and the icon-theme check.
 - The R128 measurement is checked against the standard's own calibration: a
@@ -638,10 +645,12 @@ installed into the system here.
   input test starts the microphone pipeline and records from
   `pipewire-effects-source` with `pw-cat --record`, then asserts that the
   virtual source exists and that the recording drove the input chain. Four of
-  the seven live tests are these; `crates/engine/tests/live_gpu.rs` adds one for
-  `GPU` and one for `Both`, described in section 12, and
-  `crates/engine/tests/live_noise_reduction.rs` adds the one below. All seven are
-  `#[ignore]`d so they do not run by default, and they serialise on a
+  the nine live tests are these; `crates/engine/tests/live_gpu.rs` adds one for
+  `GPU` and one for `Both`, described in section 12,
+  `crates/engine/tests/live_noise_reduction.rs` adds the one below, and
+  `crates/engine/tests/live_pitch_shift.rs` and
+  `crates/engine/tests/live_bass_loudness.rs` add the two described below. All
+  nine are `#[ignore]`d so they do not run by default, and they serialise on a
   process-wide lock because they mutate the shared graph.
 - `crates/engine/tests/live_noise_reduction.rs` puts the noise reduction stage in
   the real chain on a private sink: it asserts that a −20 dB 1 kHz tone reaches
@@ -667,15 +676,16 @@ installed into the system here.
   running PipeWire.
 - `PIPEWIRE_EFFECTS_UI_STATE=<state>` drives the real window into one state after
   it is mapped, so a screenshot can be taken of a specific screen. The states are
-  `chain`, `editor`, `equalizer`, `presets`, `devices`, `preferences`,
-  `developer`, `input`, `picker`, `picker-tone`, `about`, `save`, `banner`,
-  `bypass`, `narrow`, `mobile`, `mobile-drawer`, `sidebar-hidden` and
-  `effect:<kind>`, which loads
-  the built-in preset, adds
-  the named effect if it is absent and selects it. `devices` and `preferences`
-  activate the `win.devices` and `win.preferences` actions, so the menu wiring is
-  exercised too. This is the harness the interface review in section 13
-  used; it is not part of the product.
+  `chain`, `editor`, `equalizer`, `presets`, `modified`, `preset-menu`,
+  `unloaded`, `clone`, `input`, `devices`, `preferences`, `developer`, `gpu`,
+  `menu`, `menu-developer`, `dev-live`, `picker`, `picker-tone`, `about`, `save`,
+  `delete`, `banner`, `bypass`, `narrow`, `mobile`, `mobile-drawer`,
+  `sidebar-hidden` and `effect:<kind>`, which loads the built-in preset, adds the
+  named effect if it is absent and selects it. `devices`, `preferences` and
+  `diagnostics` activate the `win.devices`, `win.preferences` and
+  `win.diagnostics` actions, so the menu wiring is exercised too, and `dev-live`
+  flips the real *Developer mode* switch the way a pointer would. This is the
+  harness the interface review in section 13 used; it is not part of the product.
 - `scripts/capture-ui.sh` runs the harness over an isolated headless GNOME
   session and writes one PNG per state; `scripts/README.md` documents it. It
   starts its own D-Bus session and its own `XDG_CONFIG_HOME`, so it never touches
@@ -735,8 +745,9 @@ installed into the system here.
 ### CPU baseline
 
 `cargo test --release -p pwe-dsp --test benchmark -- --ignored --nocapture` times
-each effect and the full twenty-four-effect chain on the machine it runs on: a
-48 kHz stereo stream, a per-block wall clock over 2 000 blocks, three rounds per
+each effect and the full chain on the machine it runs on — twenty-four effects
+when this table was taken; the paragraphs after it record the twenty-six and
+then the twenty-seven-effect runs: a 48 kHz stereo stream, a per-block wall clock over 2 000 blocks, three rounds per
 workload of which the fastest is reported so that concurrent desktop load cannot
 inflate a figure, and the tone-generation cost subtracted so the numbers are the
 effects. It also times the spectrum analyser, which runs in the audio path, and
@@ -773,6 +784,35 @@ block, and the spectrum looks at 8192 samples every third block. The small
 effects read as zero in a loaded run because they are cheaper than the timer's
 resolution; that is a limit of the measurement, not a claim that they are free.
 
+**The chain had grown to twenty-six effects at that point, and the same test measured
+it.** A later run on the same machine with the same method, after pitch shift and
+bass loudness were added, reported 3 196 μs per 1024-frame block for all
+twenty-six effects, 6.7× realtime and 15.0 % of one core. Pitch shift on its own
+cost 789 μs (3.7 % of one core) and bass loudness 16 μs (0.08 %). The pitch
+shifter is the second most expensive stage in the chain: it runs four 2048-point
+transforms per 1024 frames, and its buffers, window and twiddle tables are
+allocated when the effect is built, never in the callback. The chain still
+finishes inside a seventh of the deadline, but it is no longer the 6.0–8.9×
+headroom the table above records.
+
+After the loudness compensator, the crystalizer's thirteen bands and the gate's
+sidechain were added, a run at a load average near three measured 4 604.60 μs per
+1024-frame block for the twenty-seven-effect chain, 4.6× realtime and 21.6 % of
+one core. The loudness stage costs 30.94 μs (0.15 %) and the crystalizer rose
+from 57 μs to 143.65 μs (0.67 %), because it now runs thirteen low-pass sections
+per sample instead of three.
+
+The speech processor, autotune and the harmonizer were added after that, and the
+same test now measures the thirty-effect chain at 6 969.50 μs per 1024-frame
+block: 3.1× realtime and 32.67 % of one core. The two new pitch stages are the
+reason for the increase, because autotune and the harmonizer each run the
+2048-point vocoder and the harmonizer runs two of them, so the chain now pays
+roughly twice what a single pitch shift costs, on top of the pitch shifter that
+was already there. It still finishes inside a third of the 21.3 ms deadline, but
+the headroom is now 3.1× rather than the 6.4× the previous run recorded. The
+per-effect figures move with the load on the machine, so a re-measurement is the
+only way to reproduce them on other hardware.
+
 **The sidechain filters bypass rather than compute.** Running three high-pass and
 three low-pass biquads per channel per sample whether or not they are engaged
 cost the compressor 111 μs per block against 58 μs once a disabled filter
@@ -788,6 +828,17 @@ the full chain; this table reports the fastest of three rounds instead, so its
 numbers are lower for the same work and the two tables are not comparable. Re-run
 the measurement to reproduce a figure on other hardware, and read it together
 with the load on the machine.
+
+The final verification pass re-ran the same test at a load average of 3.08 and
+reproduced the figures: all twenty-six effects as the chain stood then 3 358.92 μs per 1024-frame block,
+6.4× realtime and 15.7 % of one core; pitch shift 833.46 μs (3.9 %); noise
+reduction 674.29 μs (3.2 %); voice suppressor 522.91 μs (2.5 %); multiband
+compressor 317.69 μs (1.5 %); spectrum analyser 116.98 μs (0.55 %); bass loudness
+29.83 μs (0.14 %); gain 4.40 μs (0.02 %). Bass loudness read 29.8 μs here against
+16 μs recorded above, which is the spread of a sub-30 μs measurement on a loaded
+machine rather than a regression: it is four biquads per sample and moves with
+cache and scheduling state. The per-effect numbers are reproducible to that
+order; the chain total is reproducible to within about 5 %.
 
 
 ### Processing backend selection (CPU, GPU, Both)
@@ -867,6 +918,24 @@ backend was changed in the pass that observed this; the throughput figure above
 is the same as it was. Treat a failure of those two tests as evidence about the
 machine first, and re-run them on a quiet one before concluding that anything in
 `crates/engine/src/gpu` regressed.
+
+**The fence budget follows the negotiated graph quantum, not a fixed block size.**
+`Chain::process` computes it as `block_budget_ns(buffer.frames(), rate)`, half of
+the block the callback was actually handed. A session that negotiates 1024-frame
+quanta gives the stage 10.7 ms; the final verification pass on the development
+machine ran at a **256-frame** quantum, which the application's own Devices page
+reported as `256 frames · 5.3 ms`, and the budget there is 2.67 ms. That run
+measured 5 fallbacks in 46 GPU blocks (10.9 %) for `GPU` and 4 in 28 for an
+earlier attempt, with `gpu_disagreements` at 0 in every run, at load averages of
+2.3 and 5.3 on a four-thread machine whose default output was a Bluetooth
+headset. The two live tests assert at most a tenth, so they reported `FAILED`
+while the audio stayed correct and the counters said what happened. The stage
+itself cost 169.4 μs for a 1024-frame stereo block in the same pass
+(`cargo test --release -p pwe-engine --lib gpu -- --ignored --nocapture`), which
+is 63 times inside the 10.7 ms budget and 16 times inside the 2.67 ms one, so the
+fallbacks are scheduler stalls rather than a slow kernel. Read the two live tests
+together with the session's quantum and its load; neither figure is a property of
+the backend alone.
 
 ## 13. Interface review
 
@@ -1037,7 +1106,7 @@ pass, not a regression; the earlier walk, with the slider names and value text,
 remains the record for the interactive controls.
 
 `scripts/capture-ui.sh` was re-run unchanged; `scripts/update-po.sh` regenerates
-`po/pipewire-effects.pot` (409 messages), and
+`po/pipewire-effects.pot` (504 messages), and
 `make install DESTDIR=<staging> PREFIX=/usr` installed the
 binary, the desktop entry, both icon sets and the built-in preset into a staging
 tree and `make uninstall` removed exactly what it installed.
@@ -1070,8 +1139,8 @@ sidebar, gave each effect row an on/off switch whose accent replaces the old
 accent on the effect icon, dropped the *Output chain* / *Input chain* heading, made the switcher the
 header's title widget so no window-title text is drawn, flattened the effect rows
 into processing order with no category headers and no position numbers, and made
-the layout adaptive: the split view collapses below 860 px, the switcher drops to
-icons, a back button closes the drawer, and the window's minimum size is 360x480.
+the layout adaptive: the split view collapses below 860 px, the switcher switches
+to its narrow policy, a back button closes the drawer, and the window's minimum size is 360x480.
 The sidebar keeps the theme's tinted background; the split view's own 1 px
 separator is switched off in the application stylesheet. Pixel sampling across the
 sidebar/content boundary at y=400 reads `rgb(235,235,237)` inside the sidebar and
@@ -1216,3 +1285,70 @@ verified against it afterwards. The application neither writes nor reads that
 key, and making it the default output is a documented way to use it, so nothing
 in the application changed because of this; the check is a session-hygiene rule
 and `AGENTS.md` and `scripts/README.md` both carry it.
+
+### The pitch shift and bass loudness pass
+
+The pass that added the twenty-fifth and twenty-sixth effects re-ran the harness
+on an isolated headless GNOME Wayland session and exercised both new editors and
+the live path. What it captured, and what the captures and logs showed:
+
+- 25 light states (`chain`, `editor`, `equalizer`, `presets`, `modified`,
+  `unloaded`, `devices`, `preferences`, `developer`, `gpu`, `picker`, `about`,
+  `banner`, `bypass`, `narrow`, `mobile`, `mobile-drawer`, `sidebar-hidden`,
+  `input`, `effect:bass_loudness`, `effect:pitch_shift`,
+  `effect:noise_reduction`, `effect:stereo_tools`, `effect:reverb`,
+  `effect:crystalizer`) and 19 dark states, all written by the application's own
+  render tree. No state failed to produce a PNG.
+- Both new editors render their hero row with a distinct symbolic icon, their
+  groups and all their controls, in both appearances. The pitch editor shows
+  *Semitones* as `+0.00 st` and *Cents* as `+0 ct`, which is the display of the
+  two new `ParamUnit` variants; the loudness editor shows *Loudness* under
+  *Contour* and *Output* and *Link* under *Output*. Neither clips at 1040x720,
+  720x620 or 360x740, and both appear in the effect picker under *Tone* with
+  their summaries.
+- The narrow capture shows the expected collapsed layout: the content fills the
+  window, the switcher is in its narrow policy form (icon above label, not
+  strictly icon-only), and the drawer holds the chain and the preset list.
+- `TONE=1 scripts/capture-screen.sh` captured the chain with a −20 dB 440 Hz sine
+  flowing through the virtual sink on the X11 backend. The input meter read
+  `−41.1 dB` and the output meter `−44.0 dB`, and the spectrum's caption read
+  `441 Hz −44.1 dB`, so the analyser and the output meter agree on the tone's
+  frequency and level in a real capture, not only in the unit tests.
+- The `input` capture read `−36.8 dB` at the input meter and `−36.9 dB` at the
+  output meter with a broadband spectrum, which is the real capture device
+  feeding the second chain.
+- The `gpu` capture (Diagnostics, backend `Both`) read 145 GPU blocks, 20
+  deadline fallbacks, 0 disagreements and `Intel(R) HD Graphics 620 (KBL GT2)
+  detected`, with a chain latency of 240 frames · 5.0 ms (the *Default* preset's
+  5 ms limiter lookahead). That is the proof that the persisted backend reaches
+  engine construction and that the accelerator runs in the real application.
+- The live suite passed on the daemon: `live_pipewire` 4/4 (a −20 dB tone
+  measured at the input and −40 dB at the output, and the input chain at
+  `−36.85 dB` in and `−42.85 dB` out over 10 240 processed frames),
+  `live_noise_reduction` (201 472 frames, tone leaving 96.14 dB lower),
+  `live_pitch_shift` (a 1 000 Hz tone's loudest band moved from 1 047 Hz to
+  2 149 Hz at +12 semitones over 184 320 processed frames, 512 underruns from
+  the ring's initial fill, no overruns or trims) and `live_bass_loudness`
+  (a 60 Hz tone arrived at −20.00 dB and left at −8.15 dB, an 11.85 dB lift over
+  113 152 processed frames). Every run reported 0 overruns and 0 trims.
+- The CPU baseline and the GPU block timing were re-measured and are recorded in
+  section 12; the two GPU live tests reported `FAILED` at the tenth-of-blocks
+  threshold under load and at a 256-frame quantum, which section 12 explains.
+- `make install DESTDIR=<staging> PREFIX=/usr` installed the binary, the desktop
+  entry, 27 symbolic icons (both new ones included), the application icon and
+  the six built-in presets; `desktop-file-validate` accepted the entry and
+  `make uninstall` removed exactly what was installed. `scripts/update-po.sh`
+  regenerated a 450-message template and the xgettext lifetime warnings were
+  confirmed harmless by checking that messages in the affected functions are
+  present in the template.
+- The window smoke test (`PIPEWIRE_EFFECTS_SMOKE_TEST=1`) reported
+  `state=Running devices=8 rate=48000 failures=0` and exited 0.
+
+The pass also found and corrected one session-hygiene problem before it could
+affect the captures: `default.configured.audio.sink` still named
+`pipewire-effects-sink` from an earlier experiment, so the application's own sink
+would have become the session default as soon as an instance started. It was
+restored to the real `bluez_output.AC_1F_37_E5_36_35.1` device with
+`wpctl set-default 157`, and both metadata keys were verified against it before
+any capture ran. No device profile, stored volume, default route or system
+setting was changed for the captures themselves.

@@ -175,8 +175,9 @@ in `docs/feature-matrix.md`:
 - Deep-learning noise suppression (needs ONNX model files and a runtime). RNNoise
   is the exception: it was adopted, through the `nnnoiseless` crate, because it is
   plain Rust with no model file to install.
-- Pitch shifting and autotune (needs a phase vocoder or SoundTouch-like
-  library).
+- Pitch shifting and autotune. Pitch shifting is implemented here as a native
+  phase vocoder (`crates/dsp/src/effects/pitch_shift.rs`); autotune still needs a
+  pitch-detection stage and is not written.
 
 ## 6. Licence position
 
@@ -208,10 +209,10 @@ support crates with it; each is MIT or Apache-2.0, except `anymap3`
 GPL-3.0-or-later.
 
 The effects whose reference implementation is a third-party LV2 plugin (the
-exciter, the maximizer, the mid/side equalizer, the crusher and the expander)
-are native Rust designs against the reference's parameter sets, not translations
-of the plugin's signal flow. `docs/feature-matrix.md` marks each of them as
-*Partial* and says what differs.
+exciter, the maximizer, the mid/side equalizer, the crusher, the expander and
+bass loudness) are native Rust designs against the reference's parameter sets,
+not translations of the plugin's signal flow. `docs/feature-matrix.md` marks each
+of them as *Partial* and says what differs.
 
 The reference directory was not modified at any point.
 

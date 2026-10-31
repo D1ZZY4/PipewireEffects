@@ -13,6 +13,62 @@ keeps working in the next.
 
 ### Added
 
+- A *Loudness* compensator, the twenty-seventh effect: an equal-loudness contour
+  with the reference's five standards (Flat, ISO 226:2003, Fletcher-Munson,
+  Robinson-Dadson, ISO 226:2023), an output volume, and hard clipping with a
+  clipping range. Its contour follows the output volume, so a full volume is flat
+  and a quiet one lifts the bass and the treble. `crates/dsp/src/r128.rs` also
+  gained the momentary and short-term windows the reference reports.
+- The crystalizer now splits thirteen bands, each with its own intensity in
+  decibels, a *Mute* and a *Bypass*, matching the reference's `band0`...`band12`
+  vocabulary; its reference conversion transfers all thirteen bands instead of
+  reporting them.
+- A sidechain high-pass and low-pass on the gate, of 12, 24 or 36 dB/oct, so
+  rumble or hiss can be kept out of the detector; both are off by default, and
+  the reference's `hpf-*` and `lpf-*` keys are transferred.
+- An *Autotune*, the twenty-ninth effect: a normalised autocorrelation finds the
+  pitch, the nearest semitone against a reference gives a target, and the shared
+  phase vocoder applies the correction at a chosen speed and strength.
+- A *Harmonizer*, the thirtieth effect: two phase-vocoder voices with their own
+  semitone interval and level, summed with the dry signal.
+- A *Speech processor*, the twenty-eighth effect: a noise floor tracked with a
+  fast-fall/slow-rise envelope, voice activity from the level above that floor,
+  a downward noise reduction proportional to how far the signal is from voice,
+  and an automatic gain driven by the R128 short-term loudness. Its reference
+  conversion transfers the stage switches and the suppression depth, and reports
+  the VAD probabilities, the dereverb switch and the per-plugin gains.
+- The instantaneous-frequency gate on the voice suppressor now decides whether a
+  bin counts as voice, instead of the setting being accepted and dropped.
+
+- A pitch shift effect, the twenty-fifth, and a bass loudness effect, the
+  twenty-sixth. Pitch shift is a phase vocoder:
+  `crates/dsp/src/effects/pitch_shift.rs` runs a 2048-point Hann-windowed STFT at
+  75 % overlap, recovers each bin's instantaneous frequency from the phase
+  advance, remaps the bins by the shift ratio and propagates the synthesis
+  phases, then sums the frames back by overlap-add. It exposes *Semitones*
+  (±24), *Cents* (±100) and a dry/wet *Mix*, and declares the 2048-frame analysis
+  window as its latency, which the Diagnostics dialog already reports. Its tests
+  measure the shift: an octave up turns a 1 kHz tone into 2 kHz, an octave down
+  turns 2 kHz into 1 kHz, a zero shift leaves the frequency alone, +100 cents
+  reaches 1059 Hz, an impulse lands at the declared latency, a zero mix is
+  bit-identical to the input, and the output stays finite at the widest settings.
+  Bass loudness is an equal-loudness contour built from a low shelf at 120 Hz and
+  a high shelf at 6 kHz whose gains grow as the source level falls, plus the
+  static *Output* trim and the *Link* compensation; its tests measure that a quiet
+  source lifts 60 Hz more than 3 dB above the midrange, a full-level source leaves
+  the contour flat within 0.6 dB, the output trim lands on its decibels, and the
+  link setting lowers the output as the source falls.
+- `ParamUnit::Semitones` and `ParamUnit::Cents`, so the pitch shifter's two shift
+  controls show `st` and `ct` in the editor instead of a bare number.
+- Reference conversion for the `pitch` and `bass_loudness` blocks:
+  `semitones` + 12 × `octaves` and `cents` are transferred to the shifter (a shift
+  wider than ±24 semitones is reported as clamped), `wet` becomes the mix, and
+  the SoundTouch mode settings have no equivalent and are reported. The three MDA
+  *Loudness* controls are transferred as they are.
+- A pitch shift and a bass loudness entry in the effect picker, each with its own
+  symbolic icon, and the two icons are compiled into the binary and checked by
+  the icon tests like every other effect.
+
 - The full Calf Stereo Tools control set on *Stereo tools*: all seven routing
   modes (stereo, stereo to mid/side, mid/side to stereo, mono left, mono right,
   mono sum and swap), input and output balance, per-channel phase and mute,
@@ -220,6 +276,16 @@ keeps working in the next.
   entry is absent while the switch is off.
 
 ### Fixed
+
+- Stereo tools reports the reference's `dry` and `wet` instead of listing them
+  as handled and dropping them. Both keys were in the effect's handled list but
+  neither was transferred, so a reference preset that sets them loaded at a
+  different mix in silence. They are reported now, which is what
+  `docs/feature-matrix.md` already claimed.
+- `docs/architecture.md` claimed the limiter had no lookahead, which stopped
+  being true when the lookahead was added. The trade-off list now records what
+  the two delaying stages actually cost: the limiter's lookahead and the
+  pitch shifter's analysis window are both reported and neither is compensated.
 
 - The spectrum no longer reports a level that belongs to a different frequency.
   With a 1024-point transform at 48 kHz the bin width is 46.9 Hz, so 22 of the 48
@@ -516,6 +582,10 @@ keeps working in the next.
 
 ### Documentation
 
+- `docs/feature-matrix.md` moves *Pitch shift* and *Bass loudness* out of the
+  unfinished list and into the effect table, with what each transfers from the
+  reference and what it reports instead, and its conversion table gained the
+  `pitch` and `bass_loudness` rows.
 - `docs/architecture.md` describes the destination resolution, the icon resource,
   the split-view layout and how the interface was verified.
 - `docs/reference-audit.md` records the completed audit of the reference
@@ -533,6 +603,25 @@ keeps working in the next.
   scope section and design notes now describe that module accurately.
 - `SECURITY.md` no longer describes `unsafe` blocks that do not exist in the
   codebase.
+
+### Fixed
+
+- The stereo tools reference conversion no longer lists `dry` and `wet` as
+  handled. This project's stereo tools has no dry/wet control, so a reference
+  preset that sets them now reports them in the warning list instead of dropping
+  them silently. `docs/feature-matrix.md` already recorded them as reported.
+- A malformed row in the spectrum analyser table of `docs/feature-matrix.md`
+  carried six cells in a four-column table; it is a single row again.
+- The harness state list in `docs/architecture.md` and the description of the
+  narrow layout now name every state `crates/ui/src/harness.rs` implements and
+  the switcher policy it actually sets, and the translation template's message
+  count was brought up to date.
+- The *Bass loudness* and *Loudness* symbolic icons were drawn from sharp
+  rectangles and a sharp polygon, which read as boxy next to the rest of the set.
+  Both are now single rounded strokes with `linecap` and `linejoin` set to round.
+- The *Crosstalk canceller* icon was redrawn: two speaker cabinets with crossed
+  sound paths, because the previous two arcs over two dots read as a bridge and
+  was not recognisable at 16 px.
 
 ## [0.1.0] - 2026-10-28
 
