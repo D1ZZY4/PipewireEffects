@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PipeWire Effects 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/D1ZZY4/PipewireEffects/issues\n"
-"POT-Creation-Date: 2026-10-30 17:23+0700\n"
+"POT-Creation-Date: 2026-10-31 09:23+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -103,32 +103,33 @@ msgstr ""
 msgid "effect chain is full ({0} slots)"
 msgstr ""
 
-#: crates/core/src/param/spec.rs:195
+#: crates/core/src/param/spec.rs:198
 msgid "On"
 msgstr ""
 
-#: crates/core/src/param/spec.rs:197
+#: crates/core/src/param/spec.rs:200
 msgid "Off"
 msgstr ""
 
-#: crates/core/src/param/spec.rs:203
+#: crates/core/src/param/spec.rs:206
 msgid "Unknown"
 msgstr ""
 
-#: crates/core/src/param/spec.rs:288
+#: crates/core/src/param/spec.rs:291
 msgid "Frequency"
 msgstr ""
 
-#: crates/core/src/param/spec.rs:301 crates/core/src/param/value.rs:81
-#: crates/core/src/param/value.rs:92 crates/dsp/src/registry.rs:197
+#: crates/core/src/param/spec.rs:304 crates/core/src/param/value.rs:81
+#: crates/core/src/param/value.rs:92 crates/dsp/src/registry.rs:201
 #: crates/dsp/src/effects/filter.rs:20 crates/dsp/src/effects/gain.rs:8
 #: crates/presets/src/model.rs:187 crates/ui/src/editor.rs:242
 msgid "Gain"
 msgstr ""
 
-#: crates/core/src/param/spec.rs:310 crates/dsp/src/effects/crusher.rs:12
+#: crates/core/src/param/spec.rs:313 crates/dsp/src/effects/crusher.rs:12
 #: crates/dsp/src/effects/deesser.rs:28 crates/dsp/src/effects/filter.rs:9
-#: crates/presets/src/model.rs:216 crates/ui/src/editor.rs:246
+#: crates/dsp/src/effects/stereo_tools.rs:19 crates/presets/src/model.rs:216
+#: crates/ui/src/editor.rs:246
 msgid "Mode"
 msgstr ""
 
@@ -141,22 +142,34 @@ msgid "parameter has no selectable options"
 msgstr ""
 
 #: crates/core/src/pipeline.rs:19 crates/dsp/src/effects/bass_enhancer.rs:22
-#: crates/dsp/src/effects/compressor.rs:41
-#: crates/dsp/src/effects/compressor.rs:46 crates/dsp/src/effects/crusher.rs:36
+#: crates/dsp/src/effects/compressor.rs:42
+#: crates/dsp/src/effects/compressor.rs:47 crates/dsp/src/effects/crusher.rs:36
 #: crates/dsp/src/effects/crystalizer.rs:28 crates/dsp/src/effects/delay.rs:28
-#: crates/dsp/src/effects/exciter.rs:37 crates/dsp/src/effects/expander.rs:41
-#: crates/dsp/src/effects/expander.rs:46 crates/dsp/src/effects/gain.rs:11
-#: crates/dsp/src/effects/gain.rs:13 crates/dsp/src/effects/gate.rs:37
-#: crates/dsp/src/effects/limiter.rs:16
+#: crates/dsp/src/effects/exciter.rs:37 crates/dsp/src/effects/expander.rs:42
+#: crates/dsp/src/effects/expander.rs:47 crates/dsp/src/effects/gain.rs:11
+#: crates/dsp/src/effects/gain.rs:13 crates/dsp/src/effects/gate.rs:47
+#: crates/dsp/src/effects/limiter.rs:20
 #: crates/dsp/src/effects/midside_equalizer.rs:81
-#: crates/dsp/src/effects/multiband.rs:49 crates/dsp/src/effects/reverb.rs:32
-#: crates/dsp/src/effects/reverb.rs:37 crates/dsp/src/effects/reverb.rs:42
+#: crates/dsp/src/effects/multiband.rs:49
+#: crates/dsp/src/effects/noise_reduction.rs:17
+#: crates/dsp/src/effects/noise_reduction.rs:22
+#: crates/dsp/src/effects/noise_reduction.rs:27
+#: crates/dsp/src/effects/reverb.rs:52 crates/dsp/src/effects/reverb.rs:57
+#: crates/dsp/src/effects/reverb.rs:62
+#: crates/dsp/src/effects/stereo_tools.rs:67
+#: crates/dsp/src/effects/stereo_tools.rs:69
 #: crates/dsp/src/effects/voice_suppressor.rs:38
 msgid "Output"
 msgstr ""
 
-#: crates/core/src/pipeline.rs:20 crates/dsp/src/effects/limiter.rs:11
-#: crates/dsp/src/effects/stereo_tools.rs:13
+#: crates/core/src/pipeline.rs:20 crates/dsp/src/effects/limiter.rs:15
+#: crates/dsp/src/effects/stereo_tools.rs:19
+#: crates/dsp/src/effects/stereo_tools.rs:23
+#: crates/dsp/src/effects/stereo_tools.rs:28
+#: crates/dsp/src/effects/stereo_tools.rs:30
+#: crates/dsp/src/effects/stereo_tools.rs:31
+#: crates/dsp/src/effects/stereo_tools.rs:32
+#: crates/dsp/src/effects/stereo_tools.rs:33
 msgid "Input"
 msgstr ""
 
@@ -188,8 +201,8 @@ msgstr ""
 msgid "All pass"
 msgstr ""
 
-#: crates/dsp/src/biquad.rs:35 crates/dsp/src/effects/compressor.rs:8
-#: crates/dsp/src/effects/expander.rs:8
+#: crates/dsp/src/biquad.rs:35 crates/dsp/src/effects/compressor.rs:9
+#: crates/dsp/src/effects/expander.rs:9
 msgid "Peak"
 msgstr ""
 
@@ -251,162 +264,176 @@ msgstr ""
 msgid "Compressor"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:70
-msgid "Feed forward compressor with peak or RMS detection and a soft knee"
+#: crates/dsp/src/registry.rs:71
+msgid ""
+"Feed forward compressor with peak or RMS detection, a soft knee and a "
+"filtered sidechain"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:77
+#: crates/dsp/src/registry.rs:79
 msgid "Limiter"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:78
-msgid "Instant attack limiter with a hard ceiling and a release stage"
+#: crates/dsp/src/registry.rs:80
+msgid "Lookahead peak limiter with a hard ceiling, a release and a stereo link"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:85
+#: crates/dsp/src/registry.rs:87
 msgid "Gate"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:86
-msgid "Noise gate with hold, attack and release"
+#: crates/dsp/src/registry.rs:88
+msgid "Noise gate with a curve, hysteresis, hold, attack and release"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:93
+#: crates/dsp/src/registry.rs:95
 msgid "Multiband compressor"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:94
+#: crates/dsp/src/registry.rs:96
 msgid "Split the spectrum and compress each band separately"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:101
+#: crates/dsp/src/registry.rs:103
 msgid "Multiband gate"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:102
+#: crates/dsp/src/registry.rs:104
 msgid "Split the spectrum and gate each band separately"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:109
+#: crates/dsp/src/registry.rs:111
 msgid "Expander"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:110
-msgid "Downward expander that widens the dynamic range below a threshold"
+#: crates/dsp/src/registry.rs:113
+msgid ""
+"Downward expander that widens the dynamic range below a threshold, with a "
+"filtered sidechain"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:117 crates/dsp/src/effects/maximizer.rs:13
+#: crates/dsp/src/registry.rs:121 crates/dsp/src/effects/maximizer.rs:13
 #: crates/dsp/src/effects/maximizer.rs:18
 msgid "Maximizer"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:118
+#: crates/dsp/src/registry.rs:122
 msgid "Automatic peak maximiser with a ceiling and a release stage"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:125
+#: crates/dsp/src/registry.rs:129
 msgid "De-esser"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:126
+#: crates/dsp/src/registry.rs:130
 msgid "Split or wideband sibilance reduction"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:133
+#: crates/dsp/src/registry.rs:137
 msgid "Auto gain"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:134
+#: crates/dsp/src/registry.rs:138
 msgid "EBU R128 loudness normalisation towards a target level"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:141
+#: crates/dsp/src/registry.rs:145
 msgid "Bass enhancer"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:142
+#: crates/dsp/src/registry.rs:146
 msgid "Adds harmonics to the low end so small speakers reproduce it"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:149
+#: crates/dsp/src/registry.rs:153
 msgid "Crystalizer"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:150
+#: crates/dsp/src/registry.rs:154
 msgid "Four band transient emphasis"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:157 crates/dsp/src/effects/crusher.rs:12
+#: crates/dsp/src/registry.rs:161 crates/dsp/src/effects/crusher.rs:12
 #: crates/dsp/src/effects/crusher.rs:16 crates/dsp/src/effects/crusher.rs:21
 #: crates/dsp/src/effects/crusher.rs:26 crates/dsp/src/effects/crusher.rs:31
 msgid "Crusher"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:158
+#: crates/dsp/src/registry.rs:162
 msgid "Bit depth and sample rate reduction with a modulated hold"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:165 crates/dsp/src/effects/crossfeed.rs:11
+#: crates/dsp/src/registry.rs:169 crates/dsp/src/effects/crossfeed.rs:11
 #: crates/dsp/src/effects/crossfeed.rs:16
 msgid "Crossfeed"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:166
+#: crates/dsp/src/registry.rs:170
 msgid "Mixes the channels so headphones sound like speakers"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:173
+#: crates/dsp/src/registry.rs:177
 msgid "Crosstalk canceller"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:174
+#: crates/dsp/src/registry.rs:178
 msgid "Delayed reciprocal mix that puts a stereo image back in front of you"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:181 crates/dsp/src/effects/exciter.rs:14
+#: crates/dsp/src/registry.rs:185 crates/dsp/src/effects/exciter.rs:14
 #: crates/dsp/src/effects/exciter.rs:19 crates/dsp/src/effects/exciter.rs:24
 msgid "Exciter"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:182
+#: crates/dsp/src/registry.rs:186
 msgid "Harmonic generation in a band above the scope frequency"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:189
+#: crates/dsp/src/registry.rs:193
 msgid "Stereo tools"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:190
-msgid "Width, balance and a Haas stereo base"
+#: crates/dsp/src/registry.rs:194
+msgid ""
+"Mid/side matrix, seven routing modes, levels, panoramas and a Haas delay"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:198
+#: crates/dsp/src/registry.rs:202
 msgid "Input gain and mute"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:205
+#: crates/dsp/src/registry.rs:209
 msgid "Voice suppressor"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:206
+#: crates/dsp/src/registry.rs:210
 msgid "Attenuates centred voice by comparing the two channels"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:213 crates/dsp/src/effects/crosstalk.rs:19
+#: crates/dsp/src/registry.rs:217
+msgid "Noise reduction"
+msgstr ""
+
+#: crates/dsp/src/registry.rs:218
+msgid "Removes steady background noise with a recurrent network at 48 kHz"
+msgstr ""
+
+#: crates/dsp/src/registry.rs:225 crates/dsp/src/effects/crosstalk.rs:19
 #: crates/dsp/src/effects/delay.rs:13 crates/dsp/src/effects/delay.rs:18
+#: crates/dsp/src/effects/stereo_tools.rs:59
 msgid "Delay"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:214
+#: crates/dsp/src/registry.rs:226
 msgid "Independent left and right delay with feedback and ping-pong"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:221
+#: crates/dsp/src/registry.rs:233
 msgid "Reverberation"
 msgstr ""
 
-#: crates/dsp/src/registry.rs:222
-msgid "Freeverb style room with pre-delay, damping and width"
+#: crates/dsp/src/registry.rs:234
+msgid "Freeverb style room with pre-delay, diffusion, damping and a tone stage"
 msgstr ""
 
 #: crates/dsp/src/effects/autogain.rs:9
@@ -431,12 +458,13 @@ msgid "Speed"
 msgstr ""
 
 #: crates/dsp/src/effects/autogain.rs:27
-#: crates/dsp/src/effects/compressor.rs:31
-#: crates/dsp/src/effects/compressor.rs:36 crates/dsp/src/effects/deesser.rs:32
-#: crates/dsp/src/effects/deesser.rs:37 crates/dsp/src/effects/expander.rs:31
-#: crates/dsp/src/effects/expander.rs:36 crates/dsp/src/effects/gate.rs:22
-#: crates/dsp/src/effects/gate.rs:27 crates/dsp/src/effects/gate.rs:32
-#: crates/dsp/src/effects/limiter.rs:21
+#: crates/dsp/src/effects/compressor.rs:32
+#: crates/dsp/src/effects/compressor.rs:37 crates/dsp/src/effects/deesser.rs:32
+#: crates/dsp/src/effects/deesser.rs:37 crates/dsp/src/effects/expander.rs:32
+#: crates/dsp/src/effects/expander.rs:37 crates/dsp/src/effects/gate.rs:32
+#: crates/dsp/src/effects/gate.rs:37 crates/dsp/src/effects/gate.rs:42
+#: crates/dsp/src/effects/limiter.rs:25 crates/dsp/src/effects/limiter.rs:30
+#: crates/dsp/src/effects/limiter.rs:35
 msgid "Timing"
 msgstr ""
 
@@ -459,72 +487,104 @@ msgstr ""
 #: crates/dsp/src/effects/crystalizer.rs:25
 #: crates/dsp/src/effects/equalizer.rs:59
 #: crates/dsp/src/effects/midside_equalizer.rs:78
+#: crates/dsp/src/effects/noise_reduction.rs:19
 msgid "Output gain"
 msgstr ""
 
-#: crates/dsp/src/effects/compressor.rs:8 crates/dsp/src/effects/expander.rs:8
+#: crates/dsp/src/effects/compressor.rs:9 crates/dsp/src/effects/expander.rs:9
 msgid "RMS"
 msgstr ""
 
-#: crates/dsp/src/effects/compressor.rs:12 crates/dsp/src/effects/deesser.rs:18
-#: crates/dsp/src/effects/expander.rs:12 crates/dsp/src/effects/gate.rs:9
+#: crates/dsp/src/effects/compressor.rs:13 crates/dsp/src/effects/deesser.rs:18
+#: crates/dsp/src/effects/expander.rs:13 crates/dsp/src/effects/gate.rs:9
 #: crates/dsp/src/effects/maximizer.rs:10
 #: crates/dsp/src/effects/multiband_compressor.rs:64
 #: crates/dsp/src/effects/multiband_gate.rs:64
 msgid "Threshold"
 msgstr ""
 
-#: crates/dsp/src/effects/compressor.rs:15
-#: crates/dsp/src/effects/compressor.rs:17
-#: crates/dsp/src/effects/compressor.rs:21
-#: crates/dsp/src/effects/compressor.rs:26 crates/dsp/src/effects/deesser.rs:16
+#: crates/dsp/src/effects/compressor.rs:16
+#: crates/dsp/src/effects/compressor.rs:18
+#: crates/dsp/src/effects/compressor.rs:22
+#: crates/dsp/src/effects/compressor.rs:27 crates/dsp/src/effects/deesser.rs:16
 #: crates/dsp/src/effects/deesser.rs:21 crates/dsp/src/effects/deesser.rs:26
-#: crates/dsp/src/effects/deesser.rs:28 crates/dsp/src/effects/expander.rs:15
-#: crates/dsp/src/effects/expander.rs:17 crates/dsp/src/effects/expander.rs:21
-#: crates/dsp/src/effects/expander.rs:26 crates/dsp/src/effects/gate.rs:12
-#: crates/dsp/src/effects/gate.rs:17
+#: crates/dsp/src/effects/deesser.rs:28 crates/dsp/src/effects/expander.rs:16
+#: crates/dsp/src/effects/expander.rs:18 crates/dsp/src/effects/expander.rs:22
+#: crates/dsp/src/effects/expander.rs:27 crates/dsp/src/effects/gate.rs:12
+#: crates/dsp/src/effects/gate.rs:17 crates/dsp/src/effects/gate.rs:22
+#: crates/dsp/src/effects/gate.rs:27
 msgid "Detector"
 msgstr ""
 
-#: crates/dsp/src/effects/compressor.rs:18 crates/dsp/src/effects/deesser.rs:23
-#: crates/dsp/src/effects/expander.rs:18
+#: crates/dsp/src/effects/compressor.rs:19 crates/dsp/src/effects/deesser.rs:23
+#: crates/dsp/src/effects/expander.rs:19
 #: crates/dsp/src/effects/multiband_compressor.rs:71
 msgid "Ratio"
 msgstr ""
 
-#: crates/dsp/src/effects/compressor.rs:23
-#: crates/dsp/src/effects/expander.rs:23
+#: crates/dsp/src/effects/compressor.rs:24
+#: crates/dsp/src/effects/expander.rs:24
 #: crates/dsp/src/effects/multiband_compressor.rs:78
 msgid "Knee"
 msgstr ""
 
-#: crates/dsp/src/effects/compressor.rs:28 crates/dsp/src/effects/deesser.rs:29
-#: crates/dsp/src/effects/expander.rs:28 crates/dsp/src/effects/gate.rs:19
+#: crates/dsp/src/effects/compressor.rs:29 crates/dsp/src/effects/deesser.rs:29
+#: crates/dsp/src/effects/expander.rs:29 crates/dsp/src/effects/gate.rs:29
 #: crates/dsp/src/effects/multiband_compressor.rs:85
 #: crates/dsp/src/effects/multiband_gate.rs:78
 msgid "Attack"
 msgstr ""
 
-#: crates/dsp/src/effects/compressor.rs:33 crates/dsp/src/effects/deesser.rs:34
-#: crates/dsp/src/effects/expander.rs:33 crates/dsp/src/effects/gate.rs:29
-#: crates/dsp/src/effects/limiter.rs:18 crates/dsp/src/effects/maximizer.rs:15
+#: crates/dsp/src/effects/compressor.rs:34 crates/dsp/src/effects/deesser.rs:34
+#: crates/dsp/src/effects/expander.rs:34 crates/dsp/src/effects/gate.rs:39
+#: crates/dsp/src/effects/limiter.rs:27 crates/dsp/src/effects/maximizer.rs:15
 #: crates/dsp/src/effects/multiband_compressor.rs:92
 #: crates/dsp/src/effects/multiband_gate.rs:92
 msgid "Release"
 msgstr ""
 
-#: crates/dsp/src/effects/compressor.rs:38
-#: crates/dsp/src/effects/expander.rs:38
+#: crates/dsp/src/effects/compressor.rs:39
+#: crates/dsp/src/effects/expander.rs:39
 #: crates/dsp/src/effects/multiband_compressor.rs:99
 #: crates/dsp/src/effects/multiband_gate.rs:99
 msgid "Makeup"
 msgstr ""
 
-#: crates/dsp/src/effects/compressor.rs:43 crates/dsp/src/effects/crusher.rs:18
-#: crates/dsp/src/effects/delay.rs:25 crates/dsp/src/effects/expander.rs:43
-#: crates/dsp/src/effects/gate.rs:34 crates/dsp/src/effects/multiband.rs:46
+#: crates/dsp/src/effects/compressor.rs:44 crates/dsp/src/effects/crusher.rs:18
+#: crates/dsp/src/effects/delay.rs:25 crates/dsp/src/effects/expander.rs:44
+#: crates/dsp/src/effects/gate.rs:44 crates/dsp/src/effects/multiband.rs:46
+#: crates/dsp/src/effects/noise_reduction.rs:24
 #: crates/dsp/src/effects/voice_suppressor.rs:35
 msgid "Mix"
+msgstr ""
+
+#: crates/dsp/src/effects/compressor.rs:49
+#: crates/dsp/src/effects/expander.rs:49
+msgid "High-pass"
+msgstr ""
+
+#: crates/dsp/src/effects/compressor.rs:49
+#: crates/dsp/src/effects/compressor.rs:53
+#: crates/dsp/src/effects/compressor.rs:55
+#: crates/dsp/src/effects/compressor.rs:59
+#: crates/dsp/src/effects/expander.rs:49 crates/dsp/src/effects/expander.rs:53
+#: crates/dsp/src/effects/expander.rs:55 crates/dsp/src/effects/expander.rs:59
+msgid "Sidechain"
+msgstr ""
+
+#: crates/dsp/src/effects/compressor.rs:50
+#: crates/dsp/src/effects/expander.rs:50
+msgid "High-pass frequency"
+msgstr ""
+
+#: crates/dsp/src/effects/compressor.rs:55
+#: crates/dsp/src/effects/expander.rs:55
+msgid "Low-pass"
+msgstr ""
+
+#: crates/dsp/src/effects/compressor.rs:56
+#: crates/dsp/src/effects/expander.rs:56
+msgid "Low-pass frequency"
 msgstr ""
 
 #: crates/dsp/src/effects/crossfeed.rs:8 crates/dsp/src/effects/filter.rs:10
@@ -710,6 +770,7 @@ msgstr ""
 #: crates/dsp/src/effects/midside_equalizer.rs:60
 #: crates/dsp/src/effects/midside_equalizer.rs:67
 #: crates/dsp/src/effects/midside_equalizer.rs:74
+#: crates/dsp/src/effects/reverb.rs:42 crates/dsp/src/effects/reverb.rs:47
 msgid "Tone"
 msgstr ""
 
@@ -756,18 +817,35 @@ msgstr ""
 msgid "Range"
 msgstr ""
 
+#: crates/dsp/src/effects/gate.rs:19
+msgid "Curve"
+msgstr ""
+
 #: crates/dsp/src/effects/gate.rs:24
+msgid "Hysteresis"
+msgstr ""
+
+#: crates/dsp/src/effects/gate.rs:34
 #: crates/dsp/src/effects/multiband_gate.rs:85
 msgid "Hold"
 msgstr ""
 
-#: crates/dsp/src/effects/limiter.rs:8
-#: crates/dsp/src/effects/stereo_tools.rs:10
+#: crates/dsp/src/effects/limiter.rs:12
+#: crates/dsp/src/effects/noise_reduction.rs:14
+#: crates/dsp/src/effects/stereo_tools.rs:20
 msgid "Input gain"
 msgstr ""
 
-#: crates/dsp/src/effects/limiter.rs:13
+#: crates/dsp/src/effects/limiter.rs:17
 msgid "Limit"
+msgstr ""
+
+#: crates/dsp/src/effects/limiter.rs:22
+msgid "Lookahead"
+msgstr ""
+
+#: crates/dsp/src/effects/limiter.rs:32
+msgid "Stereo link"
 msgstr ""
 
 #: crates/dsp/src/effects/midside_equalizer.rs:64
@@ -818,51 +896,121 @@ msgstr ""
 msgid "Enabled"
 msgstr ""
 
-#: crates/dsp/src/effects/reverb.rs:14
-msgid "Room size"
+#: crates/dsp/src/effects/noise_reduction.rs:29
+msgid "Voice activity gate"
 msgstr ""
 
-#: crates/dsp/src/effects/reverb.rs:17 crates/dsp/src/effects/reverb.rs:22
-#: crates/dsp/src/effects/reverb.rs:27
-msgid "Room"
+#: crates/dsp/src/effects/noise_reduction.rs:29
+#: crates/dsp/src/effects/noise_reduction.rs:33
+#: crates/dsp/src/effects/voice_suppressor.rs:27
+#: crates/dsp/src/effects/voice_suppressor.rs:32
+#: crates/dsp/src/effects/voice_suppressor.rs:34
+msgid "Detection"
+msgstr ""
+
+#: crates/dsp/src/effects/noise_reduction.rs:30
+msgid "Gate threshold"
 msgstr ""
 
 #: crates/dsp/src/effects/reverb.rs:19
-msgid "Damping"
+msgid "Room size"
+msgstr ""
+
+#: crates/dsp/src/effects/reverb.rs:22 crates/dsp/src/effects/reverb.rs:27
+#: crates/dsp/src/effects/reverb.rs:32 crates/dsp/src/effects/reverb.rs:37
+msgid "Room"
 msgstr ""
 
 #: crates/dsp/src/effects/reverb.rs:24
-msgid "Pre-delay"
+msgid "Damping"
 msgstr ""
 
 #: crates/dsp/src/effects/reverb.rs:29
-msgid "Width"
+msgid "Diffusion"
 msgstr ""
 
 #: crates/dsp/src/effects/reverb.rs:34
-msgid "Wet"
+msgid "Pre-delay"
 msgstr ""
 
 #: crates/dsp/src/effects/reverb.rs:39
+msgid "Bass cut"
+msgstr ""
+
+#: crates/dsp/src/effects/reverb.rs:44
+msgid "Treble cut"
+msgstr ""
+
+#: crates/dsp/src/effects/reverb.rs:49
+msgid "Width"
+msgstr ""
+
+#: crates/dsp/src/effects/reverb.rs:54
+msgid "Wet"
+msgstr ""
+
+#: crates/dsp/src/effects/reverb.rs:59
 msgid "Dry"
 msgstr ""
 
-#: crates/dsp/src/effects/stereo_tools.rs:15
+#: crates/dsp/src/effects/stereo_tools.rs:25
+msgid "Balance in"
+msgstr ""
+
+#: crates/dsp/src/effects/stereo_tools.rs:30
+msgid "Invert left phase"
+msgstr ""
+
+#: crates/dsp/src/effects/stereo_tools.rs:31
+msgid "Invert right phase"
+msgstr ""
+
+#: crates/dsp/src/effects/stereo_tools.rs:32
+msgid "Mute left"
+msgstr ""
+
+#: crates/dsp/src/effects/stereo_tools.rs:33
+msgid "Mute right"
+msgstr ""
+
+#: crates/dsp/src/effects/stereo_tools.rs:34
+msgid "Middle level"
+msgstr ""
+
+#: crates/dsp/src/effects/stereo_tools.rs:37
+#: crates/dsp/src/effects/stereo_tools.rs:42
+#: crates/dsp/src/effects/stereo_tools.rs:47
+#: crates/dsp/src/effects/stereo_tools.rs:52
+msgid "Middle and side"
+msgstr ""
+
+#: crates/dsp/src/effects/stereo_tools.rs:39
+msgid "Side level"
+msgstr ""
+
+#: crates/dsp/src/effects/stereo_tools.rs:44
+msgid "Middle panorama"
+msgstr ""
+
+#: crates/dsp/src/effects/stereo_tools.rs:49
+msgid "Side balance"
+msgstr ""
+
+#: crates/dsp/src/effects/stereo_tools.rs:54
 msgid "Stereo width"
 msgstr ""
 
-#: crates/dsp/src/effects/stereo_tools.rs:18
-#: crates/dsp/src/effects/stereo_tools.rs:23
-#: crates/dsp/src/effects/stereo_tools.rs:28
+#: crates/dsp/src/effects/stereo_tools.rs:57
+#: crates/dsp/src/effects/stereo_tools.rs:62
 msgid "Image"
 msgstr ""
 
-#: crates/dsp/src/effects/stereo_tools.rs:20
-msgid "Balance"
+#: crates/dsp/src/effects/stereo_tools.rs:64
+msgid "Balance out"
 msgstr ""
 
-#: crates/dsp/src/effects/stereo_tools.rs:25
-msgid "Stereo base"
+#: crates/dsp/src/effects/stereo_tools.rs:69
+msgid "Soft clip"
 msgstr ""
 
 #: crates/dsp/src/effects/voice_suppressor.rs:14
@@ -875,12 +1023,6 @@ msgstr ""
 
 #: crates/dsp/src/effects/voice_suppressor.rs:24
 msgid "Correlation"
-msgstr ""
-
-#: crates/dsp/src/effects/voice_suppressor.rs:27
-#: crates/dsp/src/effects/voice_suppressor.rs:32
-#: crates/dsp/src/effects/voice_suppressor.rs:34
-msgid "Detection"
 msgstr ""
 
 #: crates/dsp/src/effects/voice_suppressor.rs:29
@@ -907,27 +1049,27 @@ msgstr ""
 msgid "the engine thread could not be started: {0}"
 msgstr ""
 
-#: crates/engine/src/cpu/processor.rs:45
+#: crates/engine/src/cpu/processor.rs:47
 msgid "No Vulkan compute device is available; the chain runs on the CPU"
 msgstr ""
 
-#: crates/engine/src/cpu/processor.rs:103
+#: crates/engine/src/cpu/processor.rs:112
 msgid "the graph quantum is larger than the processing buffer"
 msgstr ""
 
-#: crates/engine/src/runtime.rs:166
+#: crates/engine/src/runtime.rs:167
 msgid "the {0} pipeline is reconnecting (attempt {1})"
 msgstr ""
 
-#: crates/engine/src/runtime.rs:232
+#: crates/engine/src/runtime.rs:233
 msgid "the chain is limited to {0} effects"
 msgstr ""
 
-#: crates/engine/src/runtime.rs:242
+#: crates/engine/src/runtime.rs:243
 msgid "the audio thread command queue is full"
 msgstr ""
 
-#: crates/engine/src/shared.rs:20
+#: crates/engine/src/shared.rs:21
 msgid "Stopped"
 msgstr ""
 
@@ -971,11 +1113,11 @@ msgstr ""
 msgid "{0}: {1}"
 msgstr ""
 
-#: crates/presets/src/ee/params.rs:45
+#: crates/presets/src/ee/params.rs:46
 msgid "'{0}' has no parameter mapping"
 msgstr ""
 
-#: crates/presets/src/ee/params.rs:123
+#: crates/presets/src/ee/params.rs:124
 msgid "{0}: {1} was left at its default"
 msgstr ""
 
@@ -983,30 +1125,35 @@ msgstr ""
 msgid "crusher: the mode '{0}' has no equivalent here and was mapped to linear"
 msgstr ""
 
-#: crates/presets/src/ee/params/dynamics.rs:198
+#: crates/presets/src/ee/params/dynamics.rs:223
+msgid ""
+"the sidechain filter slope '{0}' has no equivalent here and was turned off"
+msgstr ""
+
+#: crates/presets/src/ee/params/dynamics.rs:274
 msgid "gate: the reverse mode has no equivalent here"
 msgstr ""
 
-#: crates/presets/src/ee/params/dynamics.rs:211
+#: crates/presets/src/ee/params/dynamics.rs:287
 msgid "deesser: the mode '{0}' is unknown and was mapped to wideband"
 msgstr ""
 
-#: crates/presets/src/ee/params/dynamics.rs:229
+#: crates/presets/src/ee/params/dynamics.rs:305
 msgid ""
 "{0}: the sidechain mode '{1}' has no equivalent here and was mapped to peak"
 msgstr ""
 
-#: crates/presets/src/ee/params/dynamics.rs:241
+#: crates/presets/src/ee/params/dynamics.rs:317
 msgid ""
 "expander: the upward mode has no equivalent here and the downward curve was "
 "loaded"
 msgstr ""
 
-#: crates/presets/src/ee/params/dynamics.rs:245
+#: crates/presets/src/ee/params/dynamics.rs:321
 msgid "expander: the mode '{0}' is unknown and the downward curve was loaded"
 msgstr ""
 
-#: crates/presets/src/ee/params/dynamics.rs:262
+#: crates/presets/src/ee/params/dynamics.rs:338
 msgid "{0}: sidechain.{1} was left at its default"
 msgstr ""
 
@@ -1057,33 +1204,38 @@ msgid ""
 "loaded"
 msgstr ""
 
-#: crates/presets/src/ee/params/time.rs:86
+#: crates/presets/src/ee/params/time.rs:104
 msgid "delay: the '{0}' mode for '{1}' has no equivalent here"
 msgstr ""
 
-#: crates/presets/src/ee/params/time.rs:101
+#: crates/presets/src/ee/params/time.rs:119
 msgid ""
 "delay: the left and right wet levels differ and were reduced to a single mix"
 msgstr ""
 
-#: crates/presets/src/ee/params/tone.rs:121
+#: crates/presets/src/ee/params/tone.rs:175
+msgid ""
+"stereo tools: the mode '{0}' has no equivalent here and was mapped to stereo"
+msgstr ""
+
+#: crates/presets/src/ee/params/tone.rs:195
 msgid ""
 "filter: the reference 'Ladder-pass' type is a resonant ladder low pass and "
 "was mapped to a plain low pass"
 msgstr ""
 
-#: crates/presets/src/ee/params/tone.rs:128
+#: crates/presets/src/ee/params/tone.rs:202
 msgid ""
 "filter: the reference 'Ladder-rejection' type is a resonant ladder band "
 "rejection and was mapped to a notch"
 msgstr ""
 
-#: crates/presets/src/ee/params/tone.rs:135
+#: crates/presets/src/ee/params/tone.rs:209
 msgid ""
 "filter: the type '{0}' has no equivalent here and was mapped to low pass"
 msgstr ""
 
-#: crates/presets/src/ee/params/tone.rs:160
+#: crates/presets/src/ee/params/tone.rs:234
 msgid "filter: the slope '{0}' was reduced to order 4"
 msgstr ""
 
@@ -1135,28 +1287,28 @@ msgstr ""
 msgid "{0} was ignored: {1}"
 msgstr ""
 
-#: crates/ui/src/app.rs:110
+#: crates/ui/src/app.rs:111
 msgid "{0} is running without a window"
 msgstr ""
 
-#: crates/ui/src/app.rs:154 crates/ui/src/state.rs:289
+#: crates/ui/src/app.rs:155 crates/ui/src/state.rs:289
 msgid "'{0}' could not be loaded: {1}"
 msgstr ""
 
-#: crates/ui/src/app.rs:263
+#: crates/ui/src/app.rs:264
 msgid "PipeWire Effects contributors"
 msgstr ""
 
-#: crates/ui/src/app.rs:269
+#: crates/ui/src/app.rs:270
 msgid ""
 "Runs application audio through a chain of effects on a virtual PipeWire sink."
 msgstr ""
 
-#: crates/ui/src/app.rs:278
+#: crates/ui/src/app.rs:279
 msgid "PipeWire Effects could not start"
 msgstr ""
 
-#: crates/ui/src/app.rs:279
+#: crates/ui/src/app.rs:280
 msgid "Close"
 msgstr ""
 
@@ -1205,15 +1357,15 @@ msgid ""
 "Runs the audio through the effect chain; turn it off to bypass the chain"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:83 crates/ui/src/pages.rs:106
+#: crates/ui/src/chrome.rs:83 crates/ui/src/pages.rs:108
 msgid "Devices"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:88 crates/ui/src/pages.rs:107
+#: crates/ui/src/chrome.rs:88 crates/ui/src/pages.rs:109
 msgid "Preferences"
 msgstr ""
 
-#: crates/ui/src/chrome.rs:93 crates/ui/src/pages.rs:108
+#: crates/ui/src/chrome.rs:93 crates/ui/src/pages.rs:110
 msgid "Diagnostics"
 msgstr ""
 
@@ -1233,7 +1385,7 @@ msgstr ""
 msgid "Shows or hides the effect chain and preset sidebar"
 msgstr ""
 
-#: crates/ui/src/devices.rs:34 crates/ui/src/diagnostics.rs:40
+#: crates/ui/src/devices.rs:34 crates/ui/src/diagnostics.rs:41
 msgid "Pipeline"
 msgstr ""
 
@@ -1253,7 +1405,7 @@ msgstr ""
 msgid "Rebuild the streams against the audio server"
 msgstr ""
 
-#: crates/ui/src/devices.rs:51 crates/ui/src/diagnostics.rs:42
+#: crates/ui/src/devices.rs:51 crates/ui/src/diagnostics.rs:43
 msgid "Quantum"
 msgstr ""
 
@@ -1334,75 +1486,79 @@ msgstr ""
 msgid "Copy this name to the clipboard"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:41
+#: crates/ui/src/diagnostics.rs:42
 msgid "Sample rate"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:43
+#: crates/ui/src/diagnostics.rs:44
 msgid "Ring occupancy"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:44
+#: crates/ui/src/diagnostics.rs:45
 msgid "Captured frames"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:45
+#: crates/ui/src/diagnostics.rs:46
 msgid "Processed frames"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:46
+#: crates/ui/src/diagnostics.rs:47
 msgid "Underruns"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:47
+#: crates/ui/src/diagnostics.rs:48
 msgid "Overruns"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:48
+#: crates/ui/src/diagnostics.rs:49
 msgid "Drift trims"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:49
-msgid "GPU blocks"
-msgstr ""
-
 #: crates/ui/src/diagnostics.rs:50
-msgid "GPU fallbacks"
+msgid "Chain latency"
 msgstr ""
 
 #: crates/ui/src/diagnostics.rs:51
+msgid "GPU blocks"
+msgstr ""
+
+#: crates/ui/src/diagnostics.rs:52
+msgid "GPU fallbacks"
+msgstr ""
+
+#: crates/ui/src/diagnostics.rs:53
 msgid "GPU disagreements"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:54
+#: crates/ui/src/diagnostics.rs:56
 msgid "Engine counters"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:55
+#: crates/ui/src/diagnostics.rs:57
 msgid "Live values for the pipeline in view"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:74
+#: crates/ui/src/diagnostics.rs:77
 msgid "Engine"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:77
+#: crates/ui/src/diagnostics.rs:80
 msgid "Compute devices"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:81
+#: crates/ui/src/diagnostics.rs:84
 msgid "Messages"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:83
+#: crates/ui/src/diagnostics.rs:86
 msgid "No messages"
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:130
+#: crates/ui/src/diagnostics.rs:134
 msgid "No Vulkan compute device was found."
 msgstr ""
 
-#: crates/ui/src/diagnostics.rs:133
+#: crates/ui/src/diagnostics.rs:137
 msgid "{0} detected."
 msgstr ""
 
@@ -1434,27 +1590,27 @@ msgstr ""
 msgid "No effect selected"
 msgstr ""
 
-#: crates/ui/src/editor.rs:94 crates/ui/src/pages.rs:215
+#: crates/ui/src/editor.rs:94 crates/ui/src/pages.rs:218
 msgid "Add an effect to start shaping your audio."
 msgstr ""
 
-#: crates/ui/src/pages.rs:98
+#: crates/ui/src/pages.rs:100
 msgid "Dismiss"
 msgstr ""
 
-#: crates/ui/src/pages.rs:199
+#: crates/ui/src/pages.rs:201
 msgid "Add an effect to the chain"
 msgstr ""
 
-#: crates/ui/src/pages.rs:205 crates/ui/src/pages.rs:207
+#: crates/ui/src/pages.rs:207 crates/ui/src/pages.rs:209
 msgid "Close the effect chain"
 msgstr ""
 
-#: crates/ui/src/pages.rs:212
+#: crates/ui/src/pages.rs:214
 msgid "In"
 msgstr ""
 
-#: crates/ui/src/pages.rs:213
+#: crates/ui/src/pages.rs:215
 msgid "Out"
 msgstr ""
 
@@ -1759,6 +1915,14 @@ msgid ""
 "the preset carries an input chain; turn on microphone processing to run it"
 msgstr ""
 
+#: crates/ui/src/spectrum.rs:29
+msgid "Spectrum"
+msgstr ""
+
+#: crates/ui/src/spectrum.rs:42
+msgid "Live audio spectrum"
+msgstr ""
+
 #: crates/ui/src/window.rs:128
 msgid "The effect could not be added; the chain may be full"
 msgstr ""
@@ -1771,11 +1935,11 @@ msgstr ""
 msgid "Turn on microphone processing from the main menu, under Devices"
 msgstr ""
 
-#: crates/ui/src/window.rs:258
+#: crates/ui/src/window.rs:266
 msgid "The chain is bypassed; switch it on to run the effects"
 msgstr ""
 
-#: crates/ui/src/window.rs:260
+#: crates/ui/src/window.rs:268
 msgid "The chain is running; switch it off to bypass the effects"
 msgstr ""
 
