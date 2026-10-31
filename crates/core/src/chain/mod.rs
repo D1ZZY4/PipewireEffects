@@ -88,6 +88,10 @@ impl EffectChain {
     }
 
     pub fn process(&mut self, buffer: &mut AudioBuffer) {
+        self.process_with_reference(buffer, &[]);
+    }
+
+    pub fn process_with_reference(&mut self, buffer: &mut AudioBuffer, reference: &[f32]) {
         if self.bypassed {
             self.peaks.fill(0.0);
             return;
@@ -110,7 +114,7 @@ impl EffectChain {
                     apply_gain(buffer, gain);
                 }
             } else {
-                slot.effect.process(buffer);
+                slot.effect.process_with_reference(buffer, reference);
             }
             if let Some(peak) = peaks.get_mut(index) {
                 *peak = buffer.peak();

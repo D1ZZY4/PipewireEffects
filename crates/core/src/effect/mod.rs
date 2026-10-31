@@ -17,6 +17,11 @@ pub trait Effect: Send {
 
     fn process(&mut self, buffer: &mut AudioBuffer);
 
+    fn process_with_reference(&mut self, buffer: &mut AudioBuffer, reference: &[f32]) {
+        let _ = reference;
+        self.process(buffer);
+    }
+
     fn elementwise_gain(&mut self) -> Option<f32> {
         None
     }
