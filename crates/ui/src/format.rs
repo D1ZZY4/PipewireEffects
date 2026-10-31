@@ -97,6 +97,7 @@ pub fn effect_icon(kind: &str) -> &'static str {
         "crossfeed" => "pipewire-effects-crossfeed-symbolic",
         "crosstalk" => "pipewire-effects-crosstalk-symbolic",
         "voice_suppressor" => "pipewire-effects-voice_suppressor-symbolic",
+        "speech_processor" => "pipewire-effects-speech_processor-symbolic",
         "noise_reduction" => "pipewire-effects-noise_reduction-symbolic",
         "pitch_shift" => "pipewire-effects-pitch_shift-symbolic",
         "gain" => "pipewire-effects-gain-symbolic",

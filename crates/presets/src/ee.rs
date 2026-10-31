@@ -124,6 +124,7 @@ fn map_kind(kind: &str) -> Option<&'static str> {
         "crosstalk_canceller" => "crosstalk",
         "voice_suppressor" => "voice_suppressor",
         "rnnoise" => "noise_reduction",
+        "speex" => "speech_processor",
         "midside_equalizer" => "midside_equalizer",
         "exciter" => "exciter",
         "autogain" => "autogain",

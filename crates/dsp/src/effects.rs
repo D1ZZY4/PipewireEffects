@@ -27,6 +27,7 @@ mod noise_reduction;
 mod pitch_shift;
 mod reverb;
 mod sidechain;
+mod speech_processor;
 mod stereo_tools;
 pub mod util;
 mod vocoder;
@@ -62,5 +63,6 @@ pub use noise_reduction::{
 pub use pitch_shift::{PitchShift, specs as pitch_shift_specs};
 pub use reverb::{Reverb, specs as reverb_specs};
 pub use sidechain::SidechainFilter;
+pub use speech_processor::{SpeechProcessor, specs as speech_processor_specs};
 pub use stereo_tools::{StereoTools, specs as stereo_tools_specs};
 pub use voice_suppressor::{VoiceSuppressor, specs as voice_suppressor_specs};

@@ -32,6 +32,7 @@ crates/dsp/src/effects/noise_reduction.rs
 crates/dsp/src/effects/pitch_shift.rs
 crates/dsp/src/effects/reverb.rs
 crates/dsp/src/effects/sidechain.rs
+crates/dsp/src/effects/speech_processor.rs
 crates/dsp/src/effects/stereo_tools.rs
 crates/dsp/src/effects/voice_suppressor.rs
 crates/engine/src/config.rs
