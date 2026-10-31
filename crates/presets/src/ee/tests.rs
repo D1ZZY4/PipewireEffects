@@ -134,7 +134,7 @@ fn a_bypassed_effect_stays_disabled() {
 #[test]
 fn a_document_without_mappable_effects_is_rejected() {
     let value: Value = serde_json::from_str(
-        r#"{ "output": { "plugins_order": ["autotune#0"], "autotune#0": {} } }"#,
+        r#"{ "output": { "plugins_order": ["convolver#0"], "convolver#0": {} } }"#,
     )
     .unwrap();
     assert!(convert(&value, "Empty").is_err());

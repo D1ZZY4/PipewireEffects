@@ -1,6 +1,7 @@
 mod colour;
 mod dynamics;
 mod equalizer;
+mod harmony;
 mod level;
 mod loudness;
 mod midside;
@@ -48,6 +49,8 @@ pub(super) fn convert_parameters(
         "deesser" => dynamics::deesser(parameters, warnings),
         "autogain" => dynamics::autogain(parameters, warnings),
         "loudness" => level::loudness(parameters, warnings),
+        "autotune" => harmony::autotune(parameters, warnings),
+        "harmonizer" => harmony::harmonizer(parameters, warnings),
         "delay" => time::delay(parameters, warnings),
         "reverb" => time::reverb(parameters, warnings),
         other => {

@@ -141,6 +141,14 @@ pub const EFFECTS: &[EffectDescriptor] = &[
         build: |params| Box::new(effects::AutoGain::new(params)),
     },
     EffectDescriptor {
+        id: "autotune",
+        label: mark("Autotune"),
+        summary: mark("Pulls a monophonic pitch to the nearest semitone"),
+        category: EffectCategory::Tone,
+        specs: effects::autotune_specs,
+        build: |params| Box::new(effects::Autotune::new(params)),
+    },
+    EffectDescriptor {
         id: "loudness",
         label: mark("Loudness"),
         summary: mark("Volume matching towards a target loudness with a bounded range"),
@@ -227,6 +235,14 @@ pub const EFFECTS: &[EffectDescriptor] = &[
         category: EffectCategory::Tone,
         specs: effects::voice_suppressor_specs,
         build: |params| Box::new(effects::VoiceSuppressor::new(params)),
+    },
+    EffectDescriptor {
+        id: "harmonizer",
+        label: mark("Harmonizer"),
+        summary: mark("Two shifted voices mixed with the dry signal"),
+        category: EffectCategory::Tone,
+        specs: effects::harmonizer_specs,
+        build: |params| Box::new(effects::Harmonizer::new(params)),
     },
     EffectDescriptor {
         id: "pitch_shift",

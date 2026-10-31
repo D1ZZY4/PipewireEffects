@@ -90,6 +90,8 @@ pub fn effect_icon(kind: &str) -> &'static str {
         "loudness" => "pipewire-effects-loudness-symbolic",
         "bass_enhancer" => "pipewire-effects-bass_enhancer-symbolic",
         "bass_loudness" => "pipewire-effects-bass_loudness-symbolic",
+        "autotune" => "pipewire-effects-autotune-symbolic",
+        "harmonizer" => "pipewire-effects-harmonizer-symbolic",
         "crystalizer" => "pipewire-effects-crystalizer-symbolic",
         "crusher" => "pipewire-effects-crusher-symbolic",
         "exciter" => "pipewire-effects-exciter-symbolic",

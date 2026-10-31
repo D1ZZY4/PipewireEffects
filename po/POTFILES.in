@@ -6,6 +6,7 @@ crates/core/src/pipeline.rs
 crates/dsp/src/biquad.rs
 crates/dsp/src/registry.rs
 crates/dsp/src/effects/autogain.rs
+crates/dsp/src/effects/autotune.rs
 crates/dsp/src/effects/bass_enhancer.rs
 crates/dsp/src/effects/bass_loudness.rs
 crates/dsp/src/effects/compressor.rs
@@ -21,6 +22,7 @@ crates/dsp/src/effects/expander.rs
 crates/dsp/src/effects/filter.rs
 crates/dsp/src/effects/gain.rs
 crates/dsp/src/effects/gate.rs
+crates/dsp/src/effects/harmonizer.rs
 crates/dsp/src/effects/limiter.rs
 crates/dsp/src/effects/loudness.rs
 crates/dsp/src/effects/maximizer.rs
@@ -49,6 +51,7 @@ crates/presets/src/ee/params/colour.rs
 crates/presets/src/ee/params/dynamics.rs
 crates/presets/src/ee/params/dynamics/sidechain.rs
 crates/presets/src/ee/params/equalizer.rs
+crates/presets/src/ee/params/harmony.rs
 crates/presets/src/ee/params/level.rs
 crates/presets/src/ee/params/multiband.rs
 crates/presets/src/ee/params/time.rs
