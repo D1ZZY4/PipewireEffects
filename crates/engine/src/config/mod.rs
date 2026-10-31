@@ -62,6 +62,7 @@ pub struct EngineConfig {
     pub channels: usize,
     pub bypassed: bool,
     pub backend: crate::gpu::AudioBackend,
+    pub reference: Option<std::sync::Arc<crate::ReferenceBus>>,
 }
 
 impl Default for EngineConfig {
@@ -80,6 +81,7 @@ impl EngineConfig {
             channels: 2,
             bypassed: false,
             backend: crate::gpu::AudioBackend::Cpu,
+            reference: None,
         }
     }
 

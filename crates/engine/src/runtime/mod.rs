@@ -125,6 +125,11 @@ impl Runtime {
     }
 
     fn release_streams(&mut self) {
+        if self.config.kind == pwe_core::PipelineKind::Output
+            && let Some(reference) = &self.config.reference
+        {
+            reference.clear();
+        }
         if let Some(streams) = self.streams.take() {
             let _ = streams.downstream.disconnect();
             let _ = streams.upstream.disconnect();

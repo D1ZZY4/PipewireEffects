@@ -9,6 +9,7 @@ mod listener;
 mod meters;
 mod processing;
 mod processors;
+mod reference;
 mod runtime;
 mod shared;
 mod spectrum;
@@ -23,6 +24,7 @@ pub use error::{EngineError, EngineResult};
 pub use meters::MeterSnapshot;
 pub(crate) use processing::cpu;
 pub use processing::gpu;
+pub use reference::ReferenceBus;
 pub use shared::{EngineState, Shared, Snapshot, StatsSnapshot};
 pub use spectrum::{BANDS, FLOOR_DB, Spectrum, band_centre};
 

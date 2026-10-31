@@ -3,6 +3,7 @@ mod autotune;
 mod bass_enhancer;
 mod bass_loudness;
 mod compressor;
+mod convolver;
 mod crossfeed;
 mod crossover;
 mod crosstalk;
@@ -11,6 +12,7 @@ mod crystalizer;
 mod deesser;
 mod delay;
 mod dynamics;
+mod echo_canceller;
 mod equalizer;
 mod exciter;
 mod expander;
@@ -41,12 +43,14 @@ pub use autotune::{Autotune, specs as autotune_specs};
 pub use bass_enhancer::{BassEnhancer, specs as bass_enhancer_specs};
 pub use bass_loudness::{BassLoudness, specs as bass_loudness_specs};
 pub use compressor::{Compressor, specs as compressor_specs};
+pub use convolver::{Convolver, specs as convolver_specs};
 pub use crossfeed::{Crossfeed, specs as crossfeed_specs};
 pub use crosstalk::{Crosstalk, specs as crosstalk_specs};
 pub use crusher::{Crusher, specs as crusher_specs};
 pub use crystalizer::{Crystalizer, specs as crystalizer_specs};
 pub use deesser::{DeEsser, specs as deesser_specs};
 pub use delay::{Delay, specs as delay_specs};
+pub use echo_canceller::{EchoCanceller, specs as echo_canceller_specs};
 pub use equalizer::{
     BAND_COUNT, BAND_FREQUENCIES, BAND_IDS, BAND_LABELS, Equalizer, response_db,
     specs as equalizer_specs,

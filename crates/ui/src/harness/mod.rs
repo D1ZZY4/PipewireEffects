@@ -115,6 +115,10 @@ fn capture(ui: &Ui, path: &str) -> bool {
 fn apply(ui: &Rc<Ui>, state: &str) {
     if let Some(kind) = state.strip_prefix("effect:") {
         load_default(ui);
+        if kind == "echo_canceller" {
+            ui.toggle_input(true);
+            ui.set_pipeline(pwe_core::PipelineKind::Input);
+        }
         ensure_effect(ui, kind);
         select_kind(ui, kind);
         return;

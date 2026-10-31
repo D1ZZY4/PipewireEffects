@@ -8,12 +8,14 @@
     <file>hicolor/symbolic/apps/pipewire-effects-autotune-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-harmonizer-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-compressor-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-convolver-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-crossfeed-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-crosstalk-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-crusher-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-crystalizer-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-deesser-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-delay-symbolic.svg</file>
+    <file>hicolor/symbolic/apps/pipewire-effects-echo_canceller-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-equalizer-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-exciter-symbolic.svg</file>
     <file>hicolor/symbolic/apps/pipewire-effects-expander-symbolic.svg</file>

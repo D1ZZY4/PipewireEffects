@@ -1,6 +1,10 @@
+use std::sync::Arc;
+
 use pwe_core::i18n::tr;
 use pwe_core::{ALL_PIPELINES, PipelineKind};
-use pwe_engine::{EngineConfig, EngineHandle, EngineResult, EngineState, Snapshot, StatsSnapshot};
+use pwe_engine::{
+    EngineConfig, EngineHandle, EngineResult, EngineState, ReferenceBus, Snapshot, StatsSnapshot,
+};
 use pwe_presets::{Pipeline, PresetStore};
 use pwe_services::{Settings, SettingsStore};
 
@@ -16,18 +20,22 @@ pub struct State {
     pub store: PresetStore,
     settings_store: SettingsStore,
     pub settings: Settings,
+    reference: Arc<ReferenceBus>,
 }
 
 impl State {
     pub fn new() -> EngineResult<Self> {
         let settings_store = SettingsStore::from_environment();
         let (settings, warning) = settings_store.load_with_warning();
+        let reference = ReferenceBus::new(48_000 / 2);
         let mut output_config = EngineConfig::for_kind(PipelineKind::Output);
         output_config.backend = backend_of(&settings.audio_backend);
+        output_config.reference = Some(Arc::clone(&reference));
         let output = EngineHandle::spawn(output_config)?;
         let input = if settings.process_input {
             let mut input_config = EngineConfig::for_kind(PipelineKind::Input);
             input_config.backend = backend_of(&settings.audio_backend);
+            input_config.reference = Some(Arc::clone(&reference));
             Some(EngineHandle::spawn(input_config)?)
         } else {
             None
@@ -39,6 +47,7 @@ impl State {
             store: PresetStore::from_environment(),
             settings_store,
             settings,
+            reference,
         };
         state.apply_settings();
         if let Some(warning) = warning {
@@ -163,6 +172,7 @@ impl State {
         if enabled {
             let mut config = EngineConfig::for_kind(PipelineKind::Input);
             config.backend = backend_of(&self.settings.audio_backend);
+            config.reference = Some(Arc::clone(&self.reference));
             let engine = EngineHandle::spawn(config)?;
             self.chain_mut(PipelineKind::Input).start(engine);
             self.apply_device(PipelineKind::Input);
@@ -243,6 +253,7 @@ impl State {
             }
             let mut config = EngineConfig::for_kind(kind);
             config.backend = backend_of(&self.settings.audio_backend);
+            config.reference = Some(Arc::clone(&self.reference));
             match EngineHandle::spawn(config) {
                 Ok(engine) => {
                     self.chain_mut(kind).start(engine);

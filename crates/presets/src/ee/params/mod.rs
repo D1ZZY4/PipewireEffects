@@ -35,6 +35,7 @@ pub(super) fn convert_parameters(
         "voice_suppressor" => colour::voice_suppressor(parameters, warnings),
         "noise_reduction" => colour::noise_reduction(parameters, warnings),
         "speech_processor" => speech::speech_processor(parameters, warnings),
+        "echo_canceller" => speech::echo_canceller(parameters, warnings),
         "pitch_shift" => pitch::pitch_shift(parameters, warnings),
         "exciter" => colour::exciter(parameters, warnings),
         "expander" => dynamics::expander(parameters, warnings),
@@ -53,6 +54,7 @@ pub(super) fn convert_parameters(
         "harmonizer" => harmony::harmonizer(parameters, warnings),
         "delay" => time::delay(parameters, warnings),
         "reverb" => time::reverb(parameters, warnings),
+        "convolver" => time::convolver(parameters, warnings),
         other => {
             warnings.push(tr("'{0}' has no parameter mapping", &[other]));
             BTreeMap::new()

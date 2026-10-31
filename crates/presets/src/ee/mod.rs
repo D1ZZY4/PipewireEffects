@@ -76,6 +76,12 @@ fn convert_section(
             local.push(tr("'{0}' has no equivalent here and was skipped", &[kind]));
             continue;
         };
+        if mapped == "echo_canceller" && label == "output" {
+            local.push(
+                t("echo canceller: it only runs on the input chain and was skipped").to_owned(),
+            );
+            continue;
+        }
         let parameters = section
             .get(&instance)
             .or_else(|| section.get(kind))
@@ -115,6 +121,7 @@ fn map_kind(kind: &str) -> Option<&'static str> {
         "compressor" => "compressor",
         "limiter" => "limiter",
         "reverb" => "reverb",
+        "convolver" => "convolver",
         "stereo_tools" => "stereo_tools",
         "gate" => "gate",
         "multiband_compressor" => "multiband_compressor",
@@ -125,6 +132,7 @@ fn map_kind(kind: &str) -> Option<&'static str> {
         "voice_suppressor" => "voice_suppressor",
         "rnnoise" => "noise_reduction",
         "speex" => "speech_processor",
+        "echo_canceller" => "echo_canceller",
         "midside_equalizer" => "midside_equalizer",
         "exciter" => "exciter",
         "autogain" => "autogain",

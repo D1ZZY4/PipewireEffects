@@ -253,6 +253,14 @@ pub const EFFECTS: &[EffectDescriptor] = &[
         build: |params| Box::new(effects::PitchShift::new(params)),
     },
     EffectDescriptor {
+        id: "echo_canceller",
+        label: mark("Echo canceller"),
+        summary: mark("Subtracts the playback leaking into the microphone with an adaptive filter"),
+        category: EffectCategory::Analysis,
+        specs: effects::echo_canceller_specs,
+        build: |params| Box::new(effects::EchoCanceller::new(params)),
+    },
+    EffectDescriptor {
         id: "speech_processor",
         label: mark("Speech processor"),
         summary: mark("Voice activity detection, automatic gain and noise reduction for speech"),
@@ -267,6 +275,14 @@ pub const EFFECTS: &[EffectDescriptor] = &[
         category: EffectCategory::Analysis,
         specs: effects::noise_reduction_specs,
         build: |params| Box::new(effects::NoiseReduction::new(params)),
+    },
+    EffectDescriptor {
+        id: "convolver",
+        label: mark("Convolver"),
+        summary: mark("Partitioned convolution with a built-in room response"),
+        category: EffectCategory::Time,
+        specs: effects::convolver_specs,
+        build: |params| Box::new(effects::Convolver::new(params)),
     },
     EffectDescriptor {
         id: "delay",

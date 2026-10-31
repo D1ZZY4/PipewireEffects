@@ -7,6 +7,28 @@ use crate::model::PresetValue;
 
 use super::{flag, number, put, skipped};
 
+const ECHO_KEYS: &[&str] = &["bypass", "inputGain", "outputGain", "enableEchoCanceller"];
+
+pub(super) fn echo_canceller(
+    parameters: &Map<String, Value>,
+    warnings: &mut Vec<String>,
+) -> BTreeMap<String, PresetValue> {
+    skipped(parameters, ECHO_KEYS, "echo canceller", warnings);
+    let mut params = BTreeMap::new();
+    put(
+        &mut params,
+        "mix",
+        flag(parameters, "enableEchoCanceller", true) * 100.0,
+    );
+    put(
+        &mut params,
+        "output_gain",
+        (number(parameters, "inputGain", 0.0) + number(parameters, "outputGain", 0.0))
+            .clamp(-30.0, 30.0),
+    );
+    params
+}
+
 const SPEECH_KEYS: &[&str] = &[
     "bypass",
     "enable-denoise",

@@ -133,6 +133,9 @@ fn create_downstream(
         setup.config.channels,
         setup.config.backend,
     );
+    if let Some(reference) = &setup.config.reference {
+        processor.attach_reference(setup.config.kind, Arc::clone(reference));
+    }
     processor.prepare(pwe_core::AudioFormat::new(
         setup.rate.load(Ordering::Relaxed).max(48_000),
         setup.config.channels,

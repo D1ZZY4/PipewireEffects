@@ -5,7 +5,7 @@ use serde_json::{Map, Value};
 
 use crate::model::PresetValue;
 
-use super::{level_percent, number, put, skipped, text};
+use super::{flag, level_percent, number, put, skipped, text};
 
 const DELAY_KEYS: &[&str] = &[
     "bypass", "time-l", "time-r", "mode-l", "mode-r", "wet-l", "wet-r", "wet", "feedback",
@@ -22,6 +22,17 @@ const REVERB_KEYS: &[&str] = &[
     "bass-cut",
     "treble-cut",
     "room-size",
+];
+
+const CONVOLVER_KEYS: &[&str] = &[
+    "bypass",
+    "inputGain",
+    "outputGain",
+    "kernelName",
+    "irWidth",
+    "autogain",
+    "dry",
+    "wet",
 ];
 
 const WET_KEYS: [&str; 3] = ["wet-l", "wet-r", "wet"];
@@ -93,6 +104,45 @@ pub(super) fn reverb(
         &mut params,
         "character",
         room_character(parameters, warnings),
+    );
+    params
+}
+
+pub(super) fn convolver(
+    parameters: &Map<String, Value>,
+    warnings: &mut Vec<String>,
+) -> BTreeMap<String, PresetValue> {
+    skipped(parameters, CONVOLVER_KEYS, "convolver", warnings);
+    let kernel = text(parameters, "kernelName");
+    if !kernel.is_empty() {
+        warnings.push(tr(
+            "convolver: the impulse response '{0}' is not loaded; a built-in response is used",
+            &[kernel],
+        ));
+    }
+    let mut params = BTreeMap::new();
+    put(&mut params, "response", 0.0);
+    put(&mut params, "auto_gain", flag(parameters, "autogain", true));
+    put(
+        &mut params,
+        "wet",
+        number(parameters, "wet", 0.0).clamp(-60.0, 0.0),
+    );
+    put(
+        &mut params,
+        "dry",
+        number(parameters, "dry", -100.0).clamp(-60.0, 0.0),
+    );
+    put(
+        &mut params,
+        "width",
+        number(parameters, "irWidth", 100.0).clamp(0.0, 100.0),
+    );
+    put(
+        &mut params,
+        "output_gain",
+        (number(parameters, "inputGain", 0.0) + number(parameters, "outputGain", 0.0))
+            .clamp(-30.0, 30.0),
     );
     params
 }

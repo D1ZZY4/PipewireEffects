@@ -3,11 +3,14 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use crossbeam_queue::ArrayQueue;
 use pwe_core::i18n::t;
-use pwe_core::{AudioBuffer, AudioFormat, ChainCommand, Effect, EffectChain, LevelMeter};
+use pwe_core::{
+    AudioBuffer, AudioFormat, ChainCommand, Effect, EffectChain, LevelMeter, PipelineKind,
+};
 use pwe_dsp::{Loudness, SpectrumAnalyzer};
 use rtrb::Consumer;
 
 use crate::config::MAX_QUANTUM_FRAMES;
+use crate::reference::ReferenceBus;
 use crate::shared::Shared;
 
 pub struct Processor {
@@ -25,6 +28,9 @@ pub struct Processor {
     meter: LevelMeter,
     analyser: SpectrumAnalyzer,
     loudness: Loudness,
+    kind: PipelineKind,
+    reference: Option<Arc<ReferenceBus>>,
+    reference_samples: Vec<f32>,
 }
 
 impl Processor {
@@ -67,7 +73,19 @@ impl Processor {
             meter,
             analyser,
             loudness,
+            kind: PipelineKind::Output,
+            reference: None,
+            reference_samples: vec![0.0; MAX_QUANTUM_FRAMES * channels],
         }
+    }
+
+    pub fn attach_reference(&mut self, kind: PipelineKind, reference: Arc<ReferenceBus>) {
+        self.kind = kind;
+        if kind == PipelineKind::Input {
+            reference.clear();
+        }
+        self.reference = Some(reference);
+        self.reference_samples.fill(0.0);
     }
 
     pub fn prepare(&mut self, format: AudioFormat) {
@@ -118,8 +136,25 @@ impl Processor {
             return;
         }
         self.buffer.deinterleave_from(&self.scratch[..wanted]);
-        self.chain.process(&mut self.buffer);
+        let has_reference =
+            self.kind == PipelineKind::Input && self.reference.is_some() && self.channels == 2;
+        if has_reference && let Some(bus) = &self.reference {
+            let _ = bus.pop(&mut self.reference_samples[..wanted]);
+        }
+        let reference: &[f32] = if has_reference {
+            &self.reference_samples[..wanted]
+        } else {
+            &[]
+        };
+        self.chain
+            .process_with_reference(&mut self.buffer, reference);
         self.buffer.sanitize();
+        if self.kind == PipelineKind::Output
+            && self.channels == 2
+            && let Some(bus) = &self.reference
+        {
+            bus.push(self.buffer.channel(0), self.buffer.channel(1));
+        }
         self.publish_output();
         self.publish_spectrum();
         self.shared.stats().add_processed(processed_frames as u64);

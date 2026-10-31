@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+    <path class="transparent-fill foreground-stroke" d="M1.5 4.5Q5.0 4.5 5.0 8.0T8.5 11.5T12.0 8.0T14.5 4.5"/>
+    <path class="transparent-fill foreground-stroke" d="M1.5 11.5Q5.0 11.5 5.0 8.0T8.5 4.5T12.0 8.0T14.5 11.5"/>
+  </g>
+</svg>

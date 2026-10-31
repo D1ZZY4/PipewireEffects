@@ -134,10 +134,32 @@ fn a_bypassed_effect_stays_disabled() {
 #[test]
 fn a_document_without_mappable_effects_is_rejected() {
     let value: Value = serde_json::from_str(
-        r#"{ "output": { "plugins_order": ["convolver#0"], "convolver#0": {} } }"#,
+        r#"{ "output": { "plugins_order": ["deepfilternet#0"], "deepfilternet#0": {} } }"#,
     )
     .unwrap();
     assert!(convert(&value, "Empty").is_err());
+}
+
+#[test]
+fn a_convolver_transfers_its_levels_and_reports_the_kernel() {
+    let value: Value = serde_json::from_str(
+        r#"{ "output": { "plugins_order": ["convolver#0"],
+             "convolver#0": { "kernelName": "studio.irs", "irWidth": 140,
+               "autogain": false, "dry": -12.0, "wet": -3.0,
+               "inputGain": 1.5, "outputGain": -2.5 } } }"#,
+    )
+    .unwrap();
+    let (preset, warnings) = convert(&value, "Convolved").unwrap();
+    let params = &preset.output.effects[0].params;
+    assert!((as_float(params, "width") - 100.0).abs() < 1.0e-6);
+    assert!((as_float(params, "dry") + 12.0).abs() < 1.0e-6);
+    assert!((as_float(params, "wet") + 3.0).abs() < 1.0e-6);
+    assert!((as_float(params, "output_gain") + 1.0).abs() < 1.0e-6);
+    assert!(
+        warnings
+            .iter()
+            .any(|warning| warning.contains("studio.irs"))
+    );
 }
 
 #[test]

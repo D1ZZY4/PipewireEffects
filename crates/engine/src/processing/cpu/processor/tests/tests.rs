@@ -2,6 +2,90 @@ use super::*;
 use crate::capture::CaptureState;
 use crate::shared::Shared;
 
+struct Probe {
+    first_reference: Arc<AtomicU32>,
+}
+
+impl Effect for Probe {
+    fn id(&self) -> &'static str {
+        "probe"
+    }
+
+    fn prepare(&mut self, _format: AudioFormat) {}
+
+    fn reset(&mut self) {}
+
+    fn process(&mut self, _buffer: &mut AudioBuffer) {}
+
+    fn process_with_reference(&mut self, buffer: &mut AudioBuffer, reference: &[f32]) {
+        let Some(first) = reference.first() else {
+            return;
+        };
+        self.first_reference
+            .store(first.to_bits(), Ordering::Relaxed);
+        let value = *first;
+        for channel in 0..buffer.channels() {
+            for sample in buffer.channel_mut(channel) {
+                *sample = value;
+            }
+        }
+    }
+}
+
+#[test]
+fn the_output_pipeline_publishes_the_reference_the_input_pipeline_reads() {
+    let bus = ReferenceBus::new(4_096);
+    let shared = Arc::new(Shared::new());
+    let commands = Arc::new(ArrayQueue::new(8));
+    let retired = Arc::new(ArrayQueue::new(8));
+    let rate = Arc::new(AtomicU32::new(48_000));
+    let (mut producer, mut consumer) = rtrb::RingBuffer::new(16_384);
+    let mut output = Processor::new(
+        Arc::clone(&commands),
+        Arc::clone(&retired),
+        Arc::clone(&shared),
+        Arc::clone(&rate),
+        2,
+        crate::gpu::AudioBackend::Cpu,
+    );
+    output.attach_reference(PipelineKind::Output, Arc::clone(&bus));
+    for _ in 0..1_024 {
+        producer.push(0.25).unwrap();
+        producer.push(-0.25).unwrap();
+    }
+    let mut destination = vec![0.0f32; 2_048];
+    output.process(&mut consumer, 1_024, &mut destination);
+    let mut published = [0.0f32; 2];
+    assert_eq!(bus.pop(&mut published), 1);
+    assert!((published[0] - 0.25).abs() < 1.0e-6);
+    bus.clear();
+
+    let seen = Arc::new(AtomicU32::new(0));
+    let mut input = Processor::new(
+        commands,
+        retired,
+        shared,
+        rate,
+        2,
+        crate::gpu::AudioBackend::Cpu,
+    );
+    input.attach_reference(PipelineKind::Input, Arc::clone(&bus));
+    input
+        .chain
+        .push(Box::new(Probe {
+            first_reference: Arc::clone(&seen),
+        }))
+        .unwrap();
+    bus.push(&[0.5; 1_024], &[0.5; 1_024]);
+    let (mut silent_producer, mut input_consumer) = rtrb::RingBuffer::new(16_384);
+    for _ in 0..1_024 {
+        silent_producer.push(0.0).unwrap();
+        silent_producer.push(0.0).unwrap();
+    }
+    input.process(&mut input_consumer, 1_024, &mut destination);
+    assert_eq!(f32::from_bits(seen.load(Ordering::Relaxed)), 0.5);
+}
+
 #[test]
 fn a_silent_ring_produces_silence_and_counts_underruns() {
     let shared = Arc::new(Shared::new());

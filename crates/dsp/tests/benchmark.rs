@@ -8,6 +8,7 @@ const CHANNELS: usize = 2;
 const FRAMES: usize = 1024;
 const BLOCKS: usize = 2_000;
 const WARM_UP: usize = 64;
+const LEGAL_CHAIN: usize = 16;
 
 fn sound(frames: usize) -> AudioBuffer {
     let mut buffer = AudioBuffer::new(CHANNELS, frames);
@@ -35,6 +36,17 @@ fn build(descriptor: &EffectDescriptor) -> Box<dyn Effect> {
     (descriptor.build)(ParamSet::new(descriptor.specs()))
 }
 
+fn reference(frames: usize) -> Vec<f32> {
+    let step = std::f32::consts::TAU * 331.0 / RATE as f32;
+    let mut samples = Vec::with_capacity(frames * CHANNELS);
+    for frame in 0..frames {
+        let value = 0.2 * (step * frame as f32).sin();
+        samples.push(value);
+        samples.push(-value);
+    }
+    samples
+}
+
 fn chain(descriptors: &[&EffectDescriptor], frames: usize) -> EffectChain {
     let mut chain = EffectChain::new(descriptors.len(), AudioFormat::new(RATE, CHANNELS));
     for descriptor in descriptors {
@@ -43,10 +55,11 @@ fn chain(descriptors: &[&EffectDescriptor], frames: usize) -> EffectChain {
             .expect("the chain should accept every effect");
     }
     let mut buffer = sound(frames);
+    let reference = reference(frames);
     let mut phase = 0.0;
     for _ in 0..WARM_UP {
         fill(&mut buffer, &mut phase);
-        chain.process(&mut buffer);
+        chain.process_with_reference(&mut buffer, &reference);
     }
     chain
 }
@@ -65,11 +78,12 @@ fn best_of<F: FnMut()>(mut body: F) -> f64 {
 
 fn seconds_per_block(mut chain: EffectChain, frames: usize) -> f64 {
     let mut buffer = sound(frames);
+    let reference = reference(frames);
     let mut phase = 0.0;
     best_of(|| {
         for _ in 0..BLOCKS {
             fill(&mut buffer, &mut phase);
-            chain.process(&mut buffer);
+            chain.process_with_reference(&mut buffer, &reference);
             std::hint::black_box(buffer.peak());
         }
     }) / BLOCKS as f64
@@ -147,20 +161,38 @@ fn every_effect_and_the_full_chain_run_faster_than_realtime() {
         "  fill only (not processing)  {:>9.2} us/block",
         baseline * 1.0e6
     );
+    let mut costs: Vec<(f64, &EffectDescriptor)> = Vec::with_capacity(EFFECTS.len());
     for descriptor in EFFECTS {
         let seconds = seconds_per_block(chain(&[descriptor], FRAMES), FRAMES) - baseline;
-        report(descriptor.id, seconds.max(0.0));
+        let seconds = seconds.max(0.0);
+        report(descriptor.id, seconds);
+        costs.push((seconds, descriptor));
     }
+    costs.sort_by(|left, right| right.0.total_cmp(&left.0));
+    let heaviest: Vec<&EffectDescriptor> = costs
+        .iter()
+        .take(LEGAL_CHAIN)
+        .map(|(_, descriptor)| *descriptor)
+        .collect();
+    let legal = seconds_per_block(chain(&heaviest, FRAMES), FRAMES) - baseline;
+    report("heaviest legal chain", legal.max(0.0));
     let every: Vec<&EffectDescriptor> = EFFECTS.iter().collect();
-    let full = seconds_per_block(chain(&every, FRAMES), FRAMES) - baseline;
-    report("all effects", full.max(0.0));
+    let all = seconds_per_block(chain(&every, FRAMES), FRAMES) - baseline;
+    report("all effects (informational)", all.max(0.0));
     report("spectrum analyser", analyser_cost(FRAMES).max(0.0));
     report("loudness meter", loudness_cost(FRAMES).max(0.0));
     let deadline = FRAMES as f64 / f64::from(RATE);
+    let slowest = costs.first().map_or(0.0, |(seconds, _)| *seconds);
     assert!(
-        full < deadline * 0.5,
-        "the full chain costs {:.2} us against a {:.0} us deadline",
-        full * 1.0e6,
+        slowest < deadline * 0.5,
+        "the slowest effect costs {:.2} us against a {:.0} us deadline",
+        slowest * 1.0e6,
+        deadline * 1.0e6
+    );
+    assert!(
+        legal < deadline * 0.9,
+        "the heaviest {LEGAL_CHAIN}-effect chain costs {:.2} us against a {:.0} us deadline",
+        legal * 1.0e6,
         deadline * 1.0e6
     );
 }

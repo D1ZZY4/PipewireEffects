@@ -132,6 +132,12 @@ impl Ui {
     }
 
     pub fn add_effect(self: &Rc<Self>, kind: &str) {
+        if kind == "echo_canceller" && self.active() == PipelineKind::Output {
+            self.show_banner(t(
+                "The echo canceller belongs to the Input chain, where the playback reference is available",
+            ));
+            return;
+        }
         let added = self.state.borrow_mut().add(kind);
         if added.is_none() {
             self.show_banner(t("The effect could not be added; the chain may be full"));
