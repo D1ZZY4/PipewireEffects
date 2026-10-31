@@ -1,21 +1,17 @@
 mod actions;
 mod app;
 mod chain;
-mod chain_view;
 mod chrome;
 mod devices;
 mod diagnostics;
 mod dialogs;
-mod editor;
 mod format;
 mod harness;
-mod meter;
 mod pages;
 mod preferences;
-mod presets_ui;
-mod response;
-mod spectrum;
+mod presets;
 mod state;
+mod views;
 mod widgets;
 mod window;
 
