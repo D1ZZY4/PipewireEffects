@@ -41,7 +41,7 @@ fn analyse(
     amplitude: f32,
 ) -> [f32; BANDS] {
     let mut last = None;
-    for _ in 0..12 {
+    for _ in 0..40 {
         if let Some(values) = analyzer.push(&generator.block(1024, amplitude)) {
             last = Some(values);
         }
@@ -176,6 +176,53 @@ fn the_band_centres_rise_and_span_the_audio_range() {
     for index in 1..BANDS {
         assert!(band_centre(index) > band_centre(index - 1));
     }
+}
+
+#[test]
+fn every_transform_size_reads_a_tone_at_its_level() {
+    for size in 0..FFT_SIZES.len() as u8 {
+        let mut analyzer = SpectrumAnalyzer::with_options(size, 0);
+        analyzer.prepare(48_000);
+        let mut generator = Generator::new(RATE, &[1_000.0]);
+        let values = analyse(&mut analyzer, &mut generator, 0.5);
+        let (index, peak) = loudest(&values);
+        assert!(
+            (band_centre(index) - 1_000.0).abs() < 250.0,
+            "{size} {index}"
+        );
+        assert!((peak + 6.02).abs() < 0.8, "{size} {peak}");
+    }
+}
+
+#[test]
+fn every_window_reads_a_tone_and_names_itself() {
+    for window in 0..WINDOWS.len() as u8 {
+        let mut analyzer = SpectrumAnalyzer::with_options(2, window);
+        analyzer.prepare(48_000);
+        assert_eq!(analyzer.window_name(), WINDOWS[window as usize]);
+        let mut generator = Generator::new(RATE, &[1_000.0]);
+        let values = analyse(&mut analyzer, &mut generator, 0.5);
+        let (_, peak) = loudest(&values);
+        assert!((peak + 6.02).abs() < 0.8, "{window} {peak}");
+    }
+}
+
+#[test]
+fn a_larger_transform_resolves_more_bands() {
+    let mut small = SpectrumAnalyzer::with_options(0, 0);
+    small.prepare(48_000);
+    let mut large = SpectrumAnalyzer::with_options(3, 0);
+    large.prepare(48_000);
+    assert!(large.resolution_bandwidth < small.resolution_bandwidth);
+}
+
+#[test]
+fn set_options_accepts_out_of_range_indices() {
+    let mut analyzer = SpectrumAnalyzer::new();
+    analyzer.prepare(48_000);
+    analyzer.set_options(99, 99);
+    assert_eq!(analyzer.size(), FFT_SIZES[FFT_SIZES.len() - 1]);
+    assert_eq!(analyzer.window_name(), WINDOWS[WINDOWS.len() - 1]);
 }
 
 #[test]

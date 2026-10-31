@@ -78,6 +78,14 @@ pub(super) fn find_switch_row(widget: &gtk::Widget, title: &str) -> Option<adw::
     None
 }
 
+pub(super) fn set_spectrum(ui: &Rc<Ui>, shape: u8, points: u8, height: u8, frequency: u8) {
+    let mut state = ui.state.borrow_mut();
+    state.set_spectrum_shape(shape);
+    state.set_spectrum_points(points);
+    state.set_spectrum_height(height);
+    state.set_spectrum_frequency_range(frequency);
+}
+
 pub(super) fn scroll_to_bottom(widget: &gtk::Widget) -> bool {
     scroll_to_fraction(widget, 1.0)
 }

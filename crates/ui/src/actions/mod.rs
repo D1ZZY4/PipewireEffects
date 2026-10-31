@@ -65,6 +65,36 @@ pub fn workspace_actions(state: &Rc<RefCell<State>>) -> WorkspaceActions {
         let state = Rc::clone(state);
         Rc::new(move |range: u8| state.borrow_mut().set_spectrum_range(range)) as Rc<dyn Fn(u8)>
     };
+    let on_spectrum_shape = {
+        let state = Rc::clone(state);
+        Rc::new(move |shape: u8| state.borrow_mut().set_spectrum_shape(shape)) as Rc<dyn Fn(u8)>
+    };
+    let on_spectrum_points = {
+        let state = Rc::clone(state);
+        Rc::new(move |points: u8| state.borrow_mut().set_spectrum_points(points)) as Rc<dyn Fn(u8)>
+    };
+    let on_spectrum_height = {
+        let state = Rc::clone(state);
+        Rc::new(move |height: u8| state.borrow_mut().set_spectrum_height(height)) as Rc<dyn Fn(u8)>
+    };
+    let on_spectrum_frequency_range = {
+        let state = Rc::clone(state);
+        Rc::new(move |range: u8| state.borrow_mut().set_spectrum_frequency_range(range))
+            as Rc<dyn Fn(u8)>
+    };
+    let on_spectrum_fft = {
+        let state = Rc::clone(state);
+        Rc::new(move |fft: u8| state.borrow_mut().set_spectrum_fft(fft)) as Rc<dyn Fn(u8)>
+    };
+    let on_spectrum_window = {
+        let state = Rc::clone(state);
+        Rc::new(move |window: u8| state.borrow_mut().set_spectrum_window(window)) as Rc<dyn Fn(u8)>
+    };
+    let on_spectrum_auto_range = {
+        let state = Rc::clone(state);
+        Rc::new(move |enabled: bool| state.borrow_mut().set_spectrum_auto_range(enabled))
+            as Rc<dyn Fn(bool)>
+    };
     let on_autoload_remember = {
         let state = Rc::clone(state);
         Rc::new(move || {
@@ -94,6 +124,13 @@ pub fn workspace_actions(state: &Rc<RefCell<State>>) -> WorkspaceActions {
         on_auto_save_interval,
         on_audio_backend,
         on_spectrum_range,
+        on_spectrum_shape,
+        on_spectrum_points,
+        on_spectrum_height,
+        on_spectrum_frequency_range,
+        on_spectrum_fft,
+        on_spectrum_window,
+        on_spectrum_auto_range,
         on_autoload_remember,
         on_autoload_forget,
     }

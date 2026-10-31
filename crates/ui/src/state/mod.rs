@@ -12,6 +12,7 @@ use crate::chain::{Chain, Slot};
 
 mod autoload;
 mod presets;
+mod spectrum;
 
 pub struct State {
     chains: [Chain; 2],
@@ -50,6 +51,7 @@ impl State {
             reference,
         };
         state.apply_settings();
+        state.apply_spectrum_options();
         if let Some(warning) = warning {
             state.warn(&warning);
         }
@@ -176,6 +178,7 @@ impl State {
             let engine = EngineHandle::spawn(config)?;
             self.chain_mut(PipelineKind::Input).start(engine);
             self.apply_device(PipelineKind::Input);
+            self.apply_spectrum_options();
         } else {
             self.chain_mut(PipelineKind::Input).stop();
             if self.active == PipelineKind::Input {
@@ -237,15 +240,6 @@ impl State {
         self.respawn_engines();
     }
 
-    pub fn set_spectrum_range(&mut self, range: u8) {
-        let range = range.min(2);
-        if self.settings.spectrum_range == range {
-            return;
-        }
-        self.settings.spectrum_range = range;
-        self.persist();
-    }
-
     fn respawn_engines(&mut self) {
         for kind in ALL_PIPELINES {
             if !self.chain(kind).running() {
@@ -258,6 +252,7 @@ impl State {
                 Ok(engine) => {
                     self.chain_mut(kind).start(engine);
                     self.apply_device(kind);
+                    self.apply_spectrum_options();
                 }
                 Err(error) => self.warn(&error.to_string()),
             }

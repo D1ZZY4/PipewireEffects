@@ -15,6 +15,7 @@ mod navigation;
 
 use navigation::{
     find_switch_row, open_main_menu, open_preset_menu, scroll_to_bottom, scroll_to_fraction,
+    set_spectrum,
 };
 
 pub const STATE_VARIABLE: &str = "PIPEWIRE_EFFECTS_UI_STATE";
@@ -249,6 +250,14 @@ fn apply(ui: &Rc<Ui>, state: &str) {
         "spectrum-loud" => {
             load_default(ui);
             ui.state.borrow_mut().set_spectrum_range(2);
+        }
+        "spectrum-line" => {
+            load_default(ui);
+            set_spectrum(ui, 1, 2, 2, 1);
+        }
+        "spectrum-speech" => {
+            load_default(ui);
+            set_spectrum(ui, 2, 0, 0, 2);
         }
         "narrow" => load_default(ui),
         "mobile" => load_default(ui),

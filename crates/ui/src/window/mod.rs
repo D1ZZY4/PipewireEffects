@@ -25,6 +25,8 @@ use crate::views::editor;
 
 mod auto_save;
 mod autoload;
+mod desktop;
+mod spectrum;
 mod wiring;
 
 type ChainSignature = (PipelineKind, (usize, bool, Option<EffectSlot>, bool));
@@ -109,26 +111,6 @@ impl Ui {
         self.rebuild_chain();
         self.rebuild_editor();
         self.refresh();
-    }
-
-    pub fn sync_desktop_switches(self: &Rc<Self>) {
-        let state = self.state.borrow();
-        self.devices_view
-            .set_running(state.chain(PipelineKind::Input).running());
-        self.preferences_view
-            .set_autostart(state.settings.autostart);
-        self.preferences_view
-            .set_developer_mode(state.settings.developer_mode);
-        self.preferences_view
-            .set_auto_save(state.settings.auto_save);
-        self.preferences_view
-            .set_auto_save_interval(state.settings.auto_save_interval);
-        self.preferences_view
-            .set_audio_backend(&state.settings.audio_backend);
-        self.preferences_view
-            .set_spectrum_range(state.settings.spectrum_range);
-        self.diagnostics_action
-            .set_enabled(state.settings.developer_mode);
     }
 
     pub fn add_effect(self: &Rc<Self>, kind: &str) {
@@ -267,7 +249,7 @@ impl Ui {
             )
         };
         self.diagnostics_action.set_enabled(developer);
-        let spectrum_range = self.state.borrow().settings.spectrum_range;
+        self.sync_spectrum_options();
         self.sync_view_signature();
         self.autoload(&snapshot, kind);
         let pane = self.pane();
@@ -288,7 +270,6 @@ impl Ui {
             meter.set_opacity(if db.is_finite() { 1.0 } else { 0.0 });
         }
         for pane in &self.panes {
-            pane.spectrum.set_range(spectrum_range);
             let bypassed = self.state.borrow().chain(pane.kind).bypassed;
             if pane.effects.is_active() == bypassed {
                 pane.effects.set_active(!bypassed);

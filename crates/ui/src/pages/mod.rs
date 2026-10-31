@@ -46,6 +46,13 @@ pub struct WorkspaceActions {
     pub on_auto_save_interval: Rc<dyn Fn(u32)>,
     pub on_audio_backend: Rc<dyn Fn(String)>,
     pub on_spectrum_range: Rc<dyn Fn(u8)>,
+    pub on_spectrum_shape: Rc<dyn Fn(u8)>,
+    pub on_spectrum_points: Rc<dyn Fn(u8)>,
+    pub on_spectrum_height: Rc<dyn Fn(u8)>,
+    pub on_spectrum_frequency_range: Rc<dyn Fn(u8)>,
+    pub on_spectrum_fft: Rc<dyn Fn(u8)>,
+    pub on_spectrum_window: Rc<dyn Fn(u8)>,
+    pub on_spectrum_auto_range: Rc<dyn Fn(bool)>,
     pub on_autoload_remember: Rc<dyn Fn()>,
     pub on_autoload_forget: Rc<dyn Fn()>,
 }

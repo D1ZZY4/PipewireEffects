@@ -236,6 +236,8 @@ impl Processor {
     }
 
     fn publish_spectrum(&mut self) {
+        let (fft, window) = self.shared.spectrum().options();
+        self.analyser.set_options(fft, window);
         if let Some(values) = self.analyser.push(&self.buffer) {
             self.shared.spectrum().publish(&values);
         }

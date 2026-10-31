@@ -10,6 +10,10 @@ use pwe_core::i18n::{mark, t};
 
 use crate::pages::WorkspaceActions;
 
+use spectrum::SpectrumPreferences;
+
+mod spectrum;
+
 const INTERVAL_SECONDS: [u32; 5] = [2, 5, 10, 30, 60];
 const INTERVAL_LABELS: [&str; 5] = [
     mark("2 seconds"),
@@ -25,7 +29,7 @@ pub struct PreferencesView {
     auto_save: adw::SwitchRow,
     auto_save_interval: adw::ComboRow,
     backend: adw::ComboRow,
-    spectrum_range: adw::ComboRow,
+    spectrum: SpectrumPreferences,
     toggles: Rc<Cell<bool>>,
 }
 
@@ -86,25 +90,7 @@ impl PreferencesView {
 
         let interface = adw::PreferencesGroup::new();
         interface.set_title(t("Interface"));
-        let spectrum_range = adw::ComboRow::new();
-        spectrum_range.set_title(t("Spectrum range"));
-        spectrum_range.set_subtitle(t("The decibel range the spectrum is drawn across"));
-        let model = gtk::StringList::new(&[]);
-        model.append(t("Wide (-72 to +6 dB)"));
-        model.append(t("Standard (-60 to 0 dB)"));
-        model.append(t("Loud (-48 to +12 dB)"));
-        spectrum_range.set_model(Some(&model));
-        {
-            let flag = Rc::clone(&toggles);
-            let on_spectrum_range = Rc::clone(&actions.on_spectrum_range);
-            spectrum_range.connect_selected_notify(move |row| {
-                if flag.get() {
-                    return;
-                }
-                on_spectrum_range(row.selected().min(2) as u8);
-            });
-        }
-        interface.add(&spectrum_range);
+        let spectrum = SpectrumPreferences::new(&interface, &actions, &toggles);
         page.add(&interface);
 
         let presets = adw::PreferencesGroup::new();
@@ -205,7 +191,7 @@ impl PreferencesView {
             auto_save,
             auto_save_interval,
             backend,
-            spectrum_range,
+            spectrum,
             toggles,
         };
         (page, view)
@@ -252,8 +238,34 @@ impl PreferencesView {
     }
 
     pub fn set_spectrum_range(&self, range: u8) {
-        self.toggles.set(true);
-        self.spectrum_range.set_selected(u32::from(range.min(2)));
-        self.toggles.set(false);
+        self.spectrum.set_range(range);
+    }
+
+    pub fn set_spectrum_shape(&self, shape: u8) {
+        self.spectrum.set_shape(shape);
+    }
+
+    pub fn set_spectrum_points(&self, points: u8) {
+        self.spectrum.set_points(points);
+    }
+
+    pub fn set_spectrum_height(&self, height: u8) {
+        self.spectrum.set_height(height);
+    }
+
+    pub fn set_spectrum_frequency_range(&self, range: u8) {
+        self.spectrum.set_frequency_range(range);
+    }
+
+    pub fn set_spectrum_fft(&self, fft: u8) {
+        self.spectrum.set_fft(fft);
+    }
+
+    pub fn set_spectrum_window(&self, window: u8) {
+        self.spectrum.set_window(window);
+    }
+
+    pub fn set_spectrum_auto_range(&self, enabled: bool) {
+        self.spectrum.set_auto_range(enabled);
     }
 }

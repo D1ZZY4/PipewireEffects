@@ -33,6 +33,12 @@ impl PipelineSettings {
 
 pub const DEFAULT_AUTO_SAVE_INTERVAL: u32 = 10;
 pub const DEFAULT_SPECTRUM_RANGE: u8 = 0;
+pub const DEFAULT_SPECTRUM_SHAPE: u8 = 0;
+pub const DEFAULT_SPECTRUM_POINTS: u8 = 1;
+pub const DEFAULT_SPECTRUM_HEIGHT: u8 = 1;
+pub const DEFAULT_SPECTRUM_FREQUENCY_RANGE: u8 = 0;
+pub const DEFAULT_SPECTRUM_FFT: u8 = 2;
+pub const DEFAULT_SPECTRUM_WINDOW: u8 = 0;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -47,6 +53,13 @@ pub struct Settings {
     pub auto_save_interval: u32,
     pub audio_backend: String,
     pub spectrum_range: u8,
+    pub spectrum_shape: u8,
+    pub spectrum_points: u8,
+    pub spectrum_height: u8,
+    pub spectrum_frequency_range: u8,
+    pub spectrum_fft: u8,
+    pub spectrum_window: u8,
+    pub spectrum_auto_range: bool,
     pub autoload: BTreeMap<String, String>,
 }
 
@@ -63,6 +76,13 @@ impl Default for Settings {
             auto_save_interval: DEFAULT_AUTO_SAVE_INTERVAL,
             audio_backend: "both".to_owned(),
             spectrum_range: DEFAULT_SPECTRUM_RANGE,
+            spectrum_shape: DEFAULT_SPECTRUM_SHAPE,
+            spectrum_points: DEFAULT_SPECTRUM_POINTS,
+            spectrum_height: DEFAULT_SPECTRUM_HEIGHT,
+            spectrum_frequency_range: DEFAULT_SPECTRUM_FREQUENCY_RANGE,
+            spectrum_fft: DEFAULT_SPECTRUM_FFT,
+            spectrum_window: DEFAULT_SPECTRUM_WINDOW,
+            spectrum_auto_range: false,
             autoload: BTreeMap::new(),
         }
     }
