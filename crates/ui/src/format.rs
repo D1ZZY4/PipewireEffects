@@ -95,6 +95,7 @@ pub fn effect_icon(kind: &str) -> &'static str {
         "crossfeed" => "pipewire-effects-crossfeed-symbolic",
         "crosstalk" => "pipewire-effects-crosstalk-symbolic",
         "voice_suppressor" => "pipewire-effects-voice_suppressor-symbolic",
+        "noise_reduction" => "pipewire-effects-noise_reduction-symbolic",
         "gain" => "pipewire-effects-gain-symbolic",
         "delay" => "pipewire-effects-delay-symbolic",
         "reverb" => "pipewire-effects-reverb-symbolic",
@@ -197,6 +198,14 @@ mod tests {
     }
 
     #[test]
+    fn frequency_text_spans_hertz_and_kilohertz() {
+        assert_eq!(frequency_text(100.0), "100 Hz");
+        assert_eq!(frequency_text(1_000.0), "1 kHz");
+        assert_eq!(frequency_text(1_046.5), "1.0 kHz");
+        assert_eq!(frequency_text(19_000.0), "19 kHz");
+    }
+
+    #[test]
     fn grouped_inserts_a_separator_every_three_digits() {
         assert_eq!(grouped(0), "0");
         assert_eq!(grouped(999), "999");
@@ -229,6 +238,33 @@ mod tests {
                 descriptor.id
             );
             seen.push(icon);
+        }
+    }
+
+    #[test]
+    fn every_effect_icon_file_exists_is_symbolic_and_keeps_each_tag_on_one_line() {
+        let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../data/icons/hicolor/symbolic/apps");
+        for descriptor in pwe_dsp::EFFECTS {
+            let file = format!("{}.svg", effect_icon(descriptor.id));
+            let path = directory.join(&file);
+            let text = std::fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+            assert!(
+                text.contains("currentColor"),
+                "{file} does not draw from the theme's foreground colour"
+            );
+            assert!(
+                text.contains("16") && text.contains("viewBox"),
+                "{file} is not a 16 px symbolic icon"
+            );
+            for (index, line) in text.lines().enumerate() {
+                assert!(
+                    !(line.contains('<') && !line.contains('>')),
+                    "{file}:{} leaves a tag open across lines, which the palette does not do",
+                    index + 1
+                );
+            }
         }
     }
 }

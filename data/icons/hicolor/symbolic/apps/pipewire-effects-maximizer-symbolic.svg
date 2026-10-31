@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
   <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M1.5 2.8h13"/>
   <path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M8 14.2V7.4"/>
-  <path fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"
-        d="M8 4.4 11.2 8.7H4.8z"/>
+  <path fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M8 4.4 11.2 8.7H4.8z"/>
 </svg>
