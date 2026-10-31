@@ -27,6 +27,7 @@ crates/dsp/src/effects/multiband.rs
 crates/dsp/src/effects/multiband_compressor.rs
 crates/dsp/src/effects/multiband_gate.rs
 crates/dsp/src/effects/noise_reduction.rs
+crates/dsp/src/effects/pitch_shift.rs
 crates/dsp/src/effects/reverb.rs
 crates/dsp/src/effects/stereo_tools.rs
 crates/dsp/src/effects/voice_suppressor.rs

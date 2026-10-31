@@ -13,6 +13,8 @@ pub enum ParamUnit {
     Seconds,
     Lufs,
     DecibelWidth,
+    Semitones,
+    Cents,
 }
 
 impl ParamUnit {
@@ -29,6 +31,8 @@ impl ParamUnit {
             Self::Seconds => "s",
             Self::Lufs => "LUFS",
             Self::DecibelWidth => "dB",
+            Self::Semitones => "st",
+            Self::Cents => "ct",
         }
     }
 }
@@ -190,6 +194,8 @@ impl ParamSpec {
                     ParamUnit::Decibel => format!("{raw:+.1} dB"),
                     ParamUnit::Lufs => format!("{raw:.1} LUFS"),
                     ParamUnit::DecibelWidth => format!("{raw:.1} dB"),
+                    ParamUnit::Semitones => format!("{raw:+.2} st"),
+                    ParamUnit::Cents => format!("{raw:+.0} ct"),
                     ParamUnit::None => format!("{raw:.2}"),
                 }
             }

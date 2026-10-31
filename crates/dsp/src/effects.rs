@@ -22,10 +22,12 @@ mod multiband;
 mod multiband_compressor;
 mod multiband_gate;
 mod noise_reduction;
+mod pitch_shift;
 mod reverb;
 mod sidechain;
 mod stereo_tools;
 pub mod util;
+mod vocoder;
 mod voice_suppressor;
 
 pub use autogain::{AutoGain, specs as autogain_specs};
@@ -53,6 +55,7 @@ pub use multiband_gate::{MultibandGate, specs as multiband_gate_specs};
 pub use noise_reduction::{
     NoiseReduction, SUPPORTED_RATE as NOISE_REDUCTION_RATE, specs as noise_reduction_specs,
 };
+pub use pitch_shift::{PitchShift, specs as pitch_shift_specs};
 pub use reverb::{Reverb, specs as reverb_specs};
 pub use sidechain::SidechainFilter;
 pub use stereo_tools::{StereoTools, specs as stereo_tools_specs};

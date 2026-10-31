@@ -213,6 +213,14 @@ pub const EFFECTS: &[EffectDescriptor] = &[
         build: |params| Box::new(effects::VoiceSuppressor::new(params)),
     },
     EffectDescriptor {
+        id: "pitch_shift",
+        label: mark("Pitch shift"),
+        summary: mark("Phase vocoder pitch shifting in semitones and cents"),
+        category: EffectCategory::Tone,
+        specs: effects::pitch_shift_specs,
+        build: |params| Box::new(effects::PitchShift::new(params)),
+    },
+    EffectDescriptor {
         id: "noise_reduction",
         label: mark("Noise reduction"),
         summary: mark("Removes steady background noise with a recurrent network at 48 kHz"),
