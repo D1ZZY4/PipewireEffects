@@ -62,8 +62,18 @@ pub fn specs() -> Vec<ParamSpec> {
             .step(0.1)
             .group("Image")
             .build(),
+        ParamSpec::float("stereo_phase", "Stereo phase", ParamUnit::None)
+            .range(0.0, 360.0, 0.0)
+            .step(1.0)
+            .group("Image")
+            .build(),
         ParamSpec::float("balance_out", "Balance out", ParamUnit::Percent)
             .range(-100.0, 100.0, 0.0)
+            .step(1.0)
+            .group("Output")
+            .build(),
+        ParamSpec::float("sc_level", "Side-chain level", ParamUnit::Percent)
+            .range(1.0, 100.0, 100.0)
             .step(1.0)
             .group("Output")
             .build(),
@@ -80,7 +90,7 @@ fn balance(gain: &mut [f32; 2], amount: f32) {
 }
 
 pub struct StereoTools {
-    params: [Knob; 15],
+    params: [Knob; 17],
     delay_buffer: Vec<f32>,
     delay_index: usize,
     rate: u32,
@@ -105,6 +115,8 @@ impl StereoTools {
                 Knob::new(&params, "delay", 0.0),
                 Knob::new(&params, "balance_out", 0.0),
                 Knob::new(&params, "softclip", 0.0),
+                Knob::new(&params, "stereo_phase", 0.0),
+                Knob::new(&params, "sc_level", 100.0),
             ],
             delay_buffer: vec![0.0; BASE_BUFFER],
             delay_index: 0,
@@ -166,6 +178,8 @@ impl Effect for StereoTools {
         let width = (self.params[11].value() / 100.0).clamp(0.0, 2.0);
         let balance_out = (self.params[13].value() / 100.0).clamp(-1.0, 1.0);
         let softclip = self.params[14].flag();
+        let stereo_phase = self.params[15].value().clamp(0.0, 360.0).to_radians();
+        let sc_drive = (self.params[16].value() / 100.0).clamp(0.01, 1.0);
         let delay = ((self.params[12].value() / 1000.0) * self.rate.max(1) as f32)
             .clamp(0.0, (BASE_BUFFER - 2) as f32) as usize;
         let frames = buffer.frames();
@@ -205,13 +219,24 @@ impl Effect for StereoTools {
             balance(&mut middle_pair, panorama);
             balance(&mut side_pair, side_balance);
             let mut output = [middle_pair[0] + side_pair[0], middle_pair[1] + side_pair[1]];
+            if stereo_phase != 0.0 {
+                let (sin, cos) = stereo_phase.sin_cos();
+                output = [
+                    output[0] * cos - output[1] * sin,
+                    output[0] * sin + output[1] * cos,
+                ];
+            }
             let mut output_gains = [1.0f32; 2];
             balance(&mut output_gains, balance_out);
             for (value, gain) in output.iter_mut().zip(output_gains) {
                 *value *= gain;
             }
             for (channel, value) in output.iter().enumerate() {
-                let value = if softclip { value.tanh() } else { *value };
+                let value = if softclip {
+                    (*value * sc_drive).tanh()
+                } else {
+                    *value
+                };
                 buffer.channel_mut(channel)[frame] = math::sanitize(value);
             }
         }

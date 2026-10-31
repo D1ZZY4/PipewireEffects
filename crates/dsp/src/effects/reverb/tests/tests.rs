@@ -199,3 +199,41 @@ fn output_stays_finite_with_extreme_settings() {
         }
     }
 }
+
+#[test]
+fn the_tank_mix_control_is_published_and_ranged() {
+    let specs = reverb_specs();
+    let spec = specs
+        .iter()
+        .find(|spec| spec.id == "tank_mix")
+        .expect("tank_mix is missing");
+    assert_eq!(spec.group, "Room");
+    assert_eq!(spec.default_value().as_f32(), 100.0);
+}
+
+#[test]
+fn a_smaller_tank_mix_changes_the_tail() {
+    let mut dry_tank = {
+        let params = ParamSet::new(reverb_specs());
+        params.set_f32("tank_mix", 0.0).unwrap();
+        let mut effect = Reverb::new(params);
+        effect.prepare(AudioFormat::new(48_000, 2));
+        effect
+    };
+    let mut full_tank = reverb();
+    let mut first = burst(2048);
+    let mut second = burst(2048);
+    dry_tank.process(&mut first);
+    full_tank.process(&mut second);
+    let mut difference = 0.0f32;
+    for _ in 0..40 {
+        let mut a = silent(1024);
+        let mut b = silent(1024);
+        dry_tank.process(&mut a);
+        full_tank.process(&mut b);
+        for (left, right) in a.channel(0).iter().zip(b.channel(0)) {
+            difference += (left - right).abs();
+        }
+    }
+    assert!(difference > 0.05, "the tank mix did nothing: {difference}");
+}

@@ -5,6 +5,10 @@ use crate::effects::util::MAX_CHANNELS;
 use crate::knob::Knob;
 use crate::r128::Loudness;
 
+mod dereverb;
+
+use dereverb::Dereverb;
+
 const FLOOR_MIN_DB: f32 = -90.0;
 const FLOOR_FALL: f32 = 0.25;
 const FLOOR_RISE: f32 = 0.0004;
@@ -43,6 +47,7 @@ pub fn specs() -> Vec<ParamSpec> {
             .step(1.0)
             .group("Noise")
             .build(),
+        ParamSpec::boolean("dereverb", "Dereverb", false).group("Reverberation"),
         ParamSpec::float("mix", "Mix", ParamUnit::Percent)
             .range(0.0, 100.0, 100.0)
             .step(1.0)
@@ -60,8 +65,10 @@ pub struct SpeechProcessor {
     max_gain: Knob,
     denoise: Knob,
     depth: Knob,
+    dereverb: Knob,
     mix: Knob,
     measurement: Loudness,
+    stage: Dereverb,
     floor_db: f32,
     voice: f32,
     reduction_db: f32,
@@ -82,8 +89,10 @@ impl SpeechProcessor {
             max_gain: Knob::new(&params, "max_gain", 18.0),
             denoise: Knob::new(&params, "denoise", 1.0),
             depth: Knob::new(&params, "depth", 18.0),
+            dereverb: Knob::new(&params, "dereverb", 0.0),
             mix: Knob::new(&params, "mix", 100.0),
             measurement: Loudness::new(48_000),
+            stage: Dereverb::new(),
             floor_db: FLOOR_MIN_DB,
             voice: 0.0,
             reduction_db: 0.0,
@@ -176,6 +185,7 @@ impl Effect for SpeechProcessor {
         self.reduction_db = 0.0;
         self.gain_db = 0.0;
         self.measurement.reset();
+        self.stage.reset();
     }
 
     fn process(&mut self, buffer: &mut AudioBuffer) {
@@ -193,12 +203,23 @@ impl Effect for SpeechProcessor {
 
         let gain = math::db_to_gain(self.gain_db - self.reduction_db);
         let mix = (self.mix.value() / 100.0).clamp(0.0, 1.0);
+        if mix > 0.0 && self.dereverb.flag() {
+            self.stage.process(buffer);
+        }
         let channels = buffer.channels().min(MAX_CHANNELS);
         for channel in 0..channels {
             for sample in buffer.channel_mut(channel) {
                 let dry = *sample;
                 *sample = math::sanitize(dry * (1.0 - mix) + dry * gain * mix);
             }
+        }
+    }
+
+    fn latency_frames(&self) -> usize {
+        if self.dereverb.flag() {
+            dereverb::LATENCY_FRAMES
+        } else {
+            0
         }
     }
 }

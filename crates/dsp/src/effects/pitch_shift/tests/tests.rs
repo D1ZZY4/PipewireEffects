@@ -145,3 +145,95 @@ fn the_output_stays_finite_under_the_widest_settings() {
     }
     assert_eq!(effect.latency_frames(), LATENCY_FRAMES);
 }
+
+fn burst(parameters: &[(&str, f32)]) -> Vec<f32> {
+    let params = ParamSet::new(specs());
+    for (id, value) in parameters {
+        params.set_f32(id, *value).unwrap();
+    }
+    let mut effect = PitchShift::new(params);
+    effect.prepare(AudioFormat::new(RATE, CHANNELS));
+    let mut collected = Vec::new();
+    for block in 0..8 {
+        let mut buffer = AudioBuffer::new(CHANNELS, FFT_SIZE);
+        buffer.configure(CHANNELS, FFT_SIZE).unwrap();
+        if block >= 2 {
+            let offset = (block - 2) * FFT_SIZE;
+            for channel in 0..CHANNELS {
+                let plan = buffer.channel_mut(channel);
+                for (index, sample) in plan.iter_mut().enumerate() {
+                    *sample = 0.5 * (TAU * 1_000.0 * (offset + index) as f32 / RATE as f32).sin();
+                }
+            }
+            if block == 2 {
+                buffer.channel_mut(0)[0] += 1.0;
+                buffer.channel_mut(1)[0] += 1.0;
+            }
+        }
+        effect.process(&mut buffer);
+        collected.extend_from_slice(buffer.channel(0));
+    }
+    collected
+}
+
+fn difference(left: &[f32], right: &[f32]) -> f32 {
+    left.iter()
+        .zip(right.iter())
+        .map(|(a, b)| (a - b).abs())
+        .fold(0.0, f32::max)
+}
+
+#[test]
+fn the_quality_controls_default_to_the_previous_behaviour() {
+    let params = ParamSet::new(specs());
+    let effect = PitchShift::new(params);
+    assert_eq!(effect.transients.index(), 0);
+    assert_eq!(effect.detector.index(), 0);
+    assert_eq!(effect.phase.index(), 0);
+    assert_eq!(effect.options(), VocoderOptions::default());
+}
+
+#[test]
+fn laminar_phase_locks_the_render_but_keeps_the_shift() {
+    let laminar = run(&[("semitones", 12.0), ("phase", 1.0)], 1_000.0, 8);
+    let measured = dominant_frequency(steady(&laminar));
+    assert!((measured - 2_000.0).abs() < 60.0, "{measured}");
+    let independent = run(&[("semitones", 12.0), ("phase", 0.0)], 1_000.0, 8);
+    assert!(
+        difference(steady(&laminar), steady(&independent)) > 1.0e-3,
+        "the phase mode did not change the render"
+    );
+}
+
+#[test]
+fn crisp_transients_reset_the_phases_on_an_onset() {
+    let smooth = burst(&[("transients", 0.0)]);
+    let mixed = burst(&[("transients", 1.0)]);
+    let crisp = burst(&[("transients", 2.0)]);
+    assert!(difference(&smooth, &mixed) > 1.0e-3, "mixed matched smooth");
+    assert!(difference(&smooth, &crisp) > 1.0e-3, "crisp matched smooth");
+}
+
+#[test]
+fn the_transient_default_matches_the_smooth_setting() {
+    let default = burst(&[]);
+    let smooth = burst(&[("transients", 0.0)]);
+    assert!(difference(&default, &smooth) < 1.0e-9);
+}
+
+#[test]
+fn the_detector_modes_set_distinct_sensitivities() {
+    assert_eq!(
+        TransientDetector::from_index(0),
+        TransientDetector::Compound
+    );
+    assert_eq!(
+        TransientDetector::from_index(1),
+        TransientDetector::Percussive
+    );
+    assert_eq!(TransientDetector::from_index(2), TransientDetector::Soft);
+    assert!(
+        TransientDetector::Percussive.sensitivity() < TransientDetector::Compound.sensitivity()
+    );
+    assert!(TransientDetector::Compound.sensitivity() < TransientDetector::Soft.sensitivity());
+}

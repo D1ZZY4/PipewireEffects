@@ -1,3 +1,4 @@
+use pwe_core::i18n::mark;
 use pwe_core::{AudioBuffer, AudioFormat, Effect, ParamSet, ParamSpec, ParamUnit, math};
 
 use crate::effects::vocoder::Vocoder;
@@ -6,8 +7,48 @@ use crate::knob::Knob;
 const CHANNELS: usize = 2;
 const MAX_FRAMES: usize = 16_384;
 
+const NOTE_LABELS: [&str; 12] = [
+    mark("C"),
+    mark("C sharp"),
+    mark("D"),
+    mark("D sharp"),
+    mark("E"),
+    mark("F"),
+    mark("F sharp"),
+    mark("G"),
+    mark("G sharp"),
+    mark("A"),
+    mark("A sharp"),
+    mark("B"),
+];
+
+const CHORD_LABELS: [&str; 8] = [
+    mark("Major triad"),
+    mark("Minor triad"),
+    mark("Diminished triad"),
+    mark("Augmented triad"),
+    mark("Sus2 triad"),
+    mark("Sus4 triad"),
+    mark("Dominant seventh"),
+    mark("Major seventh"),
+];
+
+const CHORDS: [(i32, i32); 8] = [
+    (4, 7),
+    (3, 7),
+    (3, 6),
+    (4, 8),
+    (2, 7),
+    (5, 7),
+    (4, 10),
+    (4, 11),
+];
+
 pub fn specs() -> Vec<ParamSpec> {
     vec![
+        ParamSpec::boolean("chord_mode", "Chord mode", false).group("Chord"),
+        ParamSpec::choice("note", "Root note", &NOTE_LABELS, 0).group("Chord"),
+        ParamSpec::choice("chord", "Chord", &CHORD_LABELS, 0).group("Chord"),
         ParamSpec::float("interval1", "Voice 1 interval", ParamUnit::Semitones)
             .range(-24.0, 24.0, 7.0)
             .step(1.0)
@@ -39,6 +80,9 @@ pub fn specs() -> Vec<ParamSpec> {
 pub struct Harmonizer {
     voice1: Vocoder,
     voice2: Vocoder,
+    chord_mode: Knob,
+    note: Knob,
+    chord: Knob,
     interval1: Knob,
     level1: Knob,
     interval2: Knob,
@@ -53,6 +97,9 @@ impl Harmonizer {
         Self {
             voice1: Vocoder::new(),
             voice2: Vocoder::new(),
+            chord_mode: Knob::new(&params, "chord_mode", 0.0),
+            note: Knob::new(&params, "note", 0.0),
+            chord: Knob::new(&params, "chord", 0.0),
             interval1: Knob::new(&params, "interval1", 7.0),
             level1: Knob::new(&params, "level1", 60.0),
             interval2: Knob::new(&params, "interval2", 12.0),
@@ -65,6 +112,16 @@ impl Harmonizer {
 
     fn ratio(semitones: f32) -> f32 {
         (semitones.clamp(-24.0, 24.0) / 12.0).exp2()
+    }
+
+    fn intervals(&self) -> (f32, f32) {
+        if !self.chord_mode.flag() {
+            return (self.interval1.value(), self.interval2.value());
+        }
+        let index = self.chord.index().min(CHORDS.len() - 1);
+        let root = (self.note.index() % 12) as i32;
+        let (first, second) = CHORDS[index];
+        ((first + root) as f32, (second + root) as f32)
     }
 }
 
@@ -95,8 +152,9 @@ impl Effect for Harmonizer {
         let mix = (self.mix.value() / 100.0).clamp(0.0, 1.0);
         let level1 = (self.level1.value() / 100.0).clamp(0.0, 1.0);
         let level2 = (self.level2.value() / 100.0).clamp(0.0, 1.0);
-        let ratio1 = Self::ratio(self.interval1.value());
-        let ratio2 = Self::ratio(self.interval2.value());
+        let (interval1, interval2) = self.intervals();
+        let ratio1 = Self::ratio(interval1);
+        let ratio2 = Self::ratio(interval2);
 
         for channel in 0..channels {
             self.dry[channel][..frames].copy_from_slice(&buffer.channel(channel)[..frames]);

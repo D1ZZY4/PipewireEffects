@@ -15,16 +15,23 @@ fn prepared(params: ParamSet) -> NoiseReduction {
 }
 
 #[test]
-fn an_unsupported_rate_passes_the_signal_through() {
-    let params = ParamSet::new(specs());
-    params.set_f32("input_gain", 0.0).unwrap();
-    params.set_f32("output_gain", 0.0).unwrap();
-    let mut effect = NoiseReduction::new(params);
-    effect.prepare(AudioFormat::new(44_100, 2));
-    let mut buf = buffer(512, 0.25);
-    effect.process(&mut buf);
-    for sample in buf.channel(0) {
-        assert!((sample - 0.25).abs() < 1.0e-6);
+fn a_non_48_k_rate_runs_the_denoiser_and_the_gate() {
+    for rate in [44_100, 96_000] {
+        let params = ParamSet::new(specs());
+        params.set_bool("vad", true).unwrap();
+        params.set_f32("vad_threshold", 100.0).unwrap();
+        let mut effect = NoiseReduction::new(params);
+        effect.prepare(AudioFormat::new(rate, 2));
+        let mut peak = 0.0f32;
+        for block in 0..60 {
+            let mut buf = buffer(FRAME, 0.5);
+            effect.process(&mut buf);
+            assert!(buf.channel(0).iter().all(|value| value.is_finite()));
+            if block >= 50 {
+                peak = peak.max(buf.peak());
+            }
+        }
+        assert!(peak < 0.1, "{rate} Hz left {peak}");
     }
 }
 
@@ -80,4 +87,49 @@ fn the_elements_are_finite_under_abuse() {
         effect.process(&mut buf);
         assert!(buf.channel(0).iter().all(|value| value.is_finite()));
     }
+}
+
+#[test]
+fn the_release_maps_to_the_reference_grace_period() {
+    assert_eq!(release_frames(0.0), 0);
+    assert_eq!(release_frames(20.0), 2);
+    assert_eq!(release_frames(20_000.0), 2_000);
+}
+
+#[test]
+fn the_gate_opens_on_a_voice_frame_and_holds_for_the_release() {
+    let mut hold = 0;
+    assert_eq!(gate_target(true, &mut hold, 0), 1.0);
+    assert_eq!(gate_target(false, &mut hold, 0), 0.0);
+
+    let mut hold = 0;
+    assert_eq!(gate_target(true, &mut hold, 2), 1.0);
+    assert_eq!(gate_target(false, &mut hold, 2), 1.0);
+    assert_eq!(gate_target(false, &mut hold, 2), 1.0);
+    assert_eq!(gate_target(false, &mut hold, 2), 0.0);
+}
+
+#[test]
+fn the_release_time_controls_how_long_the_gate_stays_open() {
+    let make = |release: f32| {
+        let params = ParamSet::new(specs());
+        params.set_bool("vad", true).unwrap();
+        params.set_f32("vad_threshold", 100.0).unwrap();
+        params.set_f32("release", release).unwrap();
+        let mut effect = prepared(params);
+        effect.channels[0].gate = 1.0;
+        effect.channels[0].first = false;
+        effect.channels[0].hold = release_frames(release);
+        effect
+    };
+    let mut fast = make(0.0);
+    let mut slow = make(20_000.0);
+    for _ in 0..12 {
+        let mut fast_buffer = buffer(FRAME, 0.0);
+        fast.process(&mut fast_buffer);
+        let mut slow_buffer = buffer(FRAME, 0.0);
+        slow.process(&mut slow_buffer);
+    }
+    assert!(fast.channels[0].gate < 0.01, "{}", fast.channels[0].gate);
+    assert!(slow.channels[0].gate > 0.9, "{}", slow.channels[0].gate);
 }

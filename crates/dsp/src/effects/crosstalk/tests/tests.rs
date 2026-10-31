@@ -99,3 +99,38 @@ fn extreme_settings_stay_bounded() {
         }
     }
 }
+
+fn gained(input_gain: f32, output_gain: f32) -> Crosstalk {
+    let params = ParamSet::new(specs());
+    params.set_f32("input_gain", input_gain).unwrap();
+    params.set_f32("output_gain", output_gain).unwrap();
+    let mut effect = Crosstalk::new(params);
+    effect.prepare(AudioFormat::new(48_000, 2));
+    effect
+}
+
+fn right_impulse(effect: &mut Crosstalk) -> f32 {
+    let mut buffer = AudioBuffer::new(2, 8);
+    buffer.configure(2, 8).unwrap();
+    buffer.channel_mut(1)[0] = 1.0;
+    effect.process(&mut buffer);
+    buffer.channel(1)[0]
+}
+
+#[test]
+fn the_input_gain_scales_the_input() {
+    let value = right_impulse(&mut gained(-6.0, 0.0));
+    assert!((value - 0.501).abs() < 0.01, "{value}");
+}
+
+#[test]
+fn the_output_gain_scales_the_result() {
+    let value = right_impulse(&mut gained(0.0, -6.0));
+    assert!((value - 0.501).abs() < 0.01, "{value}");
+}
+
+#[test]
+fn the_two_gains_compose() {
+    let value = right_impulse(&mut gained(-6.0, -6.0));
+    assert!((value - 0.251).abs() < 0.01, "{value}");
+}

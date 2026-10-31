@@ -27,6 +27,24 @@ pub fn specs() -> Vec<ParamSpec> {
             .step(0.5)
             .group("Detector")
             .build(),
+        ParamSpec::float(
+            "hysteresis_threshold",
+            "Hysteresis threshold",
+            ParamUnit::Decibel,
+        )
+        .range(-60.0, 0.0, 0.0)
+        .step(0.5)
+        .group("Detector")
+        .build(),
+        ParamSpec::float(
+            "hysteresis_zone",
+            "Hysteresis zone",
+            ParamUnit::DecibelWidth,
+        )
+        .range(0.0, 60.0, 0.0)
+        .step(0.5)
+        .group("Detector")
+        .build(),
         ParamSpec::float("attack", "Attack", ParamUnit::Milliseconds)
             .range(0.1, 100.0, 5.0)
             .logarithmic()
@@ -67,6 +85,8 @@ pub struct Gate {
     range: Knob,
     curve: Knob,
     hysteresis: Knob,
+    hysteresis_threshold: Knob,
+    hysteresis_zone: Knob,
     attack: Knob,
     hold: Knob,
     release: Knob,
@@ -91,6 +111,8 @@ impl Gate {
             range: Knob::new(&params, "range", 40.0),
             curve: Knob::new(&params, "curve", 6.0),
             hysteresis: Knob::new(&params, "hysteresis", 0.0),
+            hysteresis_threshold: Knob::new(&params, "hysteresis_threshold", 0.0),
+            hysteresis_zone: Knob::new(&params, "hysteresis_zone", 0.0),
             attack: Knob::new(&params, "attack", 5.0),
             hold: Knob::new(&params, "hold", 50.0),
             release: Knob::new(&params, "release", 300.0),
@@ -126,12 +148,24 @@ impl Gate {
         );
     }
 
+    fn close_threshold(&self) -> f32 {
+        let open = self.threshold.value();
+        let explicit = self.hysteresis_threshold.value();
+        if explicit < open {
+            explicit
+        } else {
+            open - self.hysteresis.value()
+        }
+    }
+
     fn target_gain(&mut self, level_db: f32, hold: u32, closed_gain: f32, curve: f32) -> f32 {
+        let open_threshold = self.threshold.value();
+        let close_threshold = self.close_threshold();
         if self.open {
-            if level_db < self.threshold.value() - self.hysteresis.value() {
+            if level_db < close_threshold {
                 self.open = false;
             }
-        } else if level_db >= self.threshold.value() {
+        } else if level_db >= open_threshold {
             self.open = true;
         }
         if self.open {
@@ -143,11 +177,16 @@ impl Gate {
             self.open = true;
         }
         let reference = if self.open {
-            self.threshold.value()
+            open_threshold
         } else {
-            self.threshold.value() - self.hysteresis.value()
+            close_threshold
         };
-        let depth = ((reference - level_db) / curve.max(0.1)).clamp(0.0, 1.0);
+        let zone = if self.hysteresis_zone.value() > 0.0 {
+            self.hysteresis_zone.value()
+        } else {
+            curve
+        };
+        let depth = ((reference - level_db) / zone.max(0.1)).clamp(0.0, 1.0);
         closed_gain + (1.0 - closed_gain) * (1.0 - depth)
     }
 }

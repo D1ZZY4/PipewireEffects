@@ -48,6 +48,11 @@ pub fn specs() -> Vec<ParamSpec> {
             .step(1.0)
             .group("Room")
             .build(),
+        ParamSpec::float("tank_mix", "Tank mix", ParamUnit::Percent)
+            .range(0.0, 100.0, 100.0)
+            .step(1.0)
+            .group("Room")
+            .build(),
         ParamSpec::float("pre_delay", "Pre-delay", ParamUnit::Milliseconds)
             .range(0.0, 200.0, 20.0)
             .step(1.0)
@@ -87,6 +92,7 @@ pub struct Reverb {
     character: Knob,
     damping: Knob,
     diffusion: Knob,
+    tank_mix: Knob,
     pre_delay: Knob,
     bass_cut: Knob,
     treble_cut: Knob,
@@ -123,6 +129,7 @@ impl Reverb {
             character: Knob::new(&params, "character", 2.0),
             damping: Knob::new(&params, "damping", 50.0),
             diffusion: Knob::new(&params, "diffusion", 50.0),
+            tank_mix: Knob::new(&params, "tank_mix", 100.0),
             pre_delay: Knob::new(&params, "pre_delay", 20.0),
             bass_cut: Knob::new(&params, "bass_cut", 300.0),
             treble_cut: Knob::new(&params, "treble_cut", 5000.0),
@@ -239,6 +246,7 @@ impl Effect for Reverb {
         let width = (self.width.value() / 100.0).clamp(0.0, 1.0);
         let wet = math::db_to_gain(self.wet.value());
         let dry = math::db_to_gain(self.dry.value());
+        let tank_mix = (self.tank_mix.value() / 100.0).clamp(0.0, 1.0);
         let pre_delay = ((self.pre_delay.value() / 1000.0) * self.rate.max(1) as f32)
             .clamp(0.0, MAX_PRE_DELAY as f32 - 1.0) as usize;
         let channels = buffer.channels().min(MAX_CHANNELS);
@@ -272,9 +280,11 @@ impl Effect for Reverb {
                 for comb in self.combs[channel].iter_mut() {
                     sum += comb.process(delayed * 0.015);
                 }
+                let comb_sum = sum;
                 for allpass in self.allpasses[channel].iter_mut() {
                     sum = allpass.process(sum);
                 }
+                sum = comb_sum * (1.0 - tank_mix) + sum * tank_mix;
                 for filter in self.tone[channel].iter_mut() {
                     sum = filter.process(sum);
                 }

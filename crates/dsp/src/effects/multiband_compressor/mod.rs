@@ -90,12 +90,36 @@ const BAND_IDS: [[&str; 7]; MAX_BANDS] = [
     ],
 ];
 
+const SOLO_IDS: [&str; MAX_BANDS] = [
+    "band1_solo",
+    "band2_solo",
+    "band3_solo",
+    "band4_solo",
+    "band5_solo",
+    "band6_solo",
+    "band7_solo",
+    "band8_solo",
+];
+
+const MUTE_IDS: [&str; MAX_BANDS] = [
+    "band1_mute",
+    "band2_mute",
+    "band3_mute",
+    "band4_mute",
+    "band5_mute",
+    "band6_mute",
+    "band7_mute",
+    "band8_mute",
+];
+
 pub fn specs() -> Vec<ParamSpec> {
     let mut specs = multiband::crossover_specs();
-    specs.reserve(1 + MAX_BANDS * 7);
+    specs.reserve(1 + MAX_BANDS * 9);
     for (band, ids) in BAND_IDS.iter().enumerate() {
         let group = multiband::band_group(band);
         specs.push(ParamSpec::boolean(ids[ENABLED], "Enabled", true).group(group));
+        specs.push(ParamSpec::boolean(SOLO_IDS[band], "Solo", false).group(group));
+        specs.push(ParamSpec::boolean(MUTE_IDS[band], "Mute", false).group(group));
         specs.push(
             ParamSpec::float(ids[THRESHOLD], "Threshold", ParamUnit::Decibel)
                 .range(-60.0, 0.0, DEFAULTS[THRESHOLD])
@@ -146,6 +170,8 @@ pub fn specs() -> Vec<ParamSpec> {
 pub struct MultibandCompressor {
     crossover: Crossover,
     bands: [[Knob; 7]; MAX_BANDS],
+    solo: [Knob; MAX_BANDS],
+    mute: [Knob; MAX_BANDS],
     count: Knob,
     splits: [Knob; MAX_BANDS - 1],
     mix: Knob,
@@ -161,6 +187,8 @@ impl MultibandCompressor {
         Self {
             crossover: Crossover::default(),
             bands,
+            solo: std::array::from_fn(|band| Knob::new(&params, SOLO_IDS[band], 0.0)),
+            mute: std::array::from_fn(|band| Knob::new(&params, MUTE_IDS[band], 0.0)),
             count: Knob::new(&params, "bands", DEFAULT_BANDS as f32),
             splits: multiband::split_knobs(&params),
             mix: Knob::new(&params, "mix", 100.0),
@@ -210,6 +238,8 @@ impl Effect for MultibandCompressor {
         let mut knee = [0.0f32; MAX_BANDS];
         let mut makeup = [0.0f32; MAX_BANDS];
         let mut enabled = [false; MAX_BANDS];
+        let mut solo = [false; MAX_BANDS];
+        let mut mute = [false; MAX_BANDS];
         for band in 0..count {
             let (a, r) = ballistics(
                 self.bands[band][ATTACK].value(),
@@ -223,7 +253,10 @@ impl Effect for MultibandCompressor {
             knee[band] = self.bands[band][KNEE].value().max(0.0);
             makeup[band] = self.bands[band][MAKEUP].value();
             enabled[band] = self.bands[band][ENABLED].flag();
+            solo[band] = self.solo[band].flag();
+            mute[band] = self.mute[band].flag();
         }
+        let any_solo = solo.iter().take(count).any(|value| *value);
         let mix = (self.mix.value() / 100.0).clamp(0.0, 1.0);
         let channels = buffer.channels().min(MAX_CHANNELS);
         let frames = buffer.frames();
@@ -259,7 +292,8 @@ impl Effect for MultibandCompressor {
                 if !self.envelope[band].is_finite() {
                     self.envelope[band] = 1.0;
                 }
-                let gain = self.envelope[band];
+                let plays = if any_solo { solo[band] } else { !mute[band] };
+                let gain = if plays { self.envelope[band] } else { 0.0 };
                 for (slot, value) in accumulated.iter_mut().zip(values.iter()).take(channels) {
                     *slot += value * gain;
                 }

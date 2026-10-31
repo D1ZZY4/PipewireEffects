@@ -5,7 +5,7 @@ use serde_json::{Map, Value};
 
 use crate::model::PresetValue;
 
-use super::{mix_percent, number, put, skipped, text};
+use super::{flag, mix_percent, number, put, skipped, text};
 
 mod sidechain;
 
@@ -34,12 +34,19 @@ const LIMITER_KEYS: &[&str] = &[
     "release",
     "lookahead",
     "stereoLink",
+    "oversampling",
+    "dithering",
+    "attack",
+    "gainBoost",
+    "alr",
 ];
 
 const GATE_KEYS: &[&str] = &[
     "bypass",
     "curve-threshold",
     "curve-zone",
+    "hysteresis-threshold",
+    "hysteresis-zone",
     "reduction",
     "attack",
     "release",
@@ -71,7 +78,13 @@ const EXPANDER_KEYS: &[&str] = &[
     "lpf-frequency",
 ];
 
-const MAXIMIZER_KEYS: &[&str] = &["bypass", "threshold", "release"];
+const MAXIMIZER_KEYS: &[&str] = &[
+    "bypass",
+    "input-gain",
+    "output-gain",
+    "threshold",
+    "release",
+];
 
 pub(super) fn maximizer(
     parameters: &Map<String, Value>,
@@ -85,6 +98,16 @@ pub(super) fn maximizer(
         number(parameters, "threshold", 0.0),
     );
     put(&mut params, "release", number(parameters, "release", 25.0));
+    put(
+        &mut params,
+        "input_gain",
+        number(parameters, "input-gain", 0.0),
+    );
+    put(
+        &mut params,
+        "output_gain",
+        number(parameters, "output-gain", 0.0),
+    );
     params
 }
 
@@ -138,7 +161,45 @@ pub(super) fn limiter(
         "input_gain",
         number(parameters, "input-gain", 0.0),
     );
+    put(&mut params, "attack", number(parameters, "attack", 20.0));
+    put(
+        &mut params,
+        "gain_boost",
+        flag(parameters, "gainBoost", true),
+    );
+    put(&mut params, "release_mode", flag(parameters, "alr", false));
+    put(
+        &mut params,
+        "oversampling",
+        limiter_oversampling(parameters),
+    );
+    put(
+        &mut params,
+        "dithering",
+        limiter_dithering(parameters, warnings),
+    );
     params
+}
+
+fn limiter_oversampling(parameters: &Map<String, Value>) -> f64 {
+    match number(parameters, "oversampling", 0.0) as i64 {
+        0 => 0.0,
+        1 | 2 | 11 | 12 | 21 | 22 => 1.0,
+        _ => 2.0,
+    }
+}
+
+fn limiter_dithering(parameters: &Map<String, Value>, warnings: &mut Vec<String>) -> f64 {
+    let index = number(parameters, "dithering", 0.0) as i64;
+    if index > 0 {
+        warnings
+            .push(t("limiter: the reference bit depth was mapped to 16-bit dithering").to_owned());
+    }
+    match index {
+        0 => 0.0,
+        1 | 2 => 1.0,
+        _ => 2.0,
+    }
 }
 
 pub(super) fn gate(

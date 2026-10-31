@@ -16,6 +16,11 @@ const CORRECTION: [(FilterKind, f32, f32, f32); 6] = [
 
 pub fn specs() -> Vec<ParamSpec> {
     vec![
+        ParamSpec::float("input_gain", "Input gain", ParamUnit::Decibel)
+            .range(-36.0, 36.0, 0.0)
+            .step(0.1)
+            .group("Input")
+            .build(),
         ParamSpec::float("delay", "Delay", ParamUnit::Microseconds)
             .range(200.0, 500.0, 313.0)
             .step(1.0)
@@ -27,6 +32,11 @@ pub fn specs() -> Vec<ParamSpec> {
             .group("Crosstalk")
             .build(),
         ParamSpec::boolean("phantom_center", "Phantom centre only", false).group("Crosstalk"),
+        ParamSpec::float("output_gain", "Output gain", ParamUnit::Decibel)
+            .range(-36.0, 36.0, 0.0)
+            .step(0.1)
+            .group("Output")
+            .build(),
     ]
 }
 
@@ -93,9 +103,11 @@ impl CorrectionLine {
 }
 
 pub struct Crosstalk {
+    input_gain: Knob,
     delay: Knob,
     decay: Knob,
     phantom_center: Knob,
+    output_gain: Knob,
     left: CorrectionLine,
     right: CorrectionLine,
     rate: f32,
@@ -105,9 +117,11 @@ pub struct Crosstalk {
 impl Crosstalk {
     pub fn new(params: ParamSet) -> Self {
         Self {
+            input_gain: Knob::new(&params, "input_gain", 0.0),
             delay: Knob::new(&params, "delay", 313.0),
             decay: Knob::new(&params, "decay", -2.0),
             phantom_center: Knob::new(&params, "phantom_center", 0.0),
+            output_gain: Knob::new(&params, "output_gain", 0.0),
             left: CorrectionLine::new(),
             right: CorrectionLine::new(),
             rate: 48_000.0,
@@ -147,25 +161,29 @@ impl Effect for Crosstalk {
             return;
         }
         self.refresh(self.delay.value());
+        let input_gain = math::db_to_gain(self.input_gain.value());
+        let output_gain = math::db_to_gain(self.output_gain.value());
         let decay = math::db_to_gain(self.decay.value());
         let phantom = self.phantom_center.flag();
         let frames = buffer.frames();
 
         for frame in 0..frames {
-            let input_left = buffer.channel(0)[frame];
-            let input_right = buffer.channel(1)[frame];
+            let input_left = buffer.channel(0)[frame] * input_gain;
+            let input_right = buffer.channel(1)[frame] * input_gain;
             if phantom {
                 let middle = input_left + input_right;
                 let side = input_left - input_right;
                 let corrected = middle - decay * self.left.read();
-                buffer.channel_mut(0)[frame] = math::sanitize(0.5 * (corrected + side));
-                buffer.channel_mut(1)[frame] = math::sanitize(0.5 * (corrected - side));
+                buffer.channel_mut(0)[frame] =
+                    math::sanitize(0.5 * (corrected + side) * output_gain);
+                buffer.channel_mut(1)[frame] =
+                    math::sanitize(0.5 * (corrected - side) * output_gain);
                 self.left.write(corrected);
             } else {
                 let left_out = input_left - decay * self.right.read();
                 let right_out = input_right - decay * self.left.read();
-                buffer.channel_mut(0)[frame] = math::sanitize(left_out);
-                buffer.channel_mut(1)[frame] = math::sanitize(right_out);
+                buffer.channel_mut(0)[frame] = math::sanitize(left_out * output_gain);
+                buffer.channel_mut(1)[frame] = math::sanitize(right_out * output_gain);
                 self.left.write(left_out);
                 self.right.write(right_out);
             }

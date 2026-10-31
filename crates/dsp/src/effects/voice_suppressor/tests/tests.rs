@@ -101,3 +101,48 @@ fn a_flat_spectrum_reads_below_a_peaked_one() {
     assert!(flat < 1.0, "a flat triplet read {flat}");
     assert!(peak > flat, "a peak read {peak} against a flat {flat}");
 }
+
+#[test]
+fn the_mask_rises_with_correlation_and_falls_with_phase() {
+    let low = voice_mask(0.2, 0.0, 2.0, 1_000.0, (0.5, 0.5, 1.0, 12_000.0));
+    let high = voice_mask(0.9, 0.0, 2.0, 1_000.0, (0.5, 0.5, 1.0, 12_000.0));
+    assert!(high > low, "{high} against {low}");
+    let centred = voice_mask(0.9, 0.0, 2.0, 1_000.0, (0.5, 0.5, 1.0, 12_000.0));
+    let opposed = voice_mask(0.9, 3.0, 2.0, 1_000.0, (0.5, 0.5, 1.0, 12_000.0));
+    assert!(centred > opposed, "{centred} against {opposed}");
+}
+
+#[test]
+fn the_mask_rises_with_kurtosis_and_falls_with_frequency() {
+    let flat = voice_mask(0.9, 0.0, 0.5, 1_000.0, (0.5, 0.5, 1.0, 12_000.0));
+    let peaked = voice_mask(0.9, 0.0, 4.0, 1_000.0, (0.5, 0.5, 1.0, 12_000.0));
+    assert!(peaked > flat, "{peaked} against {flat}");
+    let slow = voice_mask(0.9, 0.0, 2.0, 100.0, (0.5, 0.5, 1.0, 12_000.0));
+    let fast = voice_mask(0.9, 0.0, 2.0, 20_000.0, (0.5, 0.5, 1.0, 12_000.0));
+    assert!(slow > fast, "{slow} against {fast}");
+}
+
+#[test]
+fn the_mask_crosses_over_smoothly_at_the_thresholds() {
+    let at_threshold = voice_mask(0.5, 0.5, 1.0, 6_000.0, (0.5, 0.5, 1.0, 12_000.0));
+    assert!(
+        at_threshold > 0.0 && at_threshold < 1.0,
+        "the mask was not continuous: {at_threshold}"
+    );
+    let below = voice_mask(0.4, 0.5, 1.0, 6_000.0, (0.5, 0.5, 1.0, 12_000.0));
+    let above = voice_mask(0.6, 0.5, 1.0, 6_000.0, (0.5, 0.5, 1.0, 12_000.0));
+    assert!(below < at_threshold && at_threshold < above);
+}
+
+#[test]
+fn the_inverted_mode_keeps_the_centre_voice() {
+    let params = ParamSet::new(specs());
+    params.set_bool("inverted", true).unwrap();
+    let mut effect = VoiceSuppressor::new(params);
+    effect.prepare(AudioFormat::new(48_000, 2));
+    let level = rms(&mut effect, false);
+    assert!(
+        level > 0.5,
+        "the inverted mode suppressed the centre: {level}"
+    );
+}

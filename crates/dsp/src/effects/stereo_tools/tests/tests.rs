@@ -155,3 +155,61 @@ fn the_delay_shifts_the_right_channel_in_time() {
         .unwrap();
     assert!(right_peak.abs_diff(48) < 4, "right peak at {right_peak}");
 }
+
+#[test]
+fn the_stereo_phase_rotates_the_output_pair() {
+    let params = ParamSet::new(specs());
+    params.set_f32("stereo_phase", 90.0).unwrap();
+    let mut effect = prepared(params);
+    let mut buffer = stereo(1.0, 0.0, 8);
+    effect.process(&mut buffer);
+    assert!(
+        buffer.channel(0)[0].abs() < 1.0e-5,
+        "{}",
+        buffer.channel(0)[0]
+    );
+    assert!((buffer.channel(1)[0] - 1.0).abs() < 1.0e-5);
+}
+
+#[test]
+fn a_half_turn_stereo_phase_inverts_both_channels() {
+    let params = ParamSet::new(specs());
+    params.set_f32("stereo_phase", 180.0).unwrap();
+    let mut effect = prepared(params);
+    let mut buffer = stereo(0.5, 0.25, 8);
+    effect.process(&mut buffer);
+    assert!((buffer.channel(0)[0] + 0.5).abs() < 1.0e-5);
+    assert!((buffer.channel(1)[0] + 0.25).abs() < 1.0e-5);
+}
+
+#[test]
+fn the_side_chain_level_scales_the_soft_clip_drive() {
+    let hard = {
+        let params = ParamSet::new(specs());
+        params.set_bool("softclip", true).unwrap();
+        let mut effect = prepared(params);
+        let mut buffer = stereo(4.0, 4.0, 8);
+        effect.process(&mut buffer);
+        buffer.channel(0)[0]
+    };
+    let soft = {
+        let params = ParamSet::new(specs());
+        params.set_bool("softclip", true).unwrap();
+        params.set_f32("sc_level", 10.0).unwrap();
+        let mut effect = prepared(params);
+        let mut buffer = stereo(4.0, 4.0, 8);
+        effect.process(&mut buffer);
+        buffer.channel(0)[0]
+    };
+    assert!(hard > 0.9, "{hard}");
+    assert!(soft < hard * 0.6, "{soft} against {hard}");
+    assert!(hard.is_finite() && soft.is_finite());
+}
+
+#[test]
+fn the_new_image_controls_are_published() {
+    let specs = specs();
+    for id in ["stereo_phase", "sc_level"] {
+        assert!(specs.iter().any(|spec| spec.id == id), "{id}");
+    }
+}

@@ -87,3 +87,111 @@ fn dry_signal_passes_through_with_zero_mix() {
     effect.process(&mut buffer);
     assert!((buffer.channel(0)[0] - 1.0).abs() < 1.0e-6);
 }
+
+fn configured(settings: &[(&str, f32)]) -> Delay {
+    let params = ParamSet::new(specs());
+    for (id, value) in settings {
+        params.set_f32(id, *value).unwrap();
+    }
+    let mut effect = Delay::new(params);
+    effect.prepare(AudioFormat::new(48_000, 2));
+    effect
+}
+
+fn sine(amplitude: f32, frames: usize) -> AudioBuffer {
+    let mut buffer = AudioBuffer::new(2, frames);
+    buffer.configure(2, frames).unwrap();
+    for channel in 0..2 {
+        for (index, sample) in buffer.channel_mut(channel).iter_mut().enumerate() {
+            *sample = amplitude * (std::f32::consts::TAU * 200.0 * index as f32 / 48_000.0).sin();
+        }
+    }
+    buffer
+}
+
+fn rendered(settings: &[(&str, f32)], blocks: usize) -> AudioBuffer {
+    let mut effect = configured(settings);
+    let mut buffer = sine(2.0, 4096);
+    for _ in 0..blocks {
+        buffer = sine(2.0, 4096);
+        effect.process(&mut buffer);
+    }
+    buffer
+}
+
+fn peak(buffer: &AudioBuffer, channel: usize) -> f32 {
+    buffer
+        .channel(channel)
+        .iter()
+        .fold(0.0f32, |peak, value| peak.max(value.abs()))
+}
+
+#[test]
+fn the_new_output_controls_are_published() {
+    let specs = specs();
+    for id in ["dry_left", "wet_left", "dry_right", "wet_right", "tape"] {
+        assert!(specs.iter().any(|spec| spec.id == id), "{id}");
+    }
+}
+
+#[test]
+fn a_left_wet_trim_mutes_the_left_echo() {
+    let mut effect = configured(&[
+        ("delay_left", 10.0),
+        ("delay_right", 10.0),
+        ("mix", 100.0),
+        ("feedback", 0.0),
+        ("wet_left", -60.0),
+    ]);
+    let mut buffer = impulse(2048);
+    effect.process(&mut buffer);
+    assert!(peak(&buffer, 0) < 0.01, "left {}", peak(&buffer, 0));
+    assert!(peak(&buffer, 1) > 0.5, "right {}", peak(&buffer, 1));
+}
+
+#[test]
+fn a_left_dry_trim_mutes_the_left_direct_path() {
+    let mut effect = configured(&[("mix", 0.0), ("dry_left", -60.0)]);
+    let mut buffer = impulse(512);
+    effect.process(&mut buffer);
+    assert!(peak(&buffer, 0) < 0.01, "left {}", peak(&buffer, 0));
+    assert!((buffer.channel(1)[0] - 1.0).abs() < 1.0e-6);
+}
+
+#[test]
+fn tape_saturation_compresses_a_hot_echo() {
+    let clean = rendered(
+        &[
+            ("delay_left", 10.0),
+            ("delay_right", 10.0),
+            ("mix", 100.0),
+            ("feedback", 0.0),
+            ("tape", 0.0),
+        ],
+        16,
+    );
+    let taped = rendered(
+        &[
+            ("delay_left", 10.0),
+            ("delay_right", 10.0),
+            ("mix", 100.0),
+            ("feedback", 0.0),
+            ("tape", 100.0),
+        ],
+        16,
+    );
+    assert!(peak(&clean, 0) > 1.5, "clean {}", peak(&clean, 0));
+    assert!(peak(&taped, 0) < 1.1, "taped {}", peak(&taped, 0));
+    assert!(peak(&taped, 0).is_finite());
+}
+
+#[test]
+fn tape_wow_and_flutter_change_the_echo() {
+    let plain = rendered(&[("mix", 100.0), ("feedback", 0.0), ("tape", 0.0)], 8);
+    let taped = rendered(&[("mix", 100.0), ("feedback", 0.0), ("tape", 100.0)], 8);
+    let mut difference = 0.0f32;
+    for (left, right) in plain.channel(0).iter().zip(taped.channel(0)) {
+        difference += (left - right).abs();
+    }
+    assert!(difference > 10.0, "tape did nothing: {difference}");
+}

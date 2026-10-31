@@ -7,6 +7,27 @@ use crate::effects::util::MAX_CHANNELS;
 use crate::knob::Knob;
 
 const DETECTORS: [&str; 2] = [mark("Peak"), mark("RMS")];
+const MODES: [&str; 2] = [mark("Downward"), mark("Upward")];
+const MAX_UPWARD_DB: f32 = 24.0;
+
+fn upward_gain_db(level_db: f32, threshold_db: f32, knee_db: f32, ratio: f32) -> f32 {
+    if !level_db.is_finite() {
+        return 0.0;
+    }
+    let over = level_db - threshold_db;
+    let slope = ratio.max(1.0) - 1.0;
+    let gain = if knee_db <= 0.0 {
+        if over > 0.0 { over * slope } else { 0.0 }
+    } else if over <= -0.5 * knee_db {
+        0.0
+    } else if over >= 0.5 * knee_db {
+        over * slope
+    } else {
+        let shifted = over + 0.5 * knee_db;
+        slope * shifted * shifted / (2.0 * knee_db)
+    };
+    gain.clamp(0.0, MAX_UPWARD_DB)
+}
 
 pub fn specs() -> Vec<ParamSpec> {
     vec![
@@ -16,6 +37,7 @@ pub fn specs() -> Vec<ParamSpec> {
             .group("Detector")
             .build(),
         ParamSpec::choice("detector", "Detector", &DETECTORS, 0).group("Detector"),
+        ParamSpec::choice("mode", "Mode", &MODES, 0).group("Detector"),
         ParamSpec::float("ratio", "Ratio", ParamUnit::Ratio)
             .range(1.0, 100.0, 4.0)
             .step(0.5)
@@ -64,6 +86,7 @@ pub fn specs() -> Vec<ParamSpec> {
 pub struct Expander {
     threshold: Knob,
     detector: Knob,
+    mode: Knob,
     ratio: Knob,
     knee: Knob,
     attack: Knob,
@@ -84,6 +107,7 @@ impl Expander {
         Self {
             threshold: Knob::new(&params, "threshold", -12.0),
             detector: Knob::new(&params, "detector", 0.0),
+            mode: Knob::new(&params, "mode", 0.0),
             ratio: Knob::new(&params, "ratio", 4.0),
             knee: Knob::new(&params, "knee", 6.0),
             attack: Knob::new(&params, "attack", 20.0),
@@ -126,6 +150,7 @@ impl Effect for Expander {
         let makeup = math::db_to_gain(self.makeup.value());
         let mix = (self.mix.value() / 100.0).clamp(0.0, 1.0);
         let use_rms = self.detector.index() == 1;
+        let upward = self.mode.index() == 1;
         let channels = buffer.channels().min(MAX_CHANNELS);
         let frames = buffer.frames();
 
@@ -138,7 +163,12 @@ impl Effect for Expander {
         for frame in 0..frames {
             let (peak, square) = filtered_measure(&mut self.sidechain, buffer, channels, frame);
             let level = self.state.track_measure(peak, square, use_rms);
-            let expansion = soft_knee_expansion_db(math::gain_to_db(level), threshold, knee, ratio);
+            let level_db = math::gain_to_db(level);
+            let expansion = if upward {
+                upward_gain_db(level_db, threshold, knee, ratio)
+            } else {
+                soft_knee_expansion_db(level_db, threshold, knee, ratio)
+            };
             let gain = math::db_to_gain(expansion) * makeup;
             for channel in 0..channels {
                 let plan = buffer.channel_mut(channel);

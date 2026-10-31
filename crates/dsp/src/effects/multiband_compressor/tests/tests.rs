@@ -73,6 +73,46 @@ fn makeup_lifts_the_compressed_band() {
 }
 
 #[test]
+fn a_muted_band_contributes_nothing() {
+    let params = ParamSet::new(specs());
+    params.set_f32("bands", 2.0).unwrap();
+    params.set_bool("band2_mute", true).unwrap();
+    let mut effect = MultibandCompressor::new(params);
+    effect.prepare(AudioFormat::new(48_000, 2));
+    let peak = settled(&mut effect, 1_000.0, 0.5);
+    assert!(peak < 0.05, "the muted band still passed: {peak}");
+}
+
+#[test]
+fn soloing_a_band_silences_the_others() {
+    let params = ParamSet::new(specs());
+    params.set_f32("bands", 2.0).unwrap();
+    params.set_bool("band1_solo", true).unwrap();
+    let mut effect = MultibandCompressor::new(params);
+    effect.prepare(AudioFormat::new(48_000, 2));
+    let peak = settled(&mut effect, 1_000.0, 0.5);
+    assert!(peak < 0.05, "a non-soloed band still passed: {peak}");
+}
+
+#[test]
+fn solo_overrides_mute_on_the_same_band() {
+    let params = ParamSet::new(specs());
+    params.set_f32("bands", 2.0).unwrap();
+    params.set_bool("band2_mute", true).unwrap();
+    params.set_bool("band2_solo", true).unwrap();
+    for ids in BAND_IDS {
+        params.set_f32(ids[RATIO], 1.0).unwrap();
+    }
+    let mut effect = MultibandCompressor::new(params);
+    effect.prepare(AudioFormat::new(48_000, 2));
+    let peak = settled(&mut effect, 1_000.0, 0.5);
+    assert!(
+        (peak - 0.5).abs() < 0.05,
+        "solo did not override mute: {peak}"
+    );
+}
+
+#[test]
 fn a_disabled_band_passes_its_range_through() {
     let params = ParamSet::new(specs());
     params.set_f32("bands", 2.0).unwrap();

@@ -127,3 +127,99 @@ fn the_output_stays_finite_at_the_extremes() {
         }
     }
 }
+
+fn chord_run(chord: f32, note: f32, level1: f32, level2: f32) -> Vec<f32> {
+    run(
+        &[
+            ("chord_mode", 1.0),
+            ("chord", chord),
+            ("note", note),
+            ("level1", level1),
+            ("level2", level2),
+            ("mix", 100.0),
+        ],
+        24,
+    )
+}
+
+#[test]
+fn chord_mode_defaults_to_off() {
+    let params = ParamSet::new(specs());
+    let effect = Harmonizer::new(params);
+    assert!(!effect.chord_mode.flag());
+    assert_eq!(effect.note.index(), 0);
+    assert_eq!(effect.chord.index(), 0);
+    assert!((effect.intervals().0 - 7.0).abs() < 1.0e-6);
+    assert!((effect.intervals().1 - 12.0).abs() < 1.0e-6);
+}
+
+#[test]
+fn chord_mode_applies_the_major_triad_intervals() {
+    let samples = chord_run(0.0, 0.0, 100.0, 0.0);
+    let measured = dominant(&samples[samples.len() - 8_192..]);
+    assert!((measured - 554.37).abs() < 20.0, "{measured}");
+}
+
+#[test]
+fn chord_mode_applies_the_minor_triad_intervals() {
+    let samples = chord_run(1.0, 0.0, 100.0, 0.0);
+    let measured = dominant(&samples[samples.len() - 8_192..]);
+    assert!((measured - 523.25).abs() < 20.0, "{measured}");
+}
+
+#[test]
+fn chord_mode_uses_the_seventh_of_a_seventh_chord() {
+    let samples = chord_run(6.0, 0.0, 0.0, 100.0);
+    let measured = dominant(&samples[samples.len() - 8_192..]);
+    assert!((measured - 783.99).abs() < 25.0, "{measured}");
+}
+
+#[test]
+fn the_root_note_transposes_the_chord() {
+    let base = chord_run(0.0, 0.0, 100.0, 0.0);
+    let raised = chord_run(0.0, 1.0, 100.0, 0.0);
+    let base_pitch = dominant(&base[base.len() - 8_192..]);
+    let raised_pitch = dominant(&raised[raised.len() - 8_192..]);
+    assert!((base_pitch - 554.37).abs() < 20.0, "{base_pitch}");
+    assert!(
+        raised_pitch > base_pitch + 20.0,
+        "{raised_pitch} did not transpose above {base_pitch}"
+    );
+}
+
+#[test]
+fn the_root_note_offsets_the_chord_intervals() {
+    let params = ParamSet::new(specs());
+    params.set_f32("chord_mode", 1.0).unwrap();
+    params.set_f32("chord", 0.0).unwrap();
+    params.set_f32("note", 2.0).unwrap();
+    let effect = Harmonizer::new(params);
+    let (first, second) = effect.intervals();
+    assert!((first - 6.0).abs() < 1.0e-6, "{first}");
+    assert!((second - 9.0).abs() < 1.0e-6, "{second}");
+}
+
+#[test]
+fn chord_mode_ignores_the_manual_intervals() {
+    let params = ParamSet::new(specs());
+    params.set_f32("chord_mode", 1.0).unwrap();
+    params.set_f32("chord", 0.0).unwrap();
+    params.set_f32("interval1", 24.0).unwrap();
+    params.set_f32("interval2", -24.0).unwrap();
+    let effect = Harmonizer::new(params);
+    let (first, second) = effect.intervals();
+    assert!((first - 4.0).abs() < 1.0e-6, "{first}");
+    assert!((second - 7.0).abs() < 1.0e-6, "{second}");
+}
+
+#[test]
+fn every_chord_publishes_two_rising_intervals() {
+    for index in 0..CHORDS.len() {
+        let params = ParamSet::new(specs());
+        params.set_f32("chord_mode", 1.0).unwrap();
+        params.set_f32("chord", index as f32).unwrap();
+        let effect = Harmonizer::new(params);
+        let (first, second) = effect.intervals();
+        assert!(first > 0.0 && second > first, "{index}: {first}, {second}");
+    }
+}

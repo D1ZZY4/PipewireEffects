@@ -58,3 +58,94 @@ fn silence_is_left_as_silence() {
     let peak = settle(0.0, 0.0);
     assert_eq!(peak, 0.0);
 }
+
+#[test]
+fn a_zero_lookahead_does_not_delay_the_signal() {
+    let params = ParamSet::new(specs());
+    let mut effect = Maximizer::new(params);
+    effect.prepare(AudioFormat::new(48_000, 2));
+    assert_eq!(effect.latency_frames(), 0);
+    let mut impulse = AudioBuffer::new(2, 64);
+    impulse.configure(2, 64).unwrap();
+    impulse.channel_mut(0)[0] = 0.25;
+    impulse.channel_mut(1)[0] = 0.25;
+    effect.process(&mut impulse);
+    assert!(impulse.channel(0)[0].abs() > 0.0);
+}
+
+#[test]
+fn the_output_lags_by_the_lookahead() {
+    let params = ParamSet::new(specs());
+    params.set_f32("lookahead", 10.0).unwrap();
+    let mut effect = Maximizer::new(params);
+    effect.prepare(AudioFormat::new(48_000, 2));
+    assert_eq!(effect.latency_frames(), 480);
+    let mut impulse = AudioBuffer::new(2, 1024);
+    impulse.configure(2, 1024).unwrap();
+    impulse.channel_mut(0)[0] = 0.25;
+    impulse.channel_mut(1)[0] = 0.25;
+    effect.process(&mut impulse);
+    assert!(impulse.channel(0)[..480].iter().all(|value| *value == 0.0));
+    assert!(impulse.channel(0)[480].abs() > 0.0);
+}
+
+#[test]
+fn a_lookahead_keeps_the_ceiling() {
+    let params = ParamSet::new(specs());
+    params.set_f32("threshold", -12.0).unwrap();
+    params.set_f32("lookahead", 5.0).unwrap();
+    let mut effect = Maximizer::new(params);
+    effect.prepare(AudioFormat::new(48_000, 2));
+    let ceiling = math::db_to_gain(-12.0);
+    for _ in 0..32 {
+        let mut block = tone(2.0, 4096);
+        effect.process(&mut block);
+        assert!(block.peak() <= ceiling + 1.0e-3, "{}", block.peak());
+    }
+}
+
+#[test]
+fn input_gain_scales_a_source_below_the_makeup_cap() {
+    let measure = |gain: f32| {
+        let params = ParamSet::new(specs());
+        params.set_f32("input_gain", gain).unwrap();
+        let mut effect = Maximizer::new(params);
+        effect.prepare(AudioFormat::new(48_000, 2));
+        let mut peak = 0.0f32;
+        for _ in 0..64 {
+            let mut block = tone(0.001, 4096);
+            effect.process(&mut block);
+            peak = peak.max(block.peak());
+        }
+        peak
+    };
+    let unity = measure(0.0);
+    let lower = measure(-6.0);
+    assert!(
+        (lower / unity - 0.5).abs() < 0.05,
+        "{lower} against {unity}"
+    );
+}
+
+#[test]
+fn output_gain_scales_the_limited_result() {
+    let measure = |gain: f32| {
+        let params = ParamSet::new(specs());
+        params.set_f32("output_gain", gain).unwrap();
+        let mut effect = Maximizer::new(params);
+        effect.prepare(AudioFormat::new(48_000, 2));
+        let mut peak = 0.0f32;
+        for _ in 0..64 {
+            let mut block = tone(0.5, 4096);
+            effect.process(&mut block);
+            peak = peak.max(block.peak());
+        }
+        peak
+    };
+    let unity = measure(0.0);
+    let lower = measure(-6.0);
+    assert!(
+        (lower / unity - 0.5).abs() < 0.05,
+        "{lower} against {unity}"
+    );
+}

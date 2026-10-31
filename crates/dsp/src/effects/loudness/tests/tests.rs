@@ -115,3 +115,63 @@ fn the_output_stays_finite_at_the_extremes() {
         }
     }
 }
+
+#[test]
+fn the_fft_mode_lifts_the_contour_like_the_iir_mode() {
+    for frequency in [60.0, 1_000.0, 12_000.0] {
+        let fft = measured_gain(frequency, &[("mode", 0.0), ("volume", -60.0)]);
+        let iir = measured_gain(frequency, &[("mode", 1.0), ("volume", -60.0)]);
+        assert!(
+            (fft - iir).abs() < 1.5,
+            "{frequency} Hz: fft {fft} dB, iir {iir} dB"
+        );
+    }
+}
+
+#[test]
+fn the_fft_mode_keeps_a_full_volume_flat() {
+    for frequency in [60.0, 1_000.0, 12_000.0] {
+        let gain = measured_gain(frequency, &[("mode", 0.0), ("volume", 0.0)]);
+        assert!(gain.abs() < 0.5, "{frequency} Hz read {gain} dB");
+    }
+}
+
+#[test]
+fn the_fft_mode_holds_its_clipping_ceiling() {
+    let params = ParamSet::new(specs());
+    params.set_f32("mode", 0.0).unwrap();
+    params.set_bool("clipping", true).unwrap();
+    params.set_f32("clipping_range", 6.0).unwrap();
+    let mut effect = LoudnessEffect::new(params);
+    effect.prepare(AudioFormat::new(RATE, 2));
+    let ceiling = math::db_to_gain(-6.0);
+    for block in 0..8 {
+        let mut buffer = tone(80.0, 1.0, 4_800, block * 4_800);
+        effect.process(&mut buffer);
+        for channel in 0..2 {
+            for sample in buffer.channel(channel) {
+                assert!(sample.abs() <= ceiling + 1.0e-4, "{}", sample.abs());
+            }
+        }
+    }
+}
+
+#[test]
+fn the_fft_mode_stays_finite_at_the_extremes() {
+    let params = ParamSet::new(specs());
+    params.set_f32("mode", 0.0).unwrap();
+    params.set_f32("volume", -83.0).unwrap();
+    params.set_bool("clipping", true).unwrap();
+    params.set_f32("clipping_range", 0.0).unwrap();
+    let mut effect = LoudnessEffect::new(params);
+    effect.prepare(AudioFormat::new(RATE, 2));
+    for block in 0..8 {
+        let mut buffer = tone(40.0, 2.0, 4_800, block * 4_800);
+        effect.process(&mut buffer);
+        for channel in 0..2 {
+            for sample in buffer.channel(channel) {
+                assert!(sample.is_finite(), "{sample}");
+            }
+        }
+    }
+}

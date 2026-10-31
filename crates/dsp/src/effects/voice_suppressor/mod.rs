@@ -154,19 +154,30 @@ impl VoiceSuppressor {
             let coefficient = if denominator <= f32::MIN_POSITIVE {
                 0.0
             } else {
-                (cross_re / denominator).clamp(-1.0, 1.0)
+                ((cross_re * cross_re + cross_im * cross_im).sqrt() / denominator).clamp(0.0, 1.0)
             };
             let difference = cross_im.atan2(cross_re).abs();
             let kurtosis = self.local_kurtosis(bin, channels);
-            let matches = coefficient >= correlation
-                && difference <= phase_limit
-                && self.instantaneous[bin] <= max_if
-                && kurtosis >= min_kurtosis;
-            let voice = if inverted { !matches } else { matches };
-            if !voice {
+            let eligible = self.instantaneous[bin] <= max_if && kurtosis >= min_kurtosis;
+            let mask = if eligible {
+                voice_mask(
+                    coefficient,
+                    difference,
+                    kurtosis,
+                    self.instantaneous[bin],
+                    (correlation, phase_limit, min_kurtosis, max_if),
+                )
+            } else {
+                0.0
+            };
+            let gain = if inverted {
+                1.0 - mix * (1.0 - mask)
+            } else {
+                1.0 - mix * mask
+            };
+            if gain >= 1.0 {
                 continue;
             }
-            let gain = 1.0 - mix;
             for channel in 0..channels {
                 self.re[channel][bin] *= gain;
                 self.im[channel][bin] *= gain;
@@ -262,6 +273,27 @@ impl Effect for VoiceSuppressor {
 
 fn wrap(phase: f32) -> f32 {
     phase - std::f32::consts::TAU * (phase / std::f32::consts::TAU).round()
+}
+
+fn ratio_sigmoid(x: f32) -> f32 {
+    0.5 * (1.0 + x / (1.0 + x.abs()))
+}
+
+fn voice_mask(
+    correlation: f32,
+    phase_diff: f32,
+    kurtosis: f32,
+    instantaneous: f32,
+    thresholds: (f32, f32, f32, f32),
+) -> f32 {
+    let (correlation_threshold, phase_limit, minimum_kurtosis, maximum_frequency) = thresholds;
+    let correlation_gain = ratio_sigmoid((correlation - correlation_threshold) / 0.08);
+    let phase_gain = ratio_sigmoid((phase_limit - phase_diff) / 0.08);
+    let kurtosis_width = 0.08 * minimum_kurtosis.max(0.5);
+    let kurtosis_gain = ratio_sigmoid((kurtosis - minimum_kurtosis) / kurtosis_width);
+    let frequency_width = 0.04 * maximum_frequency.max(1.0);
+    let frequency_gain = ratio_sigmoid((maximum_frequency - instantaneous) / frequency_width);
+    (correlation_gain * phase_gain * kurtosis_gain * frequency_gain).clamp(0.0, 1.0)
 }
 
 fn spectral_kurtosis(magnitudes: &[f32], bin: usize) -> f32 {

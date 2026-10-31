@@ -83,3 +83,48 @@ fn a_single_channel_leaves_the_processed_side_finite() {
         }
     }
 }
+
+fn gain_effect(input_gain: f32, output_gain: f32) -> Crossfeed {
+    let params = ParamSet::new(specs());
+    params.set_f32("input_gain", input_gain).unwrap();
+    params.set_f32("output_gain", output_gain).unwrap();
+    let mut effect = Crossfeed::new(params);
+    effect.prepare(AudioFormat::new(48_000, 2));
+    effect
+}
+
+#[test]
+fn the_input_gain_scales_the_input() {
+    let mut effect = gain_effect(-6.0, 0.0);
+    let mut buffer = tone(200.0, 4096, 0.5, 0.5);
+    effect.process(&mut buffer);
+    let peak = buffer
+        .channel(0)
+        .iter()
+        .fold(0.0f32, |peak, value| peak.max(value.abs()));
+    assert!((peak - 0.25).abs() < 0.01, "peak {peak}");
+}
+
+#[test]
+fn the_output_gain_scales_the_result() {
+    let mut effect = gain_effect(0.0, -6.0);
+    let mut buffer = tone(200.0, 4096, 0.5, 0.5);
+    effect.process(&mut buffer);
+    let peak = buffer
+        .channel(0)
+        .iter()
+        .fold(0.0f32, |peak, value| peak.max(value.abs()));
+    assert!((peak - 0.25).abs() < 0.01, "peak {peak}");
+}
+
+#[test]
+fn the_two_gains_compose() {
+    let mut effect = gain_effect(-6.0, -6.0);
+    let mut buffer = tone(200.0, 4096, 0.5, 0.5);
+    effect.process(&mut buffer);
+    let peak = buffer
+        .channel(0)
+        .iter()
+        .fold(0.0f32, |peak, value| peak.max(value.abs()));
+    assert!((peak - 0.125).abs() < 0.01, "peak {peak}");
+}

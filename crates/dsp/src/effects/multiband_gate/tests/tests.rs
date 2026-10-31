@@ -55,6 +55,43 @@ fn a_quiet_signal_is_closed_by_the_range() {
 }
 
 #[test]
+fn a_muted_band_contributes_nothing() {
+    let params = ParamSet::new(specs());
+    params.set_f32("bands", 2.0).unwrap();
+    params.set_bool("band2_mute", true).unwrap();
+    let mut effect = MultibandGate::new(params);
+    effect.prepare(AudioFormat::new(48_000, 2));
+    let peak = peak_after(&mut effect, 0.5, 32);
+    assert!(peak < 0.05, "the muted band still passed: {peak}");
+}
+
+#[test]
+fn soloing_a_band_silences_the_others() {
+    let params = ParamSet::new(specs());
+    params.set_f32("bands", 2.0).unwrap();
+    params.set_bool("band1_solo", true).unwrap();
+    let mut effect = MultibandGate::new(params);
+    effect.prepare(AudioFormat::new(48_000, 2));
+    let peak = peak_after(&mut effect, 0.5, 32);
+    assert!(peak < 0.05, "a non-soloed band still passed: {peak}");
+}
+
+#[test]
+fn solo_overrides_mute_on_the_same_band() {
+    let params = ParamSet::new(specs());
+    params.set_f32("bands", 2.0).unwrap();
+    params.set_bool("band2_mute", true).unwrap();
+    params.set_bool("band2_solo", true).unwrap();
+    let mut effect = MultibandGate::new(params);
+    effect.prepare(AudioFormat::new(48_000, 2));
+    let peak = peak_after(&mut effect, 0.5, 32);
+    assert!(
+        (peak - 0.5).abs() < 0.05,
+        "solo did not override mute: {peak}"
+    );
+}
+
+#[test]
 fn a_disabled_band_is_not_gated() {
     let params = ParamSet::new(specs());
     for ids in BAND_IDS {
