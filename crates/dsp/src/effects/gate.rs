@@ -1,6 +1,7 @@
 use pwe_core::{AudioBuffer, AudioFormat, Effect, ParamSet, ParamSpec, ParamUnit, math};
 
-use crate::effects::dynamics::ballistics;
+use crate::effects::dynamics::{ballistics, filtered_measure};
+use crate::effects::sidechain::{MODES as SIDECHAIN_MODES, SidechainFilter};
 use crate::effects::util::MAX_CHANNELS;
 use crate::knob::Knob;
 
@@ -41,6 +42,18 @@ pub fn specs() -> Vec<ParamSpec> {
             .logarithmic()
             .group("Timing")
             .build(),
+        ParamSpec::choice("hpf_mode", "High-pass", &SIDECHAIN_MODES, 0).group("Sidechain"),
+        ParamSpec::float("hpf_frequency", "High-pass frequency", ParamUnit::Hertz)
+            .range(10.0, 2_000.0, 10.0)
+            .logarithmic()
+            .group("Sidechain")
+            .build(),
+        ParamSpec::choice("lpf_mode", "Low-pass", &SIDECHAIN_MODES, 0).group("Sidechain"),
+        ParamSpec::float("lpf_frequency", "Low-pass frequency", ParamUnit::Hertz)
+            .range(1_000.0, 20_000.0, 20_000.0)
+            .logarithmic()
+            .group("Sidechain")
+            .build(),
         ParamSpec::float("mix", "Mix", ParamUnit::Percent)
             .range(0.0, 100.0, 100.0)
             .step(1.0)
@@ -58,6 +71,11 @@ pub struct Gate {
     hold: Knob,
     release: Knob,
     mix: Knob,
+    high_mode: Knob,
+    high_frequency: Knob,
+    low_mode: Knob,
+    low_frequency: Knob,
+    sidechain: SidechainFilter,
     envelope: f32,
     open: bool,
     hold_frames: u32,
@@ -77,6 +95,11 @@ impl Gate {
             hold: Knob::new(&params, "hold", 50.0),
             release: Knob::new(&params, "release", 300.0),
             mix: Knob::new(&params, "mix", 100.0),
+            high_mode: Knob::new(&params, "hpf_mode", 0.0),
+            high_frequency: Knob::new(&params, "hpf_frequency", 10.0),
+            low_mode: Knob::new(&params, "lpf_mode", 0.0),
+            low_frequency: Knob::new(&params, "lpf_frequency", 20_000.0),
+            sidechain: SidechainFilter::new(48_000),
             envelope: 1.0,
             open: true,
             hold_frames: 0,
@@ -92,6 +115,15 @@ impl Gate {
         let (attack, release) = ballistics(self.attack.value(), self.release.value(), self.rate);
         self.attack_coefficient = attack;
         self.release_coefficient = release;
+    }
+
+    fn sidechain_update(&mut self) {
+        self.sidechain.update(
+            self.high_mode.index(),
+            self.high_frequency.value(),
+            self.low_mode.index(),
+            self.low_frequency.value(),
+        );
     }
 
     fn target_gain(&mut self, level_db: f32, hold: u32, closed_gain: f32, curve: f32) -> f32 {
@@ -127,11 +159,13 @@ impl Effect for Gate {
 
     fn prepare(&mut self, format: AudioFormat) {
         self.rate = format.rate();
+        self.sidechain.prepare(self.rate);
         self.update_ballistics();
         self.reset();
     }
 
     fn reset(&mut self) {
+        self.sidechain.reset();
         self.envelope = 1.0;
         self.open = true;
         self.hold_frames = 0;
@@ -139,6 +173,7 @@ impl Effect for Gate {
 
     fn process(&mut self, buffer: &mut AudioBuffer) {
         self.update_ballistics();
+        self.sidechain_update();
         let closed_gain = math::db_to_gain(-self.range.value());
         let curve = self.curve.value().max(0.1);
         let mix = (self.mix.value() / 100.0).clamp(0.0, 1.0);
@@ -149,10 +184,7 @@ impl Effect for Gate {
         let frames = buffer.frames();
 
         for frame in 0..frames {
-            let mut peak = 0.0f32;
-            for channel in 0..channels {
-                peak = peak.max(buffer.channel_mut(channel)[frame].abs());
-            }
+            let (peak, _) = filtered_measure(&mut self.sidechain, buffer, channels, frame);
             let level_db = math::gain_to_db(peak);
             let target = self.target_gain(level_db, hold_frames, closed_gain, curve);
             let coefficient = if target < self.envelope {

@@ -1,12 +1,17 @@
 use super::*;
 
 fn tone(amplitude: f32, frames: usize) -> AudioBuffer {
+    tone_from(amplitude, frames, 0)
+}
+
+fn tone_from(amplitude: f32, frames: usize, offset: usize) -> AudioBuffer {
     let mut buffer = AudioBuffer::new(2, frames);
     buffer.configure(2, frames).unwrap();
     for channel in 0..2 {
         let plan = buffer.channel_mut(channel);
         for (index, sample) in plan.iter_mut().enumerate() {
-            *sample = amplitude * (std::f32::consts::TAU * 250.0 * index as f32 / 48_000.0).sin();
+            let phase = std::f32::consts::TAU * 250.0 * (offset + index) as f32 / 48_000.0;
+            *sample = amplitude * phase.sin();
         }
     }
     buffer
@@ -121,5 +126,48 @@ fn hysteresis_keeps_the_gate_open_below_the_threshold() {
         (very_quiet.peak() - expected).abs() < 1.0e-5,
         "the gate stayed open below the close point: {} against {expected}",
         very_quiet.peak()
+    );
+}
+
+#[test]
+fn the_sidechain_high_pass_keeps_rumble_out_of_the_detector() {
+    let base = ParamSet::new(specs());
+    base.set_f32("threshold", -30.0).unwrap();
+    base.set_f32("range", 60.0).unwrap();
+    base.set_f32("curve", 0.0).unwrap();
+    base.set_f32("hold", 0.0).unwrap();
+    base.set_f32("attack", 5.0).unwrap();
+    base.set_f32("release", 5.0).unwrap();
+    base.set_f32("hysteresis", 0.0).unwrap();
+    let filtered_params = ParamSet::new(specs());
+    filtered_params.set_f32("threshold", -30.0).unwrap();
+    filtered_params.set_f32("range", 60.0).unwrap();
+    filtered_params.set_f32("curve", 0.0).unwrap();
+    filtered_params.set_f32("hold", 0.0).unwrap();
+    filtered_params.set_f32("attack", 5.0).unwrap();
+    filtered_params.set_f32("release", 5.0).unwrap();
+    filtered_params.set_f32("hysteresis", 0.0).unwrap();
+    filtered_params.set_choice("hpf_mode", 3).unwrap();
+    filtered_params.set_f32("hpf_frequency", 2_000.0).unwrap();
+    let mut open = prepared(base);
+    let mut filtered = prepared(filtered_params);
+
+    let frames = 8_192;
+    let mut open_buffer = tone_from(0.5, frames, 0);
+    for block in 0..16 {
+        open_buffer = tone_from(0.5, frames, block * frames);
+        open.process(&mut open_buffer);
+    }
+    let mut filtered_buffer = tone_from(0.5, frames, 0);
+    for block in 0..16 {
+        filtered_buffer = tone_from(0.5, frames, block * frames);
+        filtered.process(&mut filtered_buffer);
+    }
+    assert!(open_buffer.peak() > 0.4, "{}", open_buffer.peak());
+    let closed = 0.5 * math::db_to_gain(-60.0);
+    assert!(
+        filtered_buffer.peak() < closed * 4.0,
+        "the rumble still opened the gate: {} against {closed}",
+        filtered_buffer.peak()
     );
 }

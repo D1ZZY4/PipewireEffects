@@ -31,6 +31,7 @@ crates/dsp/src/effects/multiband_gate.rs
 crates/dsp/src/effects/noise_reduction.rs
 crates/dsp/src/effects/pitch_shift.rs
 crates/dsp/src/effects/reverb.rs
+crates/dsp/src/effects/sidechain.rs
 crates/dsp/src/effects/stereo_tools.rs
 crates/dsp/src/effects/voice_suppressor.rs
 crates/engine/src/config.rs
@@ -45,6 +46,7 @@ crates/presets/src/ee.rs
 crates/presets/src/ee/params.rs
 crates/presets/src/ee/params/colour.rs
 crates/presets/src/ee/params/dynamics.rs
+crates/presets/src/ee/params/dynamics/sidechain.rs
 crates/presets/src/ee/params/equalizer.rs
 crates/presets/src/ee/params/level.rs
 crates/presets/src/ee/params/multiband.rs

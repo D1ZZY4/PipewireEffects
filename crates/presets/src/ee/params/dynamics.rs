@@ -7,6 +7,10 @@ use crate::model::PresetValue;
 
 use super::{mix_percent, number, put, skipped, text};
 
+mod sidechain;
+
+use sidechain::{put_sidechain, skipped_sidechain};
+
 const COMPRESSOR_KEYS: &[&str] = &[
     "bypass",
     "threshold",
@@ -40,6 +44,11 @@ const GATE_KEYS: &[&str] = &[
     "attack",
     "release",
     "wet",
+    "hpf-mode",
+    "hpf-frequency",
+    "lpf-mode",
+    "lpf-frequency",
+    "sidechain",
 ];
 
 const DEESSER_KEYS: &[&str] = &["bypass", "f1-freq", "threshold", "ratio", "mode"];
@@ -61,8 +70,6 @@ const EXPANDER_KEYS: &[&str] = &[
     "lpf-mode",
     "lpf-frequency",
 ];
-
-const DETECTOR_KEYS: &[&str] = &["mode"];
 
 const MAXIMIZER_KEYS: &[&str] = &["bypass", "threshold", "release"];
 
@@ -139,6 +146,7 @@ pub(super) fn gate(
     warnings: &mut Vec<String>,
 ) -> BTreeMap<String, PresetValue> {
     skipped(parameters, GATE_KEYS, "gate", warnings);
+    skipped_sidechain(parameters, "gate", warnings);
     let mut params = BTreeMap::new();
     put(
         &mut params,
@@ -154,6 +162,7 @@ pub(super) fn gate(
         number(parameters, "curve-zone", -6.0).abs(),
     );
     put(&mut params, "mix", mix_percent(parameters, "wet", 0.0));
+    put_sidechain(parameters, &mut params, warnings);
     params
 }
 
@@ -183,49 +192,6 @@ pub(super) fn expander(
     expander_mode(parameters, warnings);
     put_sidechain(parameters, &mut params, warnings);
     params
-}
-
-fn put_sidechain(
-    parameters: &Map<String, Value>,
-    params: &mut BTreeMap<String, PresetValue>,
-    warnings: &mut Vec<String>,
-) {
-    put(
-        params,
-        "hpf_mode",
-        sidechain_mode(parameters, "hpf-mode", warnings),
-    );
-    put(
-        params,
-        "hpf_frequency",
-        number(parameters, "hpf-frequency", 10.0),
-    );
-    put(
-        params,
-        "lpf_mode",
-        sidechain_mode(parameters, "lpf-mode", warnings),
-    );
-    put(
-        params,
-        "lpf_frequency",
-        number(parameters, "lpf-frequency", 20_000.0),
-    );
-}
-
-fn sidechain_mode(parameters: &Map<String, Value>, key: &str, warnings: &mut Vec<String>) -> f64 {
-    match text(parameters, key) {
-        "" | "Off" => 0.0,
-        "12 dB/oct" => 1.0,
-        "24 dB/oct" => 2.0,
-        "36 dB/oct" => 3.0,
-        other => {
-            warnings.push(tr(
-                "the sidechain filter slope '{0}' has no equivalent here and was turned off",
-                &[other],
-            ));
-            0.0
-        }
-    }
 }
 
 pub(super) fn deesser(
@@ -321,23 +287,6 @@ fn expander_mode(parameters: &Map<String, Value>, warnings: &mut Vec<String>) {
             "expander: the mode '{0}' is unknown and the downward curve was loaded",
             &[other],
         )),
-    }
-}
-
-fn skipped_sidechain(parameters: &Map<String, Value>, effect: &str, warnings: &mut Vec<String>) {
-    let Some(sidechain) = parameters.get("sidechain").and_then(Value::as_object) else {
-        return;
-    };
-    let unhandled: Vec<&str> = sidechain
-        .keys()
-        .map(String::as_str)
-        .filter(|key| !DETECTOR_KEYS.contains(key))
-        .collect();
-    if !unhandled.is_empty() {
-        warnings.push(tr(
-            "{0}: sidechain.{1} was left at its default",
-            &[effect, &unhandled.join(", sidechain.")],
-        ));
     }
 }
 
