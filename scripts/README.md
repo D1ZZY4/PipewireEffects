@@ -71,8 +71,9 @@ STATES="equalizer" OUT_DIR=/tmp/eq scripts/capture-ui.sh
 # One editor per effect
 STATES="$(for k in equalizer filter midside_equalizer compressor limiter gate \
   multiband_compressor multiband_gate expander maximizer deesser autogain \
-  bass_enhancer bass_loudness crystalizer crusher crossfeed crosstalk exciter \
-  stereo_tools gain voice_suppressor noise_reduction pitch_shift delay reverb; do \
+  loudness autotune bass_enhancer bass_loudness crystalizer crusher crossfeed \
+  crosstalk exciter stereo_tools gain voice_suppressor harmonizer pitch_shift \
+  speech_processor noise_reduction delay reverb; do \
     printf 'effect:%s ' "$k"; done)" scripts/capture-ui.sh
 ```
 
@@ -95,12 +96,14 @@ can gate a review.
 | `delete` | the delete-preset dialog for a saved copy |
 | `devices` | the Devices dialog, opened through the `win.devices` action |
 | `preferences` | the Preferences dialog |
+| `preferences-bottom` | the Preferences dialog scrolled to its last group |
 | `developer` | the Diagnostics dialog, opened through the `win.diagnostics` action after Developer mode is on |
 | `gpu` | the Diagnostics dialog with the Processing backend on Both and the GPU counters visible |
 | `menu` | the main menu with Developer mode off: no Diagnostics entry (X11 capture only) |
 | `menu-developer` | the main menu with Developer mode on: Diagnostics appears with `Ctrl`+`5` (X11 capture only) |
 | `dev-live` | toggles the real Developer mode switch in Preferences, closes the dialog and opens the menu; proves the interactive path end to end (X11 capture only) |
 | `picker` | the Add-effect dialog |
+| `picker-middle` | the Add-effect dialog scrolled to the multiband, expander and auto gain rows |
 | `picker-tone` | the Add-effect dialog scrolled to its end |
 | `about` | the About dialog |
 | `banner` | an error banner over the Effects page |
@@ -109,8 +112,10 @@ can gate a review.
 | `mobile` | the phone-width layout at 360x740, content first |
 | `mobile-drawer` | the same phone-width layout with the sidebar drawer open |
 | `sidebar-hidden` | the desktop layout with the sidebar hidden |
+| `spectrum-loud` | the Effects page with the spectrum range set to *Loud* |
 | `input` | the Input pipeline, with microphone processing switched on |
 | `effect:<kind>` | the built-in preset plus the named effect, selected |
+| `<state>@WxH` | any state above, captured in a window of `W`×`H` pixels; the suffix is applied before the window is mapped, so a long editor fits in one capture |
 
 `input` starts the real microphone pipeline for the duration of the capture.
 Use it knowingly; it records nothing, but it does open the capture device.
@@ -148,6 +153,13 @@ STATES="preset-menu" SCHEME=prefer-dark scripts/capture-screen.sh
 | `SETTLE_SECONDS` | `5` | wait after the application owns its bus name |
 | `TONE` | `0` | `1` plays a tone into the application's own sink while capturing |
 | `TONE_HZ` | `440` | the tone's frequency |
+| `MIN_MEAN` | `0.001` | a capture whose mean luminance is below this is blank and is retried |
+| `CAPTURE_ATTEMPTS` | `3` | attempts per state before the run is reported as failed |
+
+A blank root capture happens when `import` runs before the window has drawn; the
+script measures the mean luminance of each PNG and retries instead of accepting
+an all-black file as success. The exit status is non-zero when a state never
+produced a usable capture.
 
 The default states are the ones whose content lives outside the window's render
 tree: the preset row menu, the two `AdwPreferencesDialog`s and the About
@@ -172,6 +184,8 @@ the tone stops with the application.
 This is how the spectrum was checked against real audio rather than against a
 stored value: with a 440 Hz tone the caption read `441 Hz −44.1 dB` while the
 output meter read `−44.0 dB`, so the two agree on the tone's frequency and level.
+The same run shows the loudness meter with a real reading, because the tone plays
+for longer than the three-second short-term window before the capture.
 
 One caveat about the sessions these scripts run in. They point
 `PIPEWIRE_RUNTIME_DIR` at the running daemon, so the real session manager sees

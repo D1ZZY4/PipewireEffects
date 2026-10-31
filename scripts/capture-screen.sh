@@ -12,6 +12,8 @@ settle_seconds=${SETTLE_SECONDS:-5}
 screen=${SCREEN:-:91}
 tone=${TONE:-0}
 tone_hz=${TONE_HZ:-440}
+min_mean=${MIN_MEAN:-0.001}
+capture_attempts=${CAPTURE_ATTEMPTS:-3}
 
 usage() {
     cat <<EOF
@@ -31,6 +33,8 @@ Environment:
   TONE             play a tone into the application's sink while capturing
                    (default 0, needs ffmpeg and pw-cat)
   TONE_HZ          the tone's frequency          (default 440)
+  MIN_MEAN         darker captures are treated as blank and retried (default 0.001)
+  CAPTURE_ATTEMPTS attempts per state before reporting a failure (default 3)
 
 The script needs Xvfb, dbus-run-session and ImageMagick's import. It runs an
 isolated X server, a private D-Bus session and a private config directory, and
@@ -82,6 +86,8 @@ export CAPTURE_SCREEN_SETTLE="$settle_seconds"
 export CAPTURE_SCREEN_RUNTIME="$real_runtime"
 export CAPTURE_SCREEN_TONE="$tone"
 export CAPTURE_SCREEN_TONE_HZ="$tone_hz"
+export CAPTURE_SCREEN_MIN_MEAN="$min_mean"
+export CAPTURE_SCREEN_ATTEMPTS="$capture_attempts"
 
 dbus-run-session -- bash -c '
 set -u
@@ -139,6 +145,11 @@ start_tone() {
     done
 }
 
+is_blank() {
+    blank=$(identify -format "%[fx:mean<$CAPTURE_SCREEN_MIN_MEAN]" "$1" 2>/dev/null) || return 1
+    [ "$blank" = "1" ]
+}
+
 failures=0
 for state in $CAPTURE_SCREEN_STATES; do
     safe=$(printf "%s" "$state" | tr ":/" "__")
@@ -165,10 +176,27 @@ for state in $CAPTURE_SCREEN_STATES; do
     tone_pid=$!
     sleep "$CAPTURE_SCREEN_SETTLE"
 
-    if [ "$ready" = "yes" ] && import -window root "$png" 2>>"$log"; then
+    attempt=0
+    captured=no
+    while [ "$captured" = no ] && [ "$attempt" -lt "$CAPTURE_SCREEN_ATTEMPTS" ]; do
+        attempt=$((attempt + 1))
+        if [ "$ready" = "yes" ] && import -window root "$png" 2>>"$log"; then
+            if is_blank "$png"; then
+                printf "  %-14s blank on attempt %s, retrying\n" "$state" "$attempt" >&2
+                rm -f "$png"
+                sleep 2
+            else
+                captured=yes
+            fi
+        else
+            sleep 2
+        fi
+    done
+
+    if [ "$captured" = yes ]; then
         printf "  %-14s %s\n" "$state" "$png"
     else
-        printf "  %-14s FAILED (see %s)\n" "$state" "$log"
+        printf "  %-14s FAILED after %s attempt(s) (see %s)\n" "$state" "$attempt" "$log"
         failures=$((failures + 1))
     fi
 
