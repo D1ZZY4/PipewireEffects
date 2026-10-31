@@ -144,7 +144,6 @@ const VOICE_SUPPRESSOR_KEYS: &[&str] = &[
     "phase-difference",
     "inverted-mode",
     "maximum-instantaneous-frequency",
-    "minimum-kurtosis",
 ];
 
 pub(super) fn voice_suppressor(
@@ -178,6 +177,11 @@ pub(super) fn voice_suppressor(
         &mut params,
         "inverted",
         flag(parameters, "inverted-mode", false),
+    );
+    put(
+        &mut params,
+        "max_if",
+        number(parameters, "maximum-instantaneous-frequency", 12_000.0),
     );
     params
 }

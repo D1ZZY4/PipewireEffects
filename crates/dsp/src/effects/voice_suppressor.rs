@@ -32,6 +32,15 @@ pub fn specs() -> Vec<ParamSpec> {
             .group("Detection")
             .build(),
         ParamSpec::boolean("inverted", "Inverted mode", false).group("Detection"),
+        ParamSpec::float(
+            "max_if",
+            "Maximum instantaneous frequency",
+            ParamUnit::Hertz,
+        )
+        .range(50.0, 20_000.0, 12_000.0)
+        .logarithmic()
+        .group("Detection")
+        .build(),
         ParamSpec::float("mix", "Mix", ParamUnit::Percent)
             .range(0.0, 100.0, 100.0)
             .step(1.0)
@@ -48,7 +57,10 @@ pub struct VoiceSuppressor {
     correlation: Knob,
     phase: Knob,
     inverted: Knob,
+    max_if: Knob,
     mix: Knob,
+    previous: [f32; BINS],
+    instantaneous: [f32; BINS],
     rate: f32,
     input: [[f32; FFT_SIZE]; MAX_CHANNELS],
     output: [[f32; FFT_SIZE]; MAX_CHANNELS],
@@ -66,7 +78,10 @@ impl VoiceSuppressor {
             correlation: Knob::new(&params, "correlation", 0.5),
             phase: Knob::new(&params, "phase", 30.0),
             inverted: Knob::new(&params, "inverted", 0.0),
+            max_if: Knob::new(&params, "max_if", 12_000.0),
             mix: Knob::new(&params, "mix", 100.0),
+            previous: [0.0; BINS],
+            instantaneous: [0.0; BINS],
             rate: 48_000.0,
             input: [[0.0; FFT_SIZE]; MAX_CHANNELS],
             output: [[0.0; FFT_SIZE]; MAX_CHANNELS],
@@ -80,6 +95,7 @@ impl VoiceSuppressor {
         let end = self.end.value();
         let correlation = self.correlation.value();
         let phase_limit = self.phase.value().to_radians();
+        let max_if = self.max_if.value();
         let inverted = self.inverted.flag();
         let mix = (self.mix.value() / 100.0).clamp(0.0, 1.0);
         let bin_hz = self.rate / FFT_SIZE as f32;
@@ -92,6 +108,15 @@ impl VoiceSuppressor {
         for channel in 0..channels {
             self.fft
                 .forward(&mut self.re[channel], &mut self.im[channel]);
+        }
+        let scale = self.rate / (std::f32::consts::TAU * HOP as f32);
+        for bin in 1..BINS {
+            let phase = self.im[0][bin].atan2(self.re[0][bin]);
+            let delta = wrap(phase - self.previous[bin]);
+            self.previous[bin] = phase;
+            let expected = std::f32::consts::TAU * bin as f32 * HOP as f32 / FFT_SIZE as f32;
+            let deviation = wrap(delta - expected);
+            self.instantaneous[bin] = (bin as f32 * bin_hz + deviation * scale).abs();
         }
         for bin in 1..BINS {
             let frequency = bin as f32 * bin_hz;
@@ -118,7 +143,9 @@ impl VoiceSuppressor {
                 (cross_re / denominator).clamp(-1.0, 1.0)
             };
             let difference = cross_im.atan2(cross_re).abs();
-            let matches = coefficient >= correlation && difference <= phase_limit;
+            let matches = coefficient >= correlation
+                && difference <= phase_limit
+                && self.instantaneous[bin] <= max_if;
             let voice = if inverted { !matches } else { matches };
             if !voice {
                 continue;
@@ -176,6 +203,8 @@ impl Effect for VoiceSuppressor {
         for channel in &mut self.output {
             channel.fill(0.0);
         }
+        self.previous.fill(0.0);
+        self.instantaneous.fill(0.0);
     }
 
     fn process(&mut self, buffer: &mut AudioBuffer) {
@@ -201,6 +230,10 @@ impl Effect for VoiceSuppressor {
             position += take;
         }
     }
+}
+
+fn wrap(phase: f32) -> f32 {
+    phase - std::f32::consts::TAU * (phase / std::f32::consts::TAU).round()
 }
 
 #[cfg(test)]
@@ -271,5 +304,18 @@ mod tests {
         effect.prepare(AudioFormat::new(48_000, 2));
         let level = rms(&mut effect, false);
         assert!(level > 0.5, "the signal was altered at zero mix: {level}");
+    }
+
+    #[test]
+    fn the_instantaneous_frequency_gate_keeps_a_fast_bin() {
+        let params = ParamSet::new(specs());
+        params.set_f32("max_if", 500.0).unwrap();
+        let mut effect = VoiceSuppressor::new(params);
+        effect.prepare(AudioFormat::new(48_000, 2));
+        let level = rms(&mut effect, false);
+        assert!(
+            level > 0.5,
+            "a 1 kHz centre was suppressed below the instantaneous frequency gate: {level}"
+        );
     }
 }
