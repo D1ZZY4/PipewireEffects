@@ -90,6 +90,15 @@ pub(super) fn scroll_to_bottom(widget: &gtk::Widget) -> bool {
     scroll_to_fraction(widget, 1.0)
 }
 
+pub(super) fn scroll_preferences(ui: &Rc<Ui>, fraction: f64) {
+    let ui = Rc::clone(ui);
+    glib::timeout_add_local_once(std::time::Duration::from_millis(700), move || {
+        if let Some(page) = ui.preferences_dialog.visible_page() {
+            scroll_to_fraction(page.upcast_ref(), fraction);
+        }
+    });
+}
+
 pub(super) fn scroll_to_fraction(widget: &gtk::Widget, fraction: f64) -> bool {
     if let Some(scrolled) = widget.downcast_ref::<gtk::ScrolledWindow>() {
         let adjustment = scrolled.vadjustment();

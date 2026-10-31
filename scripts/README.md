@@ -98,6 +98,7 @@ can gate a review.
 | `delete` | the delete-preset dialog for a saved copy |
 | `devices` | the Devices dialog, opened through the `win.devices` action |
 | `preferences` | the Preferences dialog |
+| `preferences-spectrum` | the Preferences dialog scrolled to the spectrum rows, including the transform, window and automatic range |
 | `preferences-bottom` | the Preferences dialog scrolled to its last group |
 | `developer` | the Diagnostics dialog, opened through the `win.diagnostics` action after Developer mode is on |
 | `gpu` | the Diagnostics dialog with the Processing backend on Both and the GPU counters visible |

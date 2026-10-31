@@ -14,8 +14,8 @@ use crate::presets;
 mod navigation;
 
 use navigation::{
-    find_switch_row, open_main_menu, open_preset_menu, scroll_to_bottom, scroll_to_fraction,
-    set_spectrum,
+    find_switch_row, open_main_menu, open_preset_menu, scroll_preferences, scroll_to_bottom,
+    scroll_to_fraction, set_spectrum,
 };
 
 pub const STATE_VARIABLE: &str = "PIPEWIRE_EFFECTS_UI_STATE";
@@ -168,12 +168,11 @@ fn apply(ui: &Rc<Ui>, state: &str) {
         "preferences" => activate(ui, "win.preferences"),
         "preferences-bottom" => {
             activate(ui, "win.preferences");
-            let ui = Rc::clone(ui);
-            glib::timeout_add_local_once(std::time::Duration::from_millis(700), move || {
-                if let Some(page) = ui.preferences_dialog.visible_page() {
-                    scroll_to_bottom(page.upcast_ref());
-                }
-            });
+            scroll_preferences(ui, 1.0);
+        }
+        "preferences-spectrum" => {
+            activate(ui, "win.preferences");
+            scroll_preferences(ui, 0.45);
         }
         "developer" => {
             ui.state.borrow_mut().set_developer_mode(true);

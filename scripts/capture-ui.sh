@@ -33,7 +33,8 @@ Environment:
   KEEP_WORKDIR     set to 1 to keep the logs and the private config
 
 States: chain editor equalizer presets modified preset-menu unloaded clone save
-        delete devices preferences preferences-bottom developer gpu picker
+        delete devices preferences preferences-spectrum preferences-bottom developer
+        gpu picker
         picker-middle picker-tone about banner bypass spectrum-loud spectrum-line
         spectrum-speech narrow mobile mobile-drawer sidebar-hidden input
         effect:<kind>
