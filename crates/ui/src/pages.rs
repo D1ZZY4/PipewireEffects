@@ -15,6 +15,7 @@ use crate::format;
 use crate::meter::LevelDisplay;
 use crate::preferences::PreferencesView;
 use crate::presets_ui;
+use crate::spectrum::SpectrumDisplay;
 
 pub fn page_name(kind: PipelineKind) -> &'static str {
     match kind {
@@ -63,6 +64,7 @@ pub struct ChainPane {
     pub meter_in: LevelDisplay,
     pub meter_out_box: gtk::Box,
     pub meter_out: LevelDisplay,
+    pub spectrum: SpectrumDisplay,
 }
 
 pub struct Workspace {
@@ -211,6 +213,7 @@ fn chain_pane(kind: PipelineKind) -> ChainPane {
 
     let (meter_in_box, meter_in) = LevelDisplay::new(t("In"), true);
     let (meter_out_box, meter_out) = LevelDisplay::new(t("Out"), true);
+    let (spectrum_box, spectrum) = SpectrumDisplay::new();
 
     let placeholder = crate::chrome::placeholder(t("Add an effect to start shaping your audio."));
     let effects = effects_toggle();
@@ -223,7 +226,7 @@ fn chain_pane(kind: PipelineKind) -> ChainPane {
         &close_button,
         &add_button,
     );
-    let content = editor_column(&editor_host, (&meter_in_box, &meter_out_box));
+    let content = editor_column(&editor_host, (&meter_in_box, &meter_out_box), &spectrum_box);
 
     ChainPane {
         kind,
@@ -241,6 +244,7 @@ fn chain_pane(kind: PipelineKind) -> ChainPane {
         meter_in,
         meter_out_box,
         meter_out,
+        spectrum,
     }
 }
 
@@ -284,7 +288,11 @@ fn chain_sidebar(
     sidebar
 }
 
-fn editor_column(editor_host: &gtk::Box, meters: (&gtk::Box, &gtk::Box)) -> gtk::ScrolledWindow {
+fn editor_column(
+    editor_host: &gtk::Box,
+    meters: (&gtk::Box, &gtk::Box),
+    spectrum: &gtk::Box,
+) -> gtk::ScrolledWindow {
     let levels = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     levels.append(meters.0);
     levels.append(meters.1);
@@ -295,6 +303,7 @@ fn editor_column(editor_host: &gtk::Box, meters: (&gtk::Box, &gtk::Box)) -> gtk:
     column.set_margin_start(14);
     column.set_margin_end(14);
     column.append(&levels);
+    column.append(spectrum);
     column.append(editor_host);
 
     let scroll = gtk::ScrolledWindow::new();

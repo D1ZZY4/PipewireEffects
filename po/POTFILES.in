@@ -65,5 +65,6 @@ crates/ui/src/presets_ui.rs
 crates/ui/src/presets_ui/commands.rs
 crates/ui/src/state.rs
 crates/ui/src/state/presets.rs
+crates/ui/src/spectrum.rs
 crates/ui/src/window.rs
 crates/ui/src/window/auto_save.rs

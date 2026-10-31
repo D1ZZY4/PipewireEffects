@@ -134,6 +134,19 @@ pub fn rate_text(rate: u32) -> String {
     }
 }
 
+pub fn frequency_text(hz: f32) -> String {
+    if hz >= 1_000.0 {
+        let kilohertz = f64::from(hz) / 1000.0;
+        if (kilohertz.fract()).abs() < 1.0e-9 {
+            format!("{kilohertz:.0} kHz")
+        } else {
+            format!("{kilohertz:.1} kHz")
+        }
+    } else {
+        format!("{hz:.0} Hz")
+    }
+}
+
 pub fn grouped(value: u64) -> String {
     let digits = value.to_string();
     let length = digits.len();

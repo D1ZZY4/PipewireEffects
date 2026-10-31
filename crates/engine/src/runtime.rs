@@ -113,6 +113,7 @@ impl Runtime {
         settle(&self.main_loop, 4, 10);
         self.drain_retired();
         self.shared.set_state(EngineState::Stopped);
+        self.shared.spectrum().clear();
         self.shared.update_snapshot(|snapshot| {
             snapshot.sample_rate = 0;
             snapshot.warnings.clear();

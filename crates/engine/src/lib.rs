@@ -11,6 +11,7 @@ mod listener;
 mod processors;
 mod runtime;
 mod shared;
+mod spectrum;
 mod stream_setup;
 mod stream_spec;
 mod streams;
@@ -22,5 +23,6 @@ pub use device::{DeviceInfo, list_devices};
 pub use engine::EngineHandle;
 pub use error::{EngineError, EngineResult};
 pub use shared::{EngineState, MeterSnapshot, Shared, Snapshot, StatsSnapshot};
+pub use spectrum::{BANDS, FLOOR_DB, Spectrum, band_centre};
 
 mod error;

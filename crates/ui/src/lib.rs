@@ -14,6 +14,7 @@ mod pages;
 mod preferences;
 mod presets_ui;
 mod response;
+mod spectrum;
 mod state;
 mod widgets;
 mod window;

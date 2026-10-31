@@ -5,6 +5,7 @@ use pwe_core::PipelineKind;
 
 use crate::command::EffectSlot;
 use crate::device::DeviceInfo;
+use crate::spectrum::Spectrum;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EngineState {
@@ -259,6 +260,7 @@ pub struct Shared {
     error: Mutex<Option<String>>,
     stats: Stats,
     meters: Meters,
+    spectrum: Spectrum,
     snapshot: Mutex<Snapshot>,
 }
 
@@ -275,6 +277,7 @@ impl Shared {
             error: Mutex::new(None),
             stats: Stats::default(),
             meters: Meters::default(),
+            spectrum: Spectrum::new(),
             snapshot: Mutex::new(Snapshot::default()),
         }
     }
@@ -303,6 +306,10 @@ impl Shared {
 
     pub fn meters(&self) -> &Meters {
         &self.meters
+    }
+
+    pub fn spectrum(&self) -> &Spectrum {
+        &self.spectrum
     }
 
     pub fn snapshot(&self) -> Snapshot {

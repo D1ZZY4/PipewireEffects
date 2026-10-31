@@ -51,27 +51,59 @@ fn chain(descriptors: &[&EffectDescriptor], frames: usize) -> EffectChain {
     chain
 }
 
+const ROUNDS: usize = 3;
+
+fn best_of<F: FnMut()>(mut body: F) -> f64 {
+    let mut best = f64::INFINITY;
+    for _ in 0..ROUNDS {
+        let start = Instant::now();
+        body();
+        best = best.min(start.elapsed().as_secs_f64());
+    }
+    best
+}
+
 fn seconds_per_block(mut chain: EffectChain, frames: usize) -> f64 {
     let mut buffer = sound(frames);
     let mut phase = 0.0;
-    let start = Instant::now();
-    for _ in 0..BLOCKS {
-        fill(&mut buffer, &mut phase);
-        chain.process(&mut buffer);
-        std::hint::black_box(buffer.peak());
-    }
-    start.elapsed().as_secs_f64() / BLOCKS as f64
+    best_of(|| {
+        for _ in 0..BLOCKS {
+            fill(&mut buffer, &mut phase);
+            chain.process(&mut buffer);
+            std::hint::black_box(buffer.peak());
+        }
+    }) / BLOCKS as f64
+}
+
+fn analyser_cost(frames: usize) -> f64 {
+    let mut analyser = pwe_dsp::SpectrumAnalyzer::new();
+    analyser.prepare(RATE);
+    let mut buffer = sound(frames);
+    let mut phase = 0.0;
+    let with = best_of(|| {
+        for _ in 0..BLOCKS {
+            fill(&mut buffer, &mut phase);
+            std::hint::black_box(analyser.push(&buffer));
+        }
+    });
+    let without = best_of(|| {
+        for _ in 0..BLOCKS {
+            fill(&mut buffer, &mut phase);
+            std::hint::black_box(buffer.peak());
+        }
+    });
+    (with - without) / BLOCKS as f64
 }
 
 fn fill_cost(frames: usize) -> f64 {
     let mut buffer = sound(frames);
     let mut phase = 0.0;
-    let start = Instant::now();
-    for _ in 0..BLOCKS {
-        fill(&mut buffer, &mut phase);
-        std::hint::black_box(buffer.peak());
-    }
-    start.elapsed().as_secs_f64() / BLOCKS as f64
+    best_of(|| {
+        for _ in 0..BLOCKS {
+            fill(&mut buffer, &mut phase);
+            std::hint::black_box(buffer.peak());
+        }
+    }) / BLOCKS as f64
 }
 
 fn report(label: &str, seconds: f64) {
@@ -88,7 +120,7 @@ fn report(label: &str, seconds: f64) {
 #[ignore = "a CPU baseline measurement, not a pass or fail check"]
 fn every_effect_and_the_full_chain_run_faster_than_realtime() {
     println!(
-        "pipewire-effects CPU baseline, {RATE} Hz, {CHANNELS} channels, {FRAMES} frames per block"
+        "pipewire-effects CPU baseline, {RATE} Hz, {CHANNELS} channels, {FRAMES} frames per block, best of {ROUNDS} rounds"
     );
     let baseline = fill_cost(FRAMES);
     println!(
@@ -102,6 +134,7 @@ fn every_effect_and_the_full_chain_run_faster_than_realtime() {
     let every: Vec<&EffectDescriptor> = EFFECTS.iter().collect();
     let full = seconds_per_block(chain(&every, FRAMES), FRAMES) - baseline;
     report("all effects", full.max(0.0));
+    report("spectrum analyser", analyser_cost(FRAMES).max(0.0));
     let deadline = FRAMES as f64 / f64::from(RATE);
     assert!(
         full < deadline * 0.5,

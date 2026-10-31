@@ -224,7 +224,7 @@ impl Ui {
 
     pub fn refresh(self: &Rc<Self>) {
         let kind = self.active();
-        let (snapshot, meters, stats, state, error, bypassed, developer) = {
+        let (snapshot, meters, stats, state, error, bypassed, developer, spectrum) = {
             let state = self.state.borrow();
             let snapshot = state.snapshot_of(kind);
             let meters = state
@@ -232,6 +232,12 @@ impl Ui {
                 .engine()
                 .map_or_else(pwe_engine::MeterSnapshot::default, |engine| {
                     engine.shared().meters().snapshot()
+                });
+            let spectrum = state
+                .chain(kind)
+                .engine()
+                .map_or([pwe_engine::FLOOR_DB; pwe_engine::BANDS], |engine| {
+                    engine.shared().spectrum().snapshot()
                 });
             (
                 snapshot,
@@ -241,6 +247,7 @@ impl Ui {
                 state.error_of(kind),
                 state.bypassed(),
                 state.settings.developer_mode,
+                spectrum,
             )
         };
         self.diagnostics_action.set_enabled(developer);
@@ -250,6 +257,7 @@ impl Ui {
             .update(meters.input_peak_db, meters.input_rms_db);
         pane.meter_out
             .update(meters.output_peak_db, meters.output_rms_db);
+        pane.spectrum.update(spectrum);
         for pane in &self.panes {
             let bypassed = self.state.borrow().chain(pane.kind).bypassed;
             if pane.effects.is_active() == bypassed {

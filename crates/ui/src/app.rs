@@ -16,6 +16,7 @@ pub const HOMEPAGE: &str = "https://github.com/D1ZZY4/PipewireEffects";
 
 const STYLE: &str = "
 .meter-block { padding: 10px 12px; }
+.spectrum-block { padding: 10px 12px; }
 .meter { border-radius: 3px; }
 .level-bar.meter trough { min-height: 6px; border-radius: 3px; }
 .response-frame { border-radius: 12px; }
