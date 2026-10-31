@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[path = "tests/tests.rs"]
+mod tests;
+
 use std::fs;
 use std::path::PathBuf;
 
@@ -41,31 +45,4 @@ pub fn set_enabled(enabled: bool, exec: &str) -> SettingsResult<()> {
     }
     fs::write(&path, entry(exec))?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_entry_names_the_application_and_its_icon() {
-        let entry = entry("pipewire-effects --no-window");
-        assert!(entry.contains("Type=Application"));
-        assert!(entry.contains("Exec=pipewire-effects --no-window"));
-        assert!(entry.contains(&format!("Icon={APPLICATION_ID}")));
-        assert!(entry.ends_with('\n'));
-    }
-
-    #[test]
-    fn the_path_sits_below_the_autostart_directory() {
-        let path = autostart_path();
-        assert_eq!(
-            path.file_name().and_then(|name| name.to_str()),
-            Some("io.github.D1ZZY4.PipewireEffects.desktop")
-        );
-        assert!(
-            path.parent()
-                .is_some_and(|parent| parent.ends_with(AUTOSTART_DIR))
-        );
-    }
 }

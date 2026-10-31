@@ -1,3 +1,9 @@
+#[cfg(test)]
+#[path = "tests/tests.rs"]
+mod tests;
+
+use std::collections::BTreeMap;
+
 use pwe_core::PipelineKind;
 use serde::{Deserialize, Serialize};
 
@@ -26,6 +32,7 @@ impl PipelineSettings {
 }
 
 pub const DEFAULT_AUTO_SAVE_INTERVAL: u32 = 10;
+pub const DEFAULT_SPECTRUM_RANGE: u8 = 0;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -39,6 +46,8 @@ pub struct Settings {
     pub auto_save: bool,
     pub auto_save_interval: u32,
     pub audio_backend: String,
+    pub spectrum_range: u8,
+    pub autoload: BTreeMap<String, String>,
 }
 
 impl Default for Settings {
@@ -53,6 +62,8 @@ impl Default for Settings {
             auto_save: false,
             auto_save_interval: DEFAULT_AUTO_SAVE_INTERVAL,
             audio_backend: "both".to_owned(),
+            spectrum_range: DEFAULT_SPECTRUM_RANGE,
+            autoload: BTreeMap::new(),
         }
     }
 }
@@ -74,56 +85,5 @@ impl Settings {
 
     pub fn preset(&self) -> Option<&str> {
         (!self.preset.is_empty()).then_some(self.preset.as_str())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_missing_document_yields_the_documented_defaults() {
-        let settings = Settings::default();
-        assert!(settings.output.follows_the_system_default());
-        assert!(settings.preset().is_none());
-        assert!(!settings.process_input);
-        assert!(!settings.autostart);
-        assert!(!settings.developer_mode);
-    }
-
-    #[test]
-    fn partial_documents_keep_the_missing_fields() {
-        let settings: Settings =
-            serde_json::from_str("{\"output\":{\"device\":\"usb\"}}").expect("should parse");
-        assert_eq!(settings.output.device, "usb");
-        assert_eq!(settings.input.device, AUTO);
-        assert!(!settings.autostart);
-    }
-
-    #[test]
-    fn a_document_without_the_auto_save_fields_keeps_the_defaults() {
-        let settings: Settings =
-            serde_json::from_str("{\"preset\":\"Default\"}").expect("should parse");
-        assert!(!settings.auto_save);
-        assert_eq!(settings.auto_save_interval, DEFAULT_AUTO_SAVE_INTERVAL);
-        assert_eq!(settings.audio_backend, "both");
-    }
-
-    #[test]
-    fn the_processing_backend_round_trips_through_the_document() {
-        let settings: Settings =
-            serde_json::from_str("{\"audio_backend\":\"both\"}").expect("should parse");
-        assert_eq!(settings.audio_backend, "both");
-        let text = serde_json::to_string(&settings).expect("should write");
-        let reloaded: Settings = serde_json::from_str(&text).expect("should parse again");
-        assert_eq!(reloaded.audio_backend, "both");
-    }
-
-    #[test]
-    fn the_kind_selects_the_pipeline() {
-        let mut settings = Settings::default();
-        settings.pipeline_mut(PipelineKind::Input).bypassed = true;
-        assert!(settings.pipeline(PipelineKind::Input).bypassed);
-        assert!(!settings.pipeline(PipelineKind::Output).bypassed);
     }
 }

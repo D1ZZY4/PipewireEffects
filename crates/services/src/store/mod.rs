@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[path = "tests/tests.rs"]
+mod tests;
+
 use std::fs;
 use std::path::PathBuf;
 
@@ -78,59 +82,4 @@ pub fn config_home() -> PathBuf {
     }
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_owned());
     PathBuf::from(home).join(".config")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use pwe_core::PipelineKind;
-
-    fn scratch(name: &str) -> PathBuf {
-        let directory =
-            std::env::temp_dir().join(format!("pwe-services-{name}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&directory);
-        directory
-    }
-
-    #[test]
-    fn a_missing_file_loads_without_a_warning() {
-        let store = SettingsStore::with_path(scratch("missing").join(FILE_NAME));
-        let (settings, warning) = store.load_with_warning();
-        assert_eq!(settings, Settings::default());
-        assert!(warning.is_none());
-    }
-
-    #[test]
-    fn settings_round_trip_through_the_file() {
-        let store = SettingsStore::with_path(scratch("round-trip").join(FILE_NAME));
-        let mut settings = Settings::default();
-        settings.output.device = "usb".to_owned();
-        settings.process_input = true;
-        settings.autostart = true;
-        store.save(&settings).expect("should save");
-        assert_eq!(store.load(), settings);
-    }
-
-    #[test]
-    fn a_corrupt_file_falls_back_to_the_defaults_with_a_warning() {
-        let directory = scratch("corrupt");
-        fs::create_dir_all(&directory).expect("should create");
-        let path = directory.join(FILE_NAME);
-        fs::write(&path, "{ not json").expect("should write");
-        let store = SettingsStore::with_path(path);
-        let (settings, warning) = store.load_with_warning();
-        assert_eq!(settings, Settings::default());
-        assert!(warning.is_some());
-    }
-
-    #[test]
-    fn the_pipeline_selection_survives_a_round_trip() {
-        let store = SettingsStore::with_path(scratch("pipeline").join(FILE_NAME));
-        let mut settings = Settings::default();
-        settings.pipeline_mut(PipelineKind::Input).device = "mic".to_owned();
-        settings.audio_backend = "gpu".to_owned();
-        store.save(&settings).expect("should save");
-        assert_eq!(store.load().pipeline(PipelineKind::Input).device, "mic");
-        assert_eq!(store.load().audio_backend, "gpu");
-    }
 }
