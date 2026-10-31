@@ -13,6 +13,105 @@ keeps working in the next.
 
 ### Added
 
+- The full Calf Stereo Tools control set on *Stereo tools*: all seven routing
+  modes (stereo, stereo to mid/side, mid/side to stereo, mono left, mono right,
+  mono sum and swap), input and output balance, per-channel phase and mute,
+  middle and side level, middle panorama, side balance, width, a Haas delay and
+  soft clip. The reference's `side-level` and `middle-level` are transferred in
+  decibels now instead of being folded onto the width, and its `stereo-phase` and
+  `sc-level` are reported rather than approximated.
+- A sidechain high-pass and low-pass on the compressor and the expander, of 12,
+  24 or 36 dB/oct, so rumble or hiss can be kept out of the detector. Both stages
+  are off by default, which is what keeps a preset written before this change
+  sounding the same. The reference's `hpf-*` and `lpf-*` keys are transferred.
+- Diffusion and a tone stage on the reverberation: `diffusion` sets the all-pass
+  feedback, and `bass_cut`/`treble_cut` are a high-pass and a low-pass on the wet
+  signal, applied through the same biquad design the rest of the DSP uses. The
+  reference's `diffusion`, `bass-cut` and `treble-cut` are transferred.
+- A real lookahead on the limiter, which is what makes it a limiter rather than a
+  clipper: the audio is delayed by the lookahead, the gain envelope descends
+  linearly across that window so a transient is attenuated before it reaches the
+  output, and a per-sample requirement still clamps the result so the ceiling
+  holds by construction. `lookahead` (0.1–20 ms) and `stereo_link` (0–100 %) are
+  new parameters, both transferred from a reference preset; a full-scale burst now
+  keeps its sine shape instead of being clipped, which is asserted as a crest
+  factor within 0.03 of √2.
+- A reported chain latency. `Effect::latency_frames` lets a stage declare what it
+  delays, the chain sums the enabled slots, the processor publishes the total, and
+  the Diagnostics dialog shows it in frames and in milliseconds next to the
+  quantum. Nothing compensates for it, and the documentation says so: the two
+  streams are joined by a ring buffer rather than by graph links, so there is no
+  graph latency to adjust.
+- A curve and hysteresis on the gate. `curve` is the zone below the threshold over
+  which the reduction ramps instead of switching, and `hysteresis` is how far
+  below the open threshold the gate closes, so a signal near the threshold no
+  longer chatters. The reference's `curve-zone` is transferred into `curve`; its
+  `hysteresis-threshold`/`hysteresis-zone` pair is reported rather than guessed
+  at, because the reference passes those to the LSP plugin's ports and their exact
+  convention cannot be verified from this checkout.
+- Five more built-in presets beside *Default*: *Podcast voice*, *Music,
+  speakers*, *Headphones*, *Bass boost* and *Clean microphone* (the last one for
+  the input pipeline). `make install` writes all six into the system preset
+  directory under their preset names, and the presets crate now dev-depends on the
+  effect registry so a test can assert that every built-in parses, names only
+  effects that exist, and sets only parameters those effects declare.
+
+- A noise reduction effect, the twenty-fourth, backed by
+  [`nnnoiseless`](https://crates.io/crates/nnnoiseless), the Rust port of RNNoise:
+  input and output gain, a dry/wet mix, and a voice-activity gate with its
+  threshold. It processes only at 48 kHz, the rate RNNoise is defined for; at any
+  other graph rate the stage passes the signal through. `nnnoiseless` keeps its
+  window and DCT tables in a process-wide cell that is filled on first use, so the
+  effect runs one frame of silence through a throwaway state when it is built, on
+  the control thread, rather than letting the audio callback pay for it. It maps
+  the reference's `rnnoise` preset block, transferring both gains, the gate, its
+  threshold and the wet level, and reporting the model settings and the release
+  grace period it has no control for.
+- A live spectrum under the meters: 48 logarithmic bands from 20 Hz to 20 kHz,
+  measured from the mid signal with an 8192-point Hann-windowed transform every
+  third block, published through atomics and drawn with a band grid and the
+  loudest band's frequency and level as a caption. Each band is the integral of
+  the Parseval-corrected bin power between its edges, normalised to the analysis
+  bandwidth when the band is narrower than the window's resolution, so the display
+  sums the tones inside a band and a full-scale tone reads 0 dB like the meters
+  beside it. The analyser is built with the processor, so nothing is allocated in
+  the callback, and it costs 117 μs per 1024-frame block, 0.55 % of one core. A
+  pipeline whose engine has stopped clears its snapshot, so the display never
+  keeps the last frame it happened to measure.
+- `nnnoiseless` 0.5.2 as a dependency of `pwe-dsp`, and with it `easyfft`,
+  `realfft`, `rustfft` and `once_cell`. All are MIT or Apache-2.0 except anymap3
+  (BlueOak-1.0.0 or MIT or Apache-2.0) and the crate itself (BSD-3-Clause); every
+  one is compatible with this project's GPL-3.0-or-later. Credited in
+  `CREDITS.md`.
+- The noise reduction effect has its own live test:
+  `crates/engine/tests/live_noise_reduction.rs` runs it in the real chain on a
+  private sink and asserts that a −20 dB tone arrives at its own level and leaves
+  more than 20 dB lower, with the underruns below an eighth of the processed
+  frames. It samples the meters across the run and keeps the largest reduction it
+  sees: three consecutive runs measured the tone leaving 124.00 dB, 96.14 dB and
+  50.52 dB lower, each over 12 544 to 25 600 processed frames with 512 underrun
+  samples from the initial fill and no overruns or trims, which is what shows the
+  dependency's lazily planned transform does not break the audio callback. Reading
+  the meter once, as the test used to, made it fail intermittently on a loaded
+  machine.
+- The CPU baseline's table in `docs/architecture.md` gained the limiter and the
+  gate, whose cost is no longer below the timer's resolution: the lookahead costs
+  0.041 ms per 1024-frame block and the gate's curve 0.026 ms.
+- The live GPU tests can fail on a loaded machine, and that is now written down
+  next to their evidence rather than left to be rediscovered. The persistent GPU
+  stage costs 302.5 μs for a 1024-frame block against a 10.7 ms fence budget, so a
+  fallback means the scheduler stalled, not that the stage is slow: the same tests
+  measured 0 fallbacks on a quiet machine and 11–17 % with a Bluetooth default
+  output and a load average of 3–6, with zero disagreements throughout because a
+  missed deadline applies the gain on the CPU.
+- The CPU baseline now times the spectrum analyser, because it runs in the audio
+  path, and reports the fastest of three rounds per workload instead of a single
+  run, so concurrent desktop load cannot inflate a figure.
+- The analyser's tests generate their signals with the phase carried across
+  blocks. The earlier helper restarted the wave every block, which made the test
+  audio a periodic signal with a 1024-sample period instead of a tone; two of the
+  new level assertions passed by luck until it was fixed.
+
 - A multiband compressor, a multiband gate and a voice suppressor, and the two
   primitives they need: a hand-written iterative radix-2 FFT
   (`crates/dsp/src/fft.rs`) and a Linkwitz-Riley crossover
@@ -122,6 +221,26 @@ keeps working in the next.
 
 ### Fixed
 
+- The spectrum no longer reports a level that belongs to a different frequency.
+  With a 1024-point transform at 48 kHz the bin width is 46.9 Hz, so 22 of the 48
+  bands sat below the analysis resolution and nine of them reported one shared
+  bin under nine different frequency labels; the caption could name 21 Hz for
+  content at 47 Hz. The transform now has the reference analyser's own default
+  size of 8192 points, a band is the integral of the bin power between its edges
+  rather than one peak bin, and a band narrower than the window's resolution is
+  normalised to it, which is what the reference does.
+- A reference RNNoise preset no longer loads at the wrong wet level. The `wet`
+  key is in decibels and has an equivalent control here, so it is transferred to
+  the mix like the gate's and the expander's, and the `modelName`,
+  `useStandardModel` and `release` keys, which have no control here, are reported
+  instead of being listed as handled and dropped silently.
+- Every symbolic icon file now keeps each SVG tag on one line, which is the
+  convention the rest of the palette already followed; the interface test reads
+  every effect's icon file and fails on one that is missing, that does not draw
+  from `currentColor`, that is not a 16 px symbolic icon, or that leaves a tag
+  open across lines. The line-break rule is cosmetic: the two spellings were
+  measured to render identically through both `rsvg-convert` and the gdk-pixbuf
+  SVG loader, so this is a formatting change and not a rendering fix.
 - Changing, saving or deleting a preset no longer closes the application. The
   three preset handlers matched on the result of a `State` mutation while the
   `RefCell` borrow was still alive (`match ui.state.borrow_mut() …`), and the

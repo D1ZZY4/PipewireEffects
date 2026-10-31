@@ -67,6 +67,7 @@ Against a running PipeWire daemon, also run the integration tests explicitly:
 ```sh
 cargo test --release -p pwe-engine --test live_pipewire -- --ignored --nocapture --test-threads=1
 cargo test --release -p pwe-engine --test live_gpu -- --ignored --nocapture --test-threads=1
+cargo test --release -p pwe-engine --test live_noise_reduction -- --ignored --nocapture --test-threads=1
 ```
 
 Interface changes require new captures. Use `scripts/capture-ui.sh` (see

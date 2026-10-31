@@ -22,33 +22,34 @@ applications can record from.
 
 ## Effects
 
-Twenty-three effects, each with real processing and a generated control surface:
+Twenty-four effects, each with real processing and a generated control surface:
 
 | Effect | What it does |
 |---|---|
 | **Equalizer** | Ten octave bands (31.5 Hz – 16 kHz) with an analytic response curve, shared bandwidth and output gain |
 | **Filter** | Low pass, high pass, band pass, notch, all pass, peak and shelves, order 1–4 |
 | **Mid/side equalizer** | The ten bands applied to the middle and the side separately, with mid and side trims |
-| **Compressor** | Feed-forward, peak or RMS detection, soft knee, attack/release, makeup, dry/wet |
-| **Limiter** | Instantaneous-attack peak limiter with a hard ceiling and release |
+| **Compressor** | Feed-forward, peak or RMS detection, soft knee, attack/release, makeup, dry/wet, and a sidechain high/low-pass that keeps rumble and hiss out of the detector |
+| **Limiter** | Lookahead peak limiter: the gain ramps down over the lookahead so a transient arrives already attenuated, with a hard ceiling, release and a stereo link |
 | **Maximizer** | Peak maximiser that lifts quiet material towards a ceiling, then clamps it |
-| **Gate** | Noise gate with range, attack, hold and release |
+| **Gate** | Noise gate with range, a curve zone, hysteresis, attack, hold and release |
 | **Multiband compressor** | Up to four Linkwitz-Riley bands, each with its own threshold, ratio, knee, attack, release and makeup |
 | **Multiband gate** | Up to four bands, each gated on its own threshold, range, attack, hold and release |
-| **Expander** | Downward expander with a soft knee, attack, release and makeup |
+| **Expander** | Downward expander with a soft knee, attack, release, makeup and the same filtered sidechain |
 | **De-esser** | Split or wideband sibilance reduction |
 | **Auto gain** | EBU R128 loudness normalisation towards a target loudness |
 | **Bass enhancer** | Low-band harmonic generation so small speakers reproduce bass |
 | **Crystalizer** | Four-band transient emphasis |
 | **Crusher** | Bit-depth and sample-rate reduction with a modulated hold |
 | **Exciter** | Harmonic generation in a band above the scope frequency |
-| **Stereo tools** | Width, balance and a Haas stereo base |
+| **Stereo tools** | Seven routing modes, middle/side levels and panoramas, per-channel balance, phase and mute, soft clip, width and a Haas delay |
 | **Crossfeed** | Leaks each channel into the other so headphones sound like speakers |
 | **Crosstalk canceller** | Delayed reciprocal mix with a head-transfer correction and a phantom-centre mode |
 | **Voice suppressor** | Attenuates centred voice by comparing the two channels in the frequency domain, with an inverted mode |
+| **Noise reduction** | Removes steady background noise with a recurrent network, with a voice-activity gate and a dry/wet mix |
 | **Gain** | A gain stage with mute |
 | **Delay** | Independent left/right delay with feedback and ping-pong |
-| **Reverberation** | Freeverb-style room with pre-delay, damping and width |
+| **Reverberation** | Freeverb-style room with pre-delay, diffusion, damping, a high/low-pass tone stage and width |
 
 Around them:
 
@@ -59,13 +60,14 @@ Around them:
   sidebar. A header toggle hides or shows it, and below 860 px it becomes a
   drawer, so the layout also works at phone width.
 - A chain you can reorder, enable per stage, or bypass as a whole.
-- Presets stored as readable JSON with `output` and `input` sections, one built
-  in, with save, delete, import and export. EasyEffects presets load too, both
-  sections, converted on the way in.
+- Presets stored as readable JSON with `output` and `input` sections, six built
+  in (*Default*, *Podcast voice*, *Music, speakers*, *Headphones*, *Bass boost*
+  and *Clean microphone*), with save, delete, import and export. EasyEffects
+  presets load too, both sections, converted on the way in.
 - Live input and output meters (peak with an RMS marker) for the pipeline you are
-  editing.
-- Honest counters: captured and processed frames, underruns, overruns and drift
-  trims, plus a diagnostics list.
+  editing, and a live spectrum of the same signal, both above the effect editor.
+- Honest counters: captured and processed frames, underruns, overruns, drift
+  trims and the chain's own latency, plus a diagnostics list.
 - Remembered settings: the device of each pipeline, the loaded preset and the
   bypass survive a restart.
 - Processed audio follows the system default output device, and follows it when
@@ -278,28 +280,38 @@ factor for each effect and for the full twenty-three-effect chain:
 cargo test --release -p pwe-dsp --test benchmark -- --ignored --nocapture
 ```
 
-359 tests, none of which need an audio device or a display; the two icon lookups
-skip themselves when no display is available. They cover biquad designs against
-their analytic magnitude response, the effects against measured signal levels and
-numerical bounds, the ring buffer and trimming policy with a real producer and
-consumer, the two meters against each other, preset parsing, coercion and
-path-traversal rejection, and the gettext lookup.
+407 tests, none of which need an audio device or a display; the two
+icon lookups skip themselves when no display is available. They cover biquad
+designs against their analytic magnitude response, the effects against measured
+signal levels and numerical bounds, the analyser's bands against the level of a
+tone, the ring buffer and trimming policy with a real producer and consumer, the
+two meters against each other, preset parsing, coercion and path-traversal
+rejection, and the gettext lookup.
 
 Four live tests run the real engine against the running daemon, feed a tone
 into a virtual sink with `pw-cat`, and check the level leaving the chain. The
 processing test opens its own sink under a process-specific name, so the level it
 measures is its own tone rather than whatever else the session has routed to the
 shared sink; a fourth test starts the microphone pipeline and records from the
-virtual source, which is how the input chain is verified:
+virtual source, which is how the input chain is verified. A fifth runs the noise
+reduction stage in the real chain and measures what it takes off a tone:
 
 ```sh
 cargo test -p pwe-engine --test live_pipewire -- --ignored --test-threads=1 --nocapture
+cargo test -p pwe-engine --test live_noise_reduction -- --ignored --test-threads=1 --nocapture
 ```
 
 ```text
-attempts 1; sampled 10 times; captured 16384 frames, processed 16384 frames, underruns 4096, overruns 0, trims 0, occupancy 0
+attempts 1; sampled 16 times; captured 18944 frames, processed 18944 frames, underruns 512, overruns 0, trims 0, occupancy 0
 tone measured at -20.00 dB with 20.00 dB of reduction; last read: input peak -20.00 dB, output peak -40.00 dB
+attempts 1; captured 14592 frames, processed 14592 frames, underruns 512, overruns 0, trims 0
+a 1 kHz tone reached the chain at -20.00 dB and left it 87.03 dB lower
 ```
+
+Those are the two test processes on one run. The underrun samples are the ring's
+initial fill, and both the count and the reduction the network takes off a steady
+tone vary with how far into the tone the meters are sampled; the assertions are
+the stable part, not the printed figures.
 
 That is a −20 dB gain stage measured end to end on real PipeWire, with the tone
 reaching the chain at its own level.
@@ -325,8 +337,10 @@ Working, and honest about the gaps:
   fraction of a second.
 - Drift between capture and playback is corrected by trimming the buffer, not by
   resampling.
-- The limiter has no lookahead, so its instantaneous attack trades some
-  transient distortion for a guaranteed ceiling.
+- The limiter's lookahead reports its latency but nothing compensates for it:
+  the two streams are joined by a ring buffer, so there is no graph latency to
+  adjust. The reference's LSP limiter modes, oversampling, dithering and ALR are
+  not implemented.
 - Auto gain is EBU R128 loudness normalisation over a rolling 30-second window,
   not the whole program.
 - The underlying transport is two `pw_stream`s joined by a ring buffer, per
@@ -346,7 +360,18 @@ Working, and honest about the gaps:
   not a throughput claim. The fence wait is capped at half the block duration and
   a miss is applied on the CPU, so a slow or busy device cannot overrun the audio
   deadline. Two live tests exercise `GPU` and `Both` end to end.
-- The plugin-based, neural and spectral effects of EasyEffects are not
+- The spectrum is a display of the audio leaving the chain, at the reference
+  analyser's own default resolution: an 8192-point transform with a Hann window,
+  recomputed every third block, at a cost of 0.55 % of one core per pipeline. It
+  reports band power, so it agrees with the meters on a tone. The bands below
+  about 60 Hz are narrower than the window's resolution and are normalised to the
+  analysis bandwidth rather than resolved, exactly as the reference does.
+- Noise reduction is RNNoise, through the `nnnoiseless` crate. It runs the
+  standard model and therefore processes only at 48 kHz; at any other graph rate
+  it passes the signal through untouched and reports that instead of pretending to
+  filter it. Custom `.rnn` model files are not loaded, and the reference's
+  `release` grace period becomes a fixed release on the gate.
+- The plugin-based and deep-learning effects of EasyEffects are not
   implemented. `docs/feature-matrix.md` lists every one with its status and,
   for the ones that need a third-party library, records that the library is
   installed here and the code was simply not written.

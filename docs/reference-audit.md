@@ -172,7 +172,9 @@ in `docs/feature-matrix.md`:
 - LV2/LADSPA plugin hosting (would require `lilv` and a plugin graph; the
   project's goal is a self-contained Rust application).
 - FFT convolution (needs an FFT dependency and impulse-response management).
-- Neural noise suppression (needs ONNX/RNNoise models and a large runtime).
+- Deep-learning noise suppression (needs ONNX model files and a runtime). RNNoise
+  is the exception: it was adopted, through the `nnnoiseless` crate, because it is
+  plain Rust with no model file to install.
 - Pitch shifting and autotune (needs a phase vocoder or SoundTouch-like
   library).
 
@@ -194,6 +196,16 @@ Everything else was written from scratch against the behavioural findings above.
 The biquad formulas come from Robert Bristow-Johnson's Audio EQ Cookbook, which
 is a public specification; the reverb topology follows the published Freeverb
 design. Both are credited in `CREDITS.md`.
+
+**One effect is a dependency, and it is recorded as one.** Noise reduction is
+RNNoise, which the reference reaches through `librnnoise`. This project takes the
+same network in Rust form, as the `nnnoiseless` crate (BSD-3-Clause, derived from
+Xiph's RNNoise through Joe Neeman's port), because a recurrent network of that
+size is not something to rewrite from a parameter list. The crate brings
+`easyfft`, `realfft`, `rustfft`, `once_cell`, `generic_singleton` and their
+support crates with it; each is MIT or Apache-2.0, except `anymap3`
+(BlueOak-1.0.0 or MIT or Apache-2.0). Every one is compatible with
+GPL-3.0-or-later.
 
 The effects whose reference implementation is a third-party LV2 plugin (the
 exciter, the maximizer, the mid/side equalizer, the crusher and the expander)

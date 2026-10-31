@@ -15,17 +15,20 @@ pwe-core  ◄── pwe-services ───────────────�
 | Crate | Owns | Does not know about |
 |---|---|---|
 | `pwe-core` | Audio buffers, parameter specifications, the effect contract, the chain, meters, realtime-safe helpers, the pipeline kinds | PipeWire, GTK, files |
-| `pwe-dsp` | The FFT, the Linkwitz-Riley crossover, the biquad design, the twenty-three effects, the R128 loudness measurement and the effect registry | Threads, devices, presets |
-| `pwe-presets` | The preset schema, name validation and the preset directory | Which effects exist |
+| `pwe-dsp` | The FFT, the Linkwitz-Riley crossover, the biquad design, the twenty-four effects, the spectrum analyser, the R128 loudness measurement and the effect registry | Threads, devices, presets |
+| `pwe-presets` | The preset schema, name validation and the preset directory | Which effects exist (in production code; its tests take `pwe-dsp` as a dev-dependency so the built-in presets can be checked against the registry) |
 | `pwe-services` | The settings document, its atomic store and the autostart entry | The engine, the interface, the effects |
-| `pwe-engine` | PipeWire streams, the virtual sink and source, the destination device, the realtime processor and the compute backends (`cpu`, `gpu`), counters | GTK, presets, services |
+| `pwe-engine` | PipeWire streams, the virtual sink and source, the destination device, the realtime processor, the spectrum snapshot and the compute backends (`cpu`, `gpu`), counters | GTK, presets, services |
 | `pwe-ui` | GTK4/libadwaita widgets, the chain model, the engine bridge | DSP internals |
 | `pipewire-effects` | Process entry point and the command line | Everything else |
 
-Dependencies point one way. `pwe-dsp` depends only on `pwe-core`, which is what
-makes every filter testable against its analytic frequency response without an
-audio device. `pwe-presets` depends on `pwe-core` only to coerce stored values
-into parameter types; it can be tested without PipeWire or GTK.
+Dependencies point one way. `pwe-dsp` depends only on `pwe-core` and on
+`nnnoiseless`, the Rust port of RNNoise that the noise reduction stage runs;
+`nnnoiseless` is the only DSP dependency and it is confined to that one effect.
+`pwe-dsp` has no thread, device or file knowledge, which is what makes every
+filter testable against its analytic frequency response without an audio device.
+`pwe-presets` depends on `pwe-core` only to coerce stored values into parameter
+types; it can be tested without PipeWire or GTK.
 
 Nothing outside `pwe-dsp` names a concrete effect. The registry in
 `crates/dsp/src/registry.rs` is the single list of effect identifiers, the
@@ -41,12 +44,13 @@ connection, ring buffer, chain, counters and meters.
 ```text
   application ──► virtual sink (capture stream) ──► ring ──► processor ──► playback stream ──► device
                   media.class = Audio/Sink          SPSC     chain+meters    target.object
+                                                             +spectrum
 ```
 
 ```text
   device ──► capture stream ──► ring ──► processor ──► virtual source (playback stream)
              Stream/Input/Audio   SPSC   chain+meters   media.class = Audio/Source
-             target.object                                  applications record from it
+             target.object                +spectrum       applications record from it
 ```
 
 The output pipeline is the one described in `README.md`: applications route into
@@ -119,10 +123,32 @@ processing buffer; a larger graph quantum is split rather than truncating.
 parameter signature changes. It is arithmetic only: no allocation, no I/O, no
 logging, no system calls.
 
+**The analyser is bounded.** The spectrum runs an 8192-point FFT of the mid
+signal every third block, over history the analyser owns, and publishes 48 band
+levels through atomics. Its buffers, window and twiddle tables are allocated when
+the processor is built, not in the callback. It costs 117 μs per 1024-frame
+block on the development machine, which is 0.55 % of one core (section 12), and
+it is the largest single cost outside the effect chain.
+
 **The GPU stage is bounded.** When `GPU` or `Both` is selected, the elementwise
 gain stage runs on Vulkan. Its buffers, pipeline and warm-up are prepared
 outside the callback; a block waits for the fence for at most half of that
 block's duration, and a miss is applied on the CPU instead. See section 12.
+
+**Latency is reported, not compensated.** An effect that delays its output
+declares it through `Effect::latency_frames`, the chain sums the enabled slots,
+and the processor publishes the total for the Diagnostics dialog. The limiter's
+lookahead is the only stage that declares one today. The engine does not ask
+PipeWire to compensate for it: the two streams are joined by a ring buffer rather
+than by graph links, so there is no graph latency to adjust, and the figure is
+there so the number is visible rather than guessed at.
+
+**One dependency needs one warm-up.** Noise reduction calls `nnnoiseless`, which
+keeps its window and DCT tables in a process-wide `OnceCell` that is filled on
+the first `process_frame`. `NoiseReduction::new` runs one frame of silence
+through a throwaway `DenoiseState` so that the cell is filled when the effect is
+built on the control thread rather than in the audio callback. That call is
+allocation-free afterwards and is the only place a dependency is warmed up.
 
 ### Parameter transfer
 
@@ -201,6 +227,22 @@ click a repeated sample produces at a buffer boundary.
 - **Only elementwise stages are off-loaded.** Recursive filters and spectral
   effects cannot be moved one block at a time without uploading their state.
   The setting is honest about the subset it accelerates.
+- **Noise reduction is fixed at 48 kHz.** RNNoise is defined on 480-sample
+  frames at 48 kHz, and so is `nnnoiseless`. At any other graph rate the stage
+  passes the signal through unchanged rather than resampling it: a resampler in
+  the callback would add latency and its own realtime budget, and the reference
+  pays for a Speex resampler to avoid that limit. `docs/feature-matrix.md`
+  records the reduction.
+- **The FFT inside that dependency is planned on first use.** `nnnoiseless`
+  reaches its transforms through `easyfft`, which keeps a planner and a scratch
+  buffer per transform length in a thread-local, and `nnnoiseless` itself keeps
+  its window tables in a process-wide cell. The cell is warmed up on the control
+  thread (see section 3); the thread-local cannot be, because the audio thread
+  cannot be reached from outside. The cost is one planned 960-point transform and
+  one scratch buffer on the thread that first runs the stream callbacks, once for
+  that thread and not per block, and it is the only allocation this project's
+  audio path can still make. Removing it needs an API in the dependency that
+  prepares a state for a given thread.
 
 ## 7. The interface
 
@@ -239,8 +281,8 @@ occupying a page.
   an icon-only control whose meaning was the opposite (an unchecked *Bypass*
   switch), so a running chain looked switched off. Each pipeline has its own
   toggle, and it drives that pipeline's bypass.
-- **Editor and meters**: the end side carries the chain's input and output meters
-  above the editor for the selected effect.
+- **Editor and meters**: the end side carries the chain's input and output
+  meters and the live spectrum above the editor for the selected effect.
 - **Devices** (menu): the format and quantum of the active pipeline, its node
   name with a copy button, its routing hint, its destination chooser, a
   *Microphone* switch and a *Reconnect* button that appears when the engine has
@@ -281,11 +323,49 @@ occupying a page.
 - **Meters**: `gtk::LevelBar` for peak with an RMS offset marker, plus a numeric
   readout. Both meters run through `LevelMeter`, so the two readouts of one
   pipeline are comparable when its chain is empty.
+- **Spectrum**: a `gtk::DrawingArea` under the meters draws the 48 band levels of
+  the audio leaving the chain as bars on a logarithmic axis, with 100 Hz, 1 kHz
+  and 10 kHz grid lines and a caption naming the loudest band and its level. The
+  bars are drawn in the same data colour as the equalizer's response curve and
+  the grid in the widget's own foreground colour, so both are legible in either
+  appearance. The band levels are a real measurement of the processed audio,
+  recomputed every third block by the pipeline's own analyser and read from an
+  atomic snapshot by the 50 ms poll; a pipeline with no engine, and an engine
+  that has been stopped or shut down, reads the floor and the caption is empty
+  rather than the last frame that happened to be measured.
 - **Banner**: engine errors and conversion warnings appear in an `adw::Banner`
   with a *Dismiss* button. The meter's hold and RMS markers and the equalizer's
   band markers are drawn from the widget's own foreground colour, so each stays
   visible in both appearances; a fixed colour made the hold and RMS markers
   invisible in one appearance and the band markers invisible in the light one.
+
+### How the spectrum is measured
+
+- The analyser keeps 8192 samples of the mid signal (`0.5 · (left + right)`), so
+  a stereo source is measured the way a listener hears it. The size is the
+  reference's own default, and it is what makes the band layout meaningful: with
+  the first version's 1024-point transform, 22 of the 48 bands sat below the
+  window's resolution and reported one shared bin under nine different frequency
+  labels.
+- It applies a Hann window and the FFT of `crates/dsp/src/fft.rs`, then converts
+  each bin to power with the window-energy correction
+  `1 / (N · Σw²)`, so the bin powers sum to the signal's mean square.
+- A band's level is the integral of that power between its edges, using a
+  cumulative table and linear interpolation, not the peak bin inside it. Two
+  tones inside one band therefore report the sum of their powers, which is what
+  the test `a_band_sums_every_tone_it_contains` pins.
+- A band narrower than the window's resolution bandwidth (`rate · Σw² / (Σw)²`,
+  which is 8.8 Hz for this window at 48 kHz) is multiplied by
+  `resolution_bandwidth / width`, exactly as the reference does. That normalises
+  the seven lowest bands to the analysis bandwidth instead of pretending they can
+  be separated; the test `a_tone_below_the_resolution_is_still_reported_at_its_level`
+  pins that such a tone still reads its own level.
+- The published figure is `10 · log10(4 · power)`, which for a one-sided spectrum
+  is the squared amplitude of a sinusoid carrying that band's power. A
+  full-scale tone therefore reads 0 dB, a half-scale tone −6 dB, and the spectrum
+  agrees with the peak meters next to it. The bands run from 20 Hz to 20 kHz on a
+  logarithmic axis, and a band above the graph's Nyquist is left at the floor
+  rather than clamped to it.
 
 The window polls the engine every 50 ms. Nothing blocks: the snapshot is a short
 mutex acquisition on a plain data structure. The poll also compares a small
@@ -393,7 +473,14 @@ Decisions and reasons:
   stored preset.
 
 Built-in presets are compiled in, so a fresh installation has a usable set
-without a system preset directory.
+without a system preset directory. There are six: *Default*, *Podcast voice*,
+*Music, speakers*, *Headphones*, *Bass boost* and *Clean microphone*. Each is a
+JSON file under `data/presets/`, `make install` writes it into the system
+directory under its preset name — the store takes a preset's name from the file
+stem, so the installed file name has to be the preset name — and the tests in
+`crates/presets/src/builtin.rs` assert that every built-in parses, that it names
+only effects the registry has, and that it sets only parameters those effects
+declare.
 
 ## 9. Settings, the command line and packaging
 
@@ -450,7 +537,7 @@ installed into the system here.
 
 ## 11. Verification
 
-- `cargo test --workspace`: 359 tests, no audio device needed.
+- `cargo test --workspace`: 407 tests, no audio device needed.
   Two of them need a display and skip themselves without one: the bundled icon
   lookup and the icon-theme check.
 - The R128 measurement is checked against the standard's own calibration: a
@@ -469,11 +556,69 @@ installed into the system here.
 - The De-esser is checked for a live detector change: moving *Sibilance* while it
   runs must release a tone the detector was holding, which fails if the band-pass
   is only computed once.
+- The limiter is checked as a lookahead limiter and not as a clipper: with a
+  20 ms lookahead a full-scale burst must keep its sine shape, which is asserted
+  as a crest factor within 0.03 of √2 (a clipped sine drops below it) with the
+  peak sitting on the ceiling; the output must lag the input by exactly the
+  lookahead; the ceiling must still never be exceeded with 20 dB of drive; and a
+  0 % stereo link must limit the loud channel without touching the quiet one.
+- The chain's latency is the sum of the enabled stages' declared latency, and the
+  processor publishes it with the other counters; the limiter reports its
+  lookahead in frames.
+- The noise reduction is checked for the frame its dependency defines: a rate
+  other than 48 kHz passes the signal through unchanged, the first frame of the
+  network is the dry input, a zero mix is transparent, the output gain scales the
+  result, and the output stays finite under abuse. It is also the one effect with
+  its own live test: `crates/engine/tests/live_noise_reduction.rs` runs it in the
+  real chain on a private sink, asserts that a −20 dB tone arrives at its own
+  level and leaves more than 20 dB lower, and asserts that the underruns stay
+  below an eighth of the processed frames. Two verification runs measured
+  12 544 and 14 592 frames processed, each with 512 underrun samples from the
+  initial fill and no overruns or trims, and the tone leaving 124.00 dB and
+  87.03 dB lower.
+- The sidechain filter is checked on its own: a 400 Hz high-pass must cut a 60 Hz
+  tone by at least a factor of five, a 36 dB/oct slope must cut more than a
+  12 dB/oct one, and both must leave a 4 kHz tone within 0.05 of untouched.
+- The compressor's sidechain is checked end to end: a 60 Hz tone driven hard must
+  be compressed with the filter off and left nearly alone with a 400 Hz high-pass
+  engaged.
+- The reverberation's tone stage is checked by comparing two tails: a
+  high-pass at 1 kHz and a low-pass at 1.5 kHz must leave the tail below 90 % of
+  the energy a wide-open setting leaves.
+- The stereo tools are checked control by control: the mono-sum and channel-swap
+  modes, the mid/side round trip in both directions, middle and side level
+  acting independently, output balance, per-channel phase and mute, soft clip
+  holding a hot signal below unity, and the Haas delay landing the right
+  channel's peak where it should.
+- The spectrum analyser is checked against tones and levels, and against a
+  discontinuity between blocks. A 997 Hz tone must land in a band whose centre is
+  within 250 Hz of it and read its −6.02 dB level to within 0.6 dB, a full-scale
+  tone must read within 0.6 dB of 0 dB, two tones inside one band must sum to
+  +3.01 dB rather than reporting one of them, a tone below the analysis
+  resolution must still read its own level, silence must stay at the floor, a
+  band above the Nyquist of an 8 kHz graph must stay at the floor, at most a
+  quarter of the bands may sit below the analysis resolution, a quantum shorter
+  than the transform must report nothing until the history is full, and the band
+  centres must rise and span the audio range. The signal generator keeps its
+  phase across blocks, because a tone that restarts every block is not a tone:
+  that mistake made an earlier version of these tests pass by luck.
+- The engine publishes that measurement rather than a stored value: a full-scale
+  1 kHz tone pushed through the realtime processor must appear in the loudest
+  band, within 250 Hz of its frequency and within 3 dB of its own level; the
+  snapshot object is checked for returning what was published and for returning
+  every band to the floor when it is cleared, which is what the engine does when
+  it stops.
 - The reverberation pre-delay is checked for channel isolation: an impulse in the
   right channel must not appear at the left output, which fails if the two
   channels share one pre-delay line.
 - The registry carries each descriptor's parameter specifications, so a
   descriptor and its parameter table cannot drift apart.
+- Every effect's symbolic icon is checked against `data/`: the file named by
+  `format::effect_icon` must exist, must draw from `currentColor`, must be a
+  16 px symbolic icon, and must keep each tag on one line. The line-break rule is
+  cosmetic — `rsvg-convert` and the gdk-pixbuf SVG loader were measured to render
+  the two spellings byte-identically — so the test enforces a formatting
+  convention, not a rendering requirement.
 - The ring buffer, command queue and trimming policy are exercised with a real
   `rtrb` producer and consumer.
 - The two meters are checked against each other: an empty chain must report the
@@ -493,10 +638,25 @@ installed into the system here.
   input test starts the microphone pipeline and records from
   `pipewire-effects-source` with `pw-cat --record`, then asserts that the
   virtual source exists and that the recording drove the input chain. Four of
-  the six live tests are these; `crates/engine/tests/live_gpu.rs` adds one for
-  `GPU` and one for `Both`, described in section 12. All six are `#[ignore]`d so
-  they do not run by default, and they serialise on a process-wide lock because
-  they mutate the shared graph.
+  the seven live tests are these; `crates/engine/tests/live_gpu.rs` adds one for
+  `GPU` and one for `Both`, described in section 12, and
+  `crates/engine/tests/live_noise_reduction.rs` adds the one below. All seven are
+  `#[ignore]`d so they do not run by default, and they serialise on a
+  process-wide lock because they mutate the shared graph.
+- `crates/engine/tests/live_noise_reduction.rs` puts the noise reduction stage in
+  the real chain on a private sink: it asserts that a −20 dB 1 kHz tone reaches
+  the chain at its own level, that the chain processed at least 4 800 frames, that
+  the stage took more than 20 dB off the tone, and that the underruns stay below
+  an eighth of the processed frames. It samples the meters across the whole run and
+  keeps the largest reduction it sees, because the network takes time to settle
+  and a single sample taken as the tone starts is not the steady-state figure:
+  three consecutive runs measured the tone arriving at −20.00 dB and leaving
+  124.00 dB, 96.14 dB and 50.52 dB lower. Before that change the test read the
+  meter once and failed intermittently on a loaded machine, which is what a
+  single-sample measurement of a settling stage does. A steady sine is noise to a speech model, which is why the
+  reduction is that large; the point of the test is that the network runs inside
+  the realtime callback without dropping audio, which is the risk `nnnoiseless`'
+  lazily planned transform carries into the first frame.
 - The command line is parsed without a dependency and covered by tests: the flags
   in both spellings, the rejection of an unknown option, and that the help text
   lists every option.
@@ -527,6 +687,12 @@ installed into the system here.
   render tree and writes the result to that PNG. It exists because GNOME refuses
   `org.gnome.Shell.Screenshot` to every client except the shell itself, so a
   compositor screenshot is not available to a test on a Wayland session.
+- `TONE=1 scripts/capture-screen.sh` plays a −20 dB 440 Hz sine into the
+  application's own sink with `ffmpeg` and `pw-cat` while it captures, so the
+  meters and the spectrum are photographed with real audio flowing rather than at
+  the floor. It is how the spectrum was checked against the output meter:
+  `441 Hz −44.1 dB` in the caption against `−44.0 dB` on the meter, with the
+  tone's own file measured at −41.1 dB and the input meter reading the same.
 - A second, independent capture channel exists for the X11 backend: the release
   binary runs under `Xvfb` and an external client takes the whole root window with
   ImageMagick's `import -window root`. That is a screen capture taken by another
@@ -569,34 +735,59 @@ installed into the system here.
 ### CPU baseline
 
 `cargo test --release -p pwe-dsp --test benchmark -- --ignored --nocapture` times
-each effect and the
-full twenty-three-effect chain on the machine it runs on: a 48 kHz stereo stream, a
-per-block wall clock over 2 000 blocks, and the tone-generation cost subtracted
-so the numbers are the effects. It also fails if the full chain ever needs more
-than half of a block. The verification run (Intel Core i7-7500U, two cores and
-four threads, `rustc 1.99.1`, release profile with thin LTO, concurrent desktop
-load from Firefox and GNOME Shell) gave:
+each effect and the full twenty-four-effect chain on the machine it runs on: a
+48 kHz stereo stream, a per-block wall clock over 2 000 blocks, three rounds per
+workload of which the fastest is reported so that concurrent desktop load cannot
+inflate a figure, and the tone-generation cost subtracted so the numbers are the
+effects. It also times the spectrum analyser, which runs in the audio path, and
+fails if the full chain ever needs more than half of a block. Three consecutive
+runs on the development machine (Intel Core i7-7500U, two cores and four threads,
+`rustc 1.99.1`, release profile with thin LTO, concurrent desktop load from
+Firefox and GNOME Shell) gave:
 
 | Workload | 1024 frames per block |
 |---|---|
-| All twenty-three effects | 6269 μs/block · 3.4× realtime · 29.4 % of one core |
-| Voice suppressor (heaviest) | 1121 μs/block · 5.3 % of one core |
-| Reverberation | 469 μs/block · 2.2 % of one core |
-| Multiband compressor | 399 μs/block · 1.9 % of one core |
-| Multiband gate | 321 μs/block · 1.5 % of one core |
-| Delay | 220 μs/block · 1.0 % of one core |
-| Equalizer | 101 μs/block · 0.48 % of one core |
-| Gain (lightest) | below the timer resolution |
+| All twenty-four effects | 2.40–3.57 ms/block · 6.0–8.9× realtime · 11.2–16.7 % of one core |
+| Noise reduction (heaviest) | 0.66–0.80 ms/block · 3.1–3.8 % of one core |
+| Voice suppressor | 0.48–0.51 ms/block · 2.2–2.4 % of one core |
+| Multiband compressor | 0.28–0.38 ms/block · 1.3–1.8 % of one core |
+| Multiband gate | 0.26–0.35 ms/block · 1.2–1.6 % of one core |
+| Equalizer | 0.09–0.17 ms/block · 0.4–0.8 % of one core |
+| Reverberation (with its tone stage) | 0.08–0.18 ms/block · 0.4–0.8 % of one core |
+| Expander | 0.025–0.083 ms/block · 0.1–0.4 % of one core |
+| Compressor | 0.048–0.059 ms/block · 0.3 % of one core |
+| Limiter (5 ms lookahead) | 0.041–0.059 ms/block · 0.2–0.3 % of one core |
+| Gate (6 dB curve) | 0.025–0.026 ms/block · 0.1 % of one core |
+| Stereo tools | 0.011 ms/block · 0.05 % of one core |
+| Spectrum analyser | 0.117–0.194 ms/block · 0.55–0.91 % of one core |
+| Gain (lightest) | at or below the timer's resolution |
 
-The whole chain still finishes in a third of the 21.3 ms deadline and leaves
-about 3.4× realtime of headroom on a loaded two-core laptop. The three spectral
-effects are the expensive ones: the voice suppressor alone is about a sixth of
-the chain because it runs a 1024-point STFT on every block. These are
-wall-clock figures from one machine under concurrent load, not a portable
-claim; an earlier run on the same machine measured 1743 μs and 12.2× realtime
-when idle, so the range is roughly 1.7–6.3 ms for the full chain. Re-run the
-measurement to reproduce a figure on other hardware, and read it together with
-the load on the machine.
+The whole chain finishes between a sixth and a twelfth of the 21.3 ms deadline
+and leaves 6.0–8.9× realtime of headroom, the spread being the desktop's own
+load rather than anything in the chain: on the same machine and in the same
+session the figure moved by 45 % between runs while the per-effect figures moved
+by less. The heaviest stages are the ones that work in the frequency domain:
+`nnnoiseless` runs a 960-sample transform and a recurrent network per 10 ms
+frame, the voice suppressor runs a 1024-point STFT with 75 % overlap on every
+block, and the spectrum looks at 8192 samples every third block. The small
+effects read as zero in a loaded run because they are cheaper than the timer's
+resolution; that is a limit of the measurement, not a claim that they are free.
+
+**The sidechain filters bypass rather than compute.** Running three high-pass and
+three low-pass biquads per channel per sample whether or not they are engaged
+cost the compressor 111 μs per block against 58 μs once a disabled filter
+short-circuits to the raw sample, and the expander 215 μs against 83 μs; both
+figures are from the same machine and the same test, with both filters off in
+both cases, which is the state a preset written before this change loads in. The
+reverb's tone stage cannot take that shortcut because it is doing real work, and
+it shows: 0.08–0.18 ms against 0.08–0.10 ms before.
+
+**The measurement method changed with this table.** The earlier figures were one
+run per workload, which under concurrent load produced a range of 1.7–6.3 ms for
+the full chain; this table reports the fastest of three rounds instead, so its
+numbers are lower for the same work and the two tables are not comparable. Re-run
+the measurement to reproduce a figure on other hardware, and read it together
+with the load on the machine.
 
 
 ### Processing backend selection (CPU, GPU, Both)
@@ -652,10 +843,30 @@ claims GPU acceleration as a performance win.
 The live tests `crates/engine/tests/live_gpu.rs` run the real daemon, a
 private virtual sink and `pw-cat`, once for `GPU` and once for `Both`. They
 assert that processed frames reached the chain, that GPU blocks were counted,
-that deadline fallbacks stayed below a tenth of the blocks, and that `Both`
+that deadline fallbacks stayed at most a tenth of the blocks, and that `Both`
 reported zero disagreements. These are `#[ignore]`d like the other live tests
 and are run explicitly. The decision and its evidence are pinned here so a
 later change cannot silently turn the setting into a mock or delete it.
+
+**The fallback ratio is a property of the machine's scheduling, not of the
+GPU's throughput, and the two live tests fail on a busy one.** Measured on this
+development machine: the persistent GPU stage costs 302.5 μs for a 1024-frame
+stereo block (`cargo test --release -p pwe-engine --lib gpu -- --ignored
+--nocapture`), against a fence budget of half of a 1024-frame block at 48 kHz,
+which is 10.7 ms — thirty-five times the cost of the stage itself. A fallback
+therefore does not mean the GPU is slow, it means the driver or the scheduler
+stalled past the budget that block. When the session's default output was the
+built-in analogue device and the machine was quiet, the same tests measured 0
+fallbacks in 44–52 GPU blocks. With a Bluetooth headset as the session default
+and a load average of 3–6 on this two-core, four-thread machine, they measured
+4–9 fallbacks in 30–75 blocks — 11 % to 17 %, above the tenth the test asks for —
+and the two tests reported `FAILED` while `gpu_disagreements` stayed at 0 in
+every run, which is the point: a missed deadline applies the gain on the CPU, so
+the audio stays correct and the counters say what happened. Nothing in the GPU
+backend was changed in the pass that observed this; the throughput figure above
+is the same as it was. Treat a failure of those two tests as evidence about the
+machine first, and re-run them on a quiet one before concluding that anything in
+`crates/engine/src/gpu` regressed.
 
 ## 13. Interface review
 
@@ -963,3 +1174,45 @@ the chain signature changed, so the entry stayed hidden until an unrelated
 refresh; `Ui::refresh` now sets the action from the persisted developer-mode
 value on every 50 ms tick, and the `dev-live` capture is the regression check
 for that fix.
+
+### The noise reduction and spectrum pass
+
+The pass that added the twenty-fourth effect and the spectrum re-ran the harness
+on the headless Wayland session, in both appearances: the twenty-four states of
+`capture-ui.sh` (the standard set plus `effect:noise_reduction` and `input`) in
+the light appearance, and the standard set plus the noise reduction editor in the
+dark one, followed by `TONE=1 capture-screen.sh` on the X11 backend in both
+appearances so that the meters and the spectrum were photographed with a real
+tone flowing. What it found and changed:
+
+- The spectrum's caption named a frequency the transform could not resolve. With
+  the first version's 1024-point transform the bin width at 48 kHz is 46.9 Hz, so
+  22 of the 48 bands lay below the analysis resolution and nine of them reported
+  one shared bin under nine labels from 21 Hz to 79 Hz; the capture read
+  `21 Hz −39.2 dB` for content at 47 Hz. The analyser now uses the reference
+  analyser's own default 8192-point transform, integrates the Parseval-corrected
+  bin power over each band instead of taking one peak bin, and normalises a band
+  narrower than the window's resolution to the analysis bandwidth. The same
+  capture now reads `441 Hz −44.1 dB` for a 440 Hz tone whose output meter reads
+  `−44.0 dB`, and the microphone capture reads `91 Hz −40.4 dB` rather than a
+  frequency the transform cannot measure.
+- The effect list of the picker and the chain render the new effect with its own
+  icon in both appearances; the noise reduction editor renders its two groups and
+  its five controls with no clipping at 1040x720, at 720x620 and at 360x740.
+- The analyser's own tests were generating their signals with the phase restarting
+  every block, which makes the "tone" a periodic signal with a 1024-sample period
+  rather than a tone. Two level assertions passed by luck until the generator was
+  given a running phase.
+- A reference RNNoise preset's `wet` key was being listed as handled and dropped
+  while the stage has an equivalent mix control; it is transferred now, and the
+  keys with no equivalent are reported. The conversion tests cover both.
+
+The session's `default.audio.sink` was found pointing at the application's own
+node after this pass, as `docs/architecture.md` records happened before: the
+stale `default.configured.audio.sink` from an earlier experiment makes the
+application's sink the session default for as long as it runs. The real
+built-in device was restored with `wpctl set-default` and both metadata keys
+verified against it afterwards. The application neither writes nor reads that
+key, and making it the default output is a documented way to use it, so nothing
+in the application changed because of this; the check is a session-hygiene rule
+and `AGENTS.md` and `scripts/README.md` both carry it.

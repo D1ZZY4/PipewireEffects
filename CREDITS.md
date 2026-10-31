@@ -64,6 +64,13 @@ written down properly.
 **Freeverb** by Jezar at Dreampoint - the comb and all-pass topology behind
 `crates/dsp/src/effects/reverb.rs`, reimplemented with rate-dependent tuning.
 
+**[RNNoise](https://gitlab.xiph.org/xiph/rnnoise)** by Jean-Marc Valin and the
+Xiph.Org Foundation, and the Rust reimplementation
+[`nnnoiseless`](https://github.com/jneem/nnnoiseless) by Joe Neeman - the
+recurrent network behind the noise reduction stage. This project calls
+`nnnoiseless` as a crate; the network, its weights and the signal analysis are
+its authors' work, not this project's. BSD-3-Clause.
+
 ### Direct dependencies
 
 | Crate | Used for | Licence |
@@ -72,6 +79,7 @@ written down properly.
 | [`crossbeam-queue`](https://crates.io/crates/crossbeam-queue) | The lock-free queue between the control and audio threads | MIT / Apache-2.0 |
 | [`rtrb`](https://crates.io/crates/rtrb) | The realtime-safe single-producer/single-consumer ring buffer | MIT / Apache-2.0 |
 | [`serde`](https://crates.io/crates/serde) + [`serde_json`](https://crates.io/crates/serde_json) | The preset file format | MIT / Apache-2.0 |
+| [`nnnoiseless`](https://crates.io/crates/nnnoiseless) | The noise reduction stage, which is RNNoise in Rust (and, through it, `easyfft`/`realfft`/`rustfft` and `once_cell`) | BSD-3-Clause |
 | [`gtk4`](https://crates.io/crates/gtk4) | The interface | MIT |
 | [`libadwaita`](https://crates.io/crates/libadwaita) | GNOME widgets and patterns | MIT |
 
