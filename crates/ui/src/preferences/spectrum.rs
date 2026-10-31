@@ -101,7 +101,7 @@ impl SpectrumPreferences {
         let fft = combo(
             t("Spectrum transform"),
             t("A larger transform resolves lower bands but updates more slowly"),
-            &["2048 points", "4096 points", "8192 points", "16384 points"],
+            &["2048", "4096", "8192", "16384"],
             {
                 let flag = Rc::clone(toggles);
                 let on_fft = Rc::clone(&actions.on_spectrum_fft);
