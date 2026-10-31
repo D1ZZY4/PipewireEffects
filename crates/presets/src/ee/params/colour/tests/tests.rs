@@ -157,6 +157,47 @@ fn the_noise_reduction_defaults_come_from_the_reference() {
 }
 
 #[test]
+fn the_exciter_gains_and_its_band_are_transferred() {
+    let object = json!({
+        "input-gain": 3.0,
+        "output-gain": -4.0,
+        "amount": 6.0,
+        "harmonics": 9.0,
+        "scope": 6000.0,
+        "ceil": 18000.0,
+        "blend": 1.5,
+        "ceil-active": true,
+    })
+    .as_object()
+    .cloned()
+    .unwrap_or_default();
+    let mut warnings = Vec::new();
+    let params = exciter(&object, &mut warnings);
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert_eq!(as_float(&params, "input_gain"), 3.0);
+    assert_eq!(as_float(&params, "output_gain"), -4.0);
+    assert_eq!(as_float(&params, "amount"), 6.0);
+    assert_eq!(as_float(&params, "harmonics"), 9.0);
+    assert_eq!(as_float(&params, "scope"), 6000.0);
+    assert_eq!(as_float(&params, "ceil"), 18000.0);
+    assert_eq!(as_float(&params, "blend"), 1.5);
+    assert_eq!(as_float(&params, "ceil_active"), 1.0);
+}
+
+#[test]
+fn the_exciter_defaults_come_from_the_reference() {
+    let object = json!({}).as_object().cloned().unwrap_or_default();
+    let mut warnings = Vec::new();
+    let params = exciter(&object, &mut warnings);
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert_eq!(as_float(&params, "input_gain"), 0.0);
+    assert_eq!(as_float(&params, "output_gain"), 0.0);
+    assert_eq!(as_float(&params, "harmonics"), 8.5);
+    assert_eq!(as_float(&params, "scope"), 7500.0);
+    assert_eq!(as_float(&params, "ceil"), 16000.0);
+}
+
+#[test]
 fn the_voice_suppressor_range_gates_and_mode_are_transferred() {
     let object = json!({
         "freq-start": 120.0,

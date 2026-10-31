@@ -26,6 +26,8 @@ const CROSSTALK_KEYS: &[&str] = &["bypass", "delay-us", "decay-db", "phantom-cen
 
 const EXCITER_KEYS: &[&str] = &[
     "bypass",
+    "input-gain",
+    "output-gain",
     "amount",
     "harmonics",
     "scope",
@@ -119,6 +121,16 @@ pub(super) fn exciter(
 ) -> BTreeMap<String, PresetValue> {
     skipped(parameters, EXCITER_KEYS, "exciter", warnings);
     let mut params = BTreeMap::new();
+    put(
+        &mut params,
+        "input_gain",
+        number(parameters, "input-gain", 0.0),
+    );
+    put(
+        &mut params,
+        "output_gain",
+        number(parameters, "output-gain", 0.0),
+    );
     put(&mut params, "amount", number(parameters, "amount", 0.0));
     put(
         &mut params,
