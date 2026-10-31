@@ -34,8 +34,6 @@ const STEREO_TOOLS_KEYS: &[&str] = &[
     "middle-level",
     "middle-panorama",
     "delay",
-    "dry",
-    "wet",
 ];
 
 pub(super) fn filter(
